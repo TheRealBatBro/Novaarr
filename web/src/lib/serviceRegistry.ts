@@ -305,6 +305,10 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     ],
     helpText: 'Powers the dashboard’s trending/anticipated carousels. A cloud API — no local/remote URL to configure.',
     healthCheck: { path: '/genres/movies' },
+    // Purely a background data source for the dashboard carousels (like Bazarr's subtitle
+    // integration) — no page of its own to link to, so it's configured in Settings > Services
+    // as usual but doesn't get a slot in the nav/command palette.
+    hideFromNav: true,
   },
 ];
 
