@@ -110,8 +110,8 @@ router.post('/import', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: "This file doesn't look like a Remotarr backup" });
     }
 
-    db.restoreFrom(staged);
-    res.json({ ok: true });
+    const { credentialPreserved } = db.restoreFrom(staged);
+    res.json({ ok: true, credentialPreserved });
   } catch (e) {
     res.status(500).json({ error: e.message || 'Restore failed' });
   } finally {

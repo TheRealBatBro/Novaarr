@@ -92,8 +92,12 @@ function RestoreDialog({ file, onOpenChange }: { file: File | null; onOpenChange
     if (!file) return;
     setBusy(true);
     try {
-      await backupApi.import(file, password);
-      toast.success('Backup restored — signing you out so you can sign back in with it');
+      const result = await backupApi.import(file, password);
+      toast.success(
+        result.credentialPreserved
+          ? 'Backup restored — your existing sign-in was kept as-is'
+          : 'Backup restored — signing you out so you can sign back in with it',
+      );
       setTimeout(() => window.location.reload(), 1200);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Restore failed');
@@ -107,9 +111,10 @@ function RestoreDialog({ file, onOpenChange }: { file: File | null; onOpenChange
         <DialogHeader>
           <DialogTitle>Restore from backup</DialogTitle>
           <DialogDescription>
-            This replaces every configured service, your dashboard layout, and your sign-in credential with what's in{' '}
-            <span className="font-medium text-foreground">{file?.name}</span>. This can't be undone. Enter the
-            password this backup was encrypted with to continue.
+            This replaces every configured service and your dashboard layout with what's in{' '}
+            <span className="font-medium text-foreground">{file?.name}</span> — this can't be undone. If this device
+            already has a PIN or password set up, it's kept as-is; only a device with no credential yet adopts the
+            one from the backup. Enter the password this backup was encrypted with to continue.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">

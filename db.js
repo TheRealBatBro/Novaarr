@@ -133,7 +133,17 @@ function backupTo(destPath) {
 // re-runs migrations, so a backup taken from an older schema version still ends up with any
 // columns added since. Closing first drops the in-process handle (and its WAL/SHM) before the
 // old base file is overwritten; initDb() lazily reopens on the next getDb() call.
+//
+// Returns { credentialPreserved }: a backup taken from a different deployment (e.g. a dev
+// instance) carries THAT deployment's own sign-in credential — almost never what you want
+// landing on a device that already has its own configured, so this device's existing
+// credential (and the JWT secret that signs its sessions, so anyone already signed in stays
+// signed in) wins whenever one was already set up before the restore. A fresh install with no
+// credential yet has nothing of its own to keep, so it adopts whatever the backup brings.
 function restoreFrom(sourcePath) {
+  const before = getSettings();
+  const hadCredential = !!(before && before.pin_hash);
+
   closeDb();
   for (const suffix of ['-wal', '-shm']) {
     const sidecar = DB_PATH + suffix;
@@ -141,6 +151,13 @@ function restoreFrom(sourcePath) {
   }
   fs.copyFileSync(sourcePath, DB_PATH);
   initDb();
+
+  if (hadCredential) {
+    getDb()
+      .prepare('UPDATE settings SET pin_hash = ?, auth_mode = ?, jwt_secret = ? WHERE id = 1')
+      .run(before.pin_hash, before.auth_mode, before.jwt_secret);
+  }
+  return { credentialPreserved: hadCredential };
 }
 
 function parseInstance(row) {

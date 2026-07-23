@@ -147,7 +147,7 @@ export const backupApi = {
     form.append('file', file);
     form.append('password', password);
     return fetch(apiUrl('/api/backup/import'), { method: 'POST', credentials: 'same-origin', body: form }).then((r) =>
-      json<{ ok: true }>(r),
+      json<{ ok: true; credentialPreserved: boolean }>(r),
     );
   },
 };
