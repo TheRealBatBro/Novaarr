@@ -1,10 +1,11 @@
 import { StrictMode } from 'react';
 import ReactDOM from 'react-dom/client';
 import { RouterProvider } from '@tanstack/react-router';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { Toaster } from 'sonner';
 import { getRouter } from './router';
 import { queryClient } from './lib/queryClient';
+import { queryPersister, PERSIST_MAX_AGE, shouldDehydrateQuery } from './lib/persist';
 import { BASE_PATH } from './lib/api';
 import './styles.css';
 
@@ -24,10 +25,13 @@ const rootEl = document.getElementById('root');
 if (rootEl) {
   ReactDOM.createRoot(rootEl).render(
     <StrictMode>
-      <QueryClientProvider client={queryClient}>
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{ persister: queryPersister, maxAge: PERSIST_MAX_AGE, dehydrateOptions: { shouldDehydrateQuery } }}
+      >
         <RouterProvider router={router} />
         <Toaster theme="dark" position="top-center" richColors />
-      </QueryClientProvider>
+      </PersistQueryClientProvider>
     </StrictMode>,
   );
 }

@@ -112,46 +112,55 @@ export function DashboardCarousel({
         <div ref={trackRef} className="no-scrollbar flex snap-x snap-proximity gap-3 overflow-x-auto px-4 pb-1 sm:px-6">
           {isLoading && Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-52 w-32 shrink-0 rounded-2xl" />)}
 
-          {!isLoading &&
-            items.map((item, i) => (
-              <motion.button
-                key={item.id}
-                type="button"
-                onClick={() => openItem(item)}
-                className="group w-28 shrink-0 snap-start text-left sm:w-32"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: Math.min(i, 10) * 0.02 }}
-                whileHover={{ scale: 1.04, y: -2 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <div className="relative aspect-[2/3] w-full overflow-hidden rounded-2xl bg-muted shadow-md ring-1 ring-black/5 transition-shadow group-hover:shadow-xl group-hover:ring-primary/40 dark:ring-white/10">
-                  {item.imageUrl ? (
-                    <img src={item.imageUrl} alt={item.title} loading="lazy" className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center p-1.5 text-center text-[10px] text-muted-foreground">
-                      {item.title}
+          {!isLoading && (
+            <AnimatePresence>
+              {items.map((item, i) => (
+                <motion.button
+                  key={item.id}
+                  layout
+                  type="button"
+                  onClick={() => openItem(item)}
+                  className="group w-28 shrink-0 snap-start text-left sm:w-32"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{
+                    opacity: { delay: Math.min(i, 10) * 0.02 },
+                    y: { delay: Math.min(i, 10) * 0.02 },
+                    layout: { duration: 0.25, ease: 'easeOut' },
+                  }}
+                  whileHover={{ scale: 1.04, y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <div className="relative aspect-[2/3] w-full overflow-hidden rounded-2xl bg-muted shadow-md ring-1 ring-black/5 transition-shadow group-hover:shadow-xl group-hover:ring-primary/40 dark:ring-white/10">
+                    {item.imageUrl ? (
+                      <img src={item.imageUrl} alt={item.title} loading="lazy" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center p-1.5 text-center text-[10px] text-muted-foreground">
+                        {item.title}
+                      </div>
+                    )}
+                    {item.rating !== undefined && (
+                      <span className="absolute right-1.5 top-1.5 flex items-center gap-0.5 rounded-full bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
+                        <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
+                        {item.rating}
+                      </span>
+                    )}
+                    {item.status && (
+                      <span
+                        title={STATUS_LABEL[item.status]}
+                        className={cn('absolute left-1.5 top-1.5 h-2.5 w-2.5 rounded-full ring-2 ring-black/40', STATUS_DOT[item.status])}
+                      />
+                    )}
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent px-2 pb-1.5 pt-6">
+                      <p className="truncate text-xs font-semibold text-white">{item.title}</p>
+                      {item.subtitle && <p className="truncate text-[10px] text-white/70">{item.subtitle}</p>}
                     </div>
-                  )}
-                  {item.rating !== undefined && (
-                    <span className="absolute right-1.5 top-1.5 flex items-center gap-0.5 rounded-full bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
-                      <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
-                      {item.rating}
-                    </span>
-                  )}
-                  {item.status && (
-                    <span
-                      title={STATUS_LABEL[item.status]}
-                      className={cn('absolute left-1.5 top-1.5 h-2.5 w-2.5 rounded-full ring-2 ring-black/40', STATUS_DOT[item.status])}
-                    />
-                  )}
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent px-2 pb-1.5 pt-6">
-                    <p className="truncate text-xs font-semibold text-white">{item.title}</p>
-                    {item.subtitle && <p className="truncate text-[10px] text-white/70">{item.subtitle}</p>}
                   </div>
-                </div>
-              </motion.button>
-            ))}
+                </motion.button>
+              ))}
+            </AnimatePresence>
+          )}
         </div>
 
         <AnimatePresence>
