@@ -23,6 +23,7 @@ export function TracearrViolationsWidget({ instance, title }: { instance: Servic
     path: '/api/v1/public/violations',
     query: { pageSize: '3', acknowledged: 'false' },
     refetchInterval: (instance.refreshIntervalMinutes ?? 5) * 60_000,
+    staleTime: (instance.refreshIntervalMinutes ?? 5) * 60_000,
   });
 
   if (!isLoading && !data?.ok) return null;

@@ -46,9 +46,13 @@ export const REFRESH_INTERVAL_LIMITS: Record<string, { min: number; max: number 
   default: { min: 5, max: 720 },
 };
 
-function refreshMs(instance: ServiceInstance | undefined): number {
+// staleTime matches refetchInterval so a page remount (navigating away and back, or a reload)
+// doesn't force an immediate refetch just because the global 10s default elapsed — otherwise a
+// deliberately long configured schedule (e.g. 12h) would be defeated by ordinary navigation.
+function refreshSchedule(instance: ServiceInstance | undefined): { refetchInterval: number; staleTime: number } {
   const fallback = instance?.serviceId === 'trakt' ? 60 : 5;
-  return (instance?.refreshIntervalMinutes ?? fallback) * 60_000;
+  const ms = (instance?.refreshIntervalMinutes ?? fallback) * 60_000;
+  return { refetchInterval: ms, staleTime: ms };
 }
 
 export const TMDB_IMAGE = 'https://image.tmdb.org/t/p/w342';
@@ -124,7 +128,7 @@ function radarrStatus(m: RadarrMovie, downloadingIds: Set<number>): PosterStatus
 }
 
 export function useRadarrCarousel(instance: ServiceInstance | undefined, mode: 'upcoming' | 'recent'): CarouselResult {
-  const { data, isLoading } = useServiceProxy<RadarrMovie[]>(instance, { path: '/api/v3/movie', refetchInterval: refreshMs(instance) });
+  const { data, isLoading } = useServiceProxy<RadarrMovie[]>(instance, { path: '/api/v3/movie', ...refreshSchedule(instance) });
   const { data: queueData } = useServiceProxy<{ records?: RadarrQueueRecord[] }>(instance, {
     path: '/api/v3/queue',
     query: { pageSize: '200' },
@@ -189,7 +193,7 @@ function sonarrSeriesStatus(s: SonarrSeries): PosterStatus {
 }
 
 export function useSonarrRecentCarousel(instance: ServiceInstance | undefined): CarouselResult {
-  const { data, isLoading } = useServiceProxy<SonarrSeries[]>(instance, { path: '/api/v3/series', refetchInterval: refreshMs(instance) });
+  const { data, isLoading } = useServiceProxy<SonarrSeries[]>(instance, { path: '/api/v3/series', ...refreshSchedule(instance) });
   const series = [...asArray(data)].sort((a, b) => (b.added || '').localeCompare(a.added || ''));
   const items: CarouselItem[] = series.slice(0, LIMIT).map((s) => ({
     id: String(s.id),
@@ -214,7 +218,7 @@ export function useSonarrUpcomingCarousel(instance: ServiceInstance | undefined)
   const { data, isLoading } = useServiceProxy<SonarrCalendarItem[]>(instance, {
     path: '/api/v3/calendar',
     query: { start, end, includeSeries: 'true' },
-    refetchInterval: refreshMs(instance),
+    ...refreshSchedule(instance),
   });
   const episodes = [...asArray(data)].sort((a, b) => a.airDateUtc.localeCompare(b.airDateUtc));
   const items: CarouselItem[] = episodes.slice(0, LIMIT).map((ep) => ({
@@ -255,7 +259,7 @@ type OverseerrDiscoverItem = {
 type OverseerrDiscoverResponse = { results?: OverseerrDiscoverItem[] };
 
 export function useOverseerrCarousel(instance: ServiceInstance | undefined, path: string): CarouselResult {
-  const { data, isLoading } = useServiceProxy<OverseerrDiscoverResponse>(instance, { path, refetchInterval: refreshMs(instance), timeoutMs: 15_000 });
+  const { data, isLoading } = useServiceProxy<OverseerrDiscoverResponse>(instance, { path, ...refreshSchedule(instance), timeoutMs: 15_000 });
   const results = data?.ok && Array.isArray(data.data?.results) ? data.data!.results! : [];
   const items: CarouselItem[] = results.slice(0, LIMIT).map((r) => {
     const date = r.releaseDate || r.firstAirDate;
@@ -291,7 +295,7 @@ export function useTautulliRecentCarousel(instance: ServiceInstance | undefined)
   const { data, isLoading } = useServiceProxy<TautulliHistoryResponse>(instance, {
     path: '/api/v2',
     query: { cmd: 'get_history', order_column: 'date', order_dir: 'desc', length: String(LIMIT) },
-    refetchInterval: refreshMs(instance),
+    ...refreshSchedule(instance),
   });
   const rawRows = data?.ok ? data.data?.response?.data?.data : undefined;
   const rows = Array.isArray(rawRows) ? rawRows : [];
@@ -326,7 +330,7 @@ export function useTraktCarousel(
   path: string,
   mediaType: 'movie' | 'tv',
 ): CarouselResult {
-  const listQuery = useServiceProxy<TraktListEntry[]>(trakt, { path, refetchInterval: refreshMs(trakt), timeoutMs: 15_000 });
+  const listQuery = useServiceProxy<TraktListEntry[]>(trakt, { path, ...refreshSchedule(trakt), timeoutMs: 15_000 });
   const raw = asArray(listQuery.data).slice(0, LIMIT).map((entry) => entry.movie ?? entry.show ?? entry).filter((m) => m?.title);
   const tmdbIds = raw.map((m) => m.ids?.tmdb).filter((id): id is number => typeof id === 'number');
 

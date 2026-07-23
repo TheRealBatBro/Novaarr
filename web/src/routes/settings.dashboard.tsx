@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { Reorder } from 'framer-motion';
-import { GripVertical } from 'lucide-react';
+import { GripVertical, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { SettingsTabs } from '@/components/settings/SettingsTabs';
 import { Switch } from '@/components/ui/switch';
@@ -12,6 +13,7 @@ import { WIDGET_CATALOG } from '@/lib/dashboardWidgets';
 import { getServiceDefinition } from '@/lib/serviceRegistry';
 import { getServiceIcon } from '@/lib/serviceIcons';
 import { useDashboardWidgets, useSetDashboardWidgets, useServices, useUpdateService } from '@/lib/queries';
+import { cn } from '@/lib/utils';
 import type { ServiceInstance } from '@/lib/api';
 
 export const Route = createFileRoute('/settings/dashboard')({ component: SettingsDashboard });
@@ -41,11 +43,13 @@ function closestStopIndex(stops: number[], minutes: number): number {
 }
 
 function RefreshIntervalRow({ source, instance }: { source: string; instance?: ServiceInstance }) {
+  const qc = useQueryClient();
   const updateService = useUpdateService();
   const sourceDef = getServiceDefinition(source);
   const Icon = getServiceIcon(source);
   const stops = PRESET_STOPS[source] ?? PRESET_STOPS.default;
   const [index, setIndex] = useState(() => closestStopIndex(stops, instance?.refreshIntervalMinutes ?? stops[0]));
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (instance) setIndex(closestStopIndex(stops, instance.refreshIntervalMinutes));
@@ -65,6 +69,22 @@ function RefreshIntervalRow({ source, instance }: { source: string; instance?: S
 
   const label = instance?.displayName ?? sourceDef?.displayName ?? source;
 
+  // type: 'all' rather than the default 'active' — this page doesn't have the dashboard's own
+  // carousels mounted, so without it a refresh here would just mark the cache stale and do
+  // nothing visible until the next dashboard visit.
+  async function refreshNow() {
+    if (!instance) return;
+    setRefreshing(true);
+    try {
+      await qc.refetchQueries({ queryKey: ['proxy', instance.id], type: 'all' });
+      toast.success(`${label} refreshed`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Refresh failed');
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   return (
     <Card className={!instance ? 'opacity-50' : undefined}>
       <CardContent className="flex flex-col gap-3 p-3">
@@ -76,6 +96,15 @@ function RefreshIntervalRow({ source, instance }: { source: string; instance?: S
             <Icon className="h-5 w-5" />
           </span>
           <p className="min-w-0 flex-1 truncate text-sm font-medium leading-tight">{label}</p>
+          <button
+            type="button"
+            onClick={refreshNow}
+            disabled={!instance || refreshing}
+            aria-label={`Refresh ${label} now`}
+            className="shrink-0 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+          >
+            <RefreshCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
+          </button>
           <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold tabular-nums text-primary">
             {instance ? `Every ${formatMinutes(stops[index])}` : 'Not configured'}
           </span>

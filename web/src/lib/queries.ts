@@ -59,6 +59,10 @@ export function useServiceProxy<T = unknown>(
     query?: Record<string, string>;
     body?: unknown;
     refetchInterval?: number | false;
+    /** Defaults to the global 10s if unset — dashboard widgets pass this explicitly (matching
+     * their own refetchInterval) so a page remount doesn't force an immediate refetch just
+     * because 10s elapsed, defeating a deliberately long configured schedule. */
+    staleTime?: number;
     timeoutMs?: number;
     enabled?: boolean;
   },
@@ -68,6 +72,7 @@ export function useServiceProxy<T = unknown>(
     queryFn: () => proxyApi.call<T>(instance!.id, { path: opts.path, method: opts.method, query: opts.query, body: opts.body, timeoutMs: opts.timeoutMs }),
     enabled: (opts.enabled ?? true) && !!instance,
     refetchInterval: opts.refetchInterval ?? 10_000,
+    staleTime: opts.staleTime,
     retry: 1,
   });
 }
