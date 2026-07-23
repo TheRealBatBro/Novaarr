@@ -110,24 +110,24 @@ export function ArrQueueItemDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-xl">
-        <DialogHeader>
-          <DialogTitle className="truncate">{record.title}</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="max-w-xl min-w-0">
+        <DialogHeader className="min-w-0">
+          <DialogTitle className="break-words pr-6">{record.title}</DialogTitle>
+          <DialogDescription className="min-w-0 break-words">
             {record.indexer && <span>{record.indexer}</span>}
             {record.downloadClient && <span> · {record.downloadClient}</span>}
           </DialogDescription>
         </DialogHeader>
 
         {record.warning && (
-          <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-500">
+          <div className="flex min-w-0 items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-500">
             <AlertTriangle className="h-4 w-4 shrink-0" />
-            <span className="truncate">{record.warning}</span>
+            <span className="min-w-0 break-words">{record.warning}</span>
           </div>
         )}
 
         {!showImport && (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex min-w-0 flex-wrap gap-2">
             {canManualImport && (
               <Button variant="outline" size="sm" onClick={openImport}>
                 <FolderInput className="h-3.5 w-3.5" /> Manual import
@@ -143,9 +143,9 @@ export function ArrQueueItemDialog({
         )}
 
         {showImport && (
-          <div className="flex flex-col gap-2">
+          <div className="flex min-w-0 flex-col gap-2">
             <p className="text-sm text-muted-foreground">Files found for this download, with anything blocking automatic import.</p>
-            <div className="flex max-h-80 flex-col gap-2 overflow-y-auto">
+            <div className="flex max-h-80 min-w-0 flex-col gap-2 overflow-y-auto">
               {fetchCandidates.isPending && Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)}
               {fetchCandidates.isSuccess && candidates.length === 0 && (
                 <p className="text-sm text-muted-foreground">No importable files found for this download.</p>
@@ -153,7 +153,7 @@ export function ArrQueueItemDialog({
               {candidates.map((c, i) => {
                 const busy = importFile.isPending && importFile.variables === c;
                 return (
-                  <div key={i} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3 text-sm">
+                  <div key={i} className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-border p-3 text-sm">
                     <div className="min-w-0">
                       <p className="truncate font-medium">{c.folderName || c.path.split('/').pop()}</p>
                       <p className="truncate text-xs text-muted-foreground">
