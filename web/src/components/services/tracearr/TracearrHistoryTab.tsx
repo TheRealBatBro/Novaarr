@@ -44,7 +44,7 @@ export function TracearrHistoryTab({ instance }: { instance: ServiceInstance }) 
   const items = data?.data?.data ?? [];
   const totalPlays = data?.data?.meta?.total ?? items.length;
   const watchSeconds = items.reduce((sum, i) => sum + Number(i.durationMs ?? 0) / 1000, 0);
-  const uniqueUsers = new Set(items.map((i) => i.user.id)).size;
+  const uniqueUsers = new Set(items.map((i) => i.user?.id).filter(Boolean)).size;
   const uniqueTitles = new Set(items.map((i) => historyDisplayTitle(i))).size;
 
   return (
@@ -107,9 +107,9 @@ export function TracearrHistoryTab({ instance }: { instance: ServiceInstance }) 
                 <p className="truncate text-sm text-muted-foreground">{historySubtitle(item)}</p>
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <span className="flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted">
-                    {item.user.avatarUrl ? <img src={item.user.avatarUrl} alt="" className="h-full w-full object-cover" /> : <User className="h-2.5 w-2.5" />}
+                    {item.user?.avatarUrl ? <img src={item.user.avatarUrl} alt="" className="h-full w-full object-cover" /> : <User className="h-2.5 w-2.5" />}
                   </span>
-                  <span className="truncate">{item.user.username}</span>
+                  <span className="truncate">{item.user?.username ?? 'Unknown user'}</span>
                   {item.device && (
                     <>
                       <span>·</span>

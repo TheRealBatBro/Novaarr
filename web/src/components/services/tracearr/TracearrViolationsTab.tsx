@@ -78,14 +78,14 @@ export function TracearrViolationsTab({ instance }: { instance: ServiceInstance 
           <div key={v.id} className="flex items-start gap-3 rounded-xl border border-border bg-card p-3">
             <div className="relative shrink-0">
               <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-muted">
-                {v.user.avatarUrl ? <img src={v.user.avatarUrl} alt="" className="h-full w-full object-cover" /> : <User className="h-4 w-4 text-muted-foreground" />}
+                {v.user?.avatarUrl ? <img src={v.user.avatarUrl} alt="" className="h-full w-full object-cover" /> : <User className="h-4 w-4 text-muted-foreground" />}
               </div>
               <span className={cn('absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card', v.acknowledged ? 'bg-success' : 'bg-primary')} />
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate font-semibold leading-tight">{v.rule.name}</p>
               <p className="truncate text-xs text-muted-foreground">
-                {v.user.username} · {v.serverName}
+                {v.user?.username ?? 'Unknown user'} · {v.serverName}
               </p>
               <p className="text-xs text-muted-foreground">{timeAgo(v.createdAt)}</p>
             </div>

@@ -78,9 +78,9 @@ export function TracearrDashboardTab({ instance }: { instance: ServiceInstance }
                 <p className="truncate text-xs text-muted-foreground">{historySubtitle(s)}</p>
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <span className="flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted">
-                    {s.user.avatarUrl ? <img src={s.user.avatarUrl} alt="" className="h-full w-full object-cover" /> : <User className="h-2.5 w-2.5" />}
+                    {s.user?.avatarUrl ? <img src={s.user.avatarUrl} alt="" className="h-full w-full object-cover" /> : <User className="h-2.5 w-2.5" />}
                   </span>
-                  <span className="truncate">{s.user.username}</span>
+                  <span className="truncate">{s.user?.username ?? 'Unknown user'}</span>
                   <span>·</span>
                   <span className="shrink-0 capitalize">{s.state}</span>
                 </div>

@@ -60,7 +60,8 @@ export type TracearrViolation = {
   createdAt: string;
   data?: Record<string, unknown>;
   rule: { id: string; type: string; name: string };
-  user: { id: string; username: string; thumbUrl?: string | null; avatarUrl?: string | null };
+  // Optional — a session tied to a deleted/unresolved Plex account has no user to report.
+  user?: { id: string; username: string; thumbUrl?: string | null; avatarUrl?: string | null };
 };
 
 export type TracearrSessionHistory = {
@@ -83,7 +84,8 @@ export type TracearrSessionHistory = {
   player?: string | null;
   platform?: string | null;
   isTranscode?: boolean | null;
-  user: { id: string; username: string; thumbUrl?: string | null; avatarUrl?: string | null };
+  // Optional — a session tied to a deleted/unresolved Plex account has no user to report.
+  user?: { id: string; username: string; thumbUrl?: string | null; avatarUrl?: string | null };
 };
 
 export function historySubtitle(item: TracearrSessionHistory): string {

@@ -54,12 +54,12 @@ export function TracearrViolationsWidget({ instance, title }: { instance: Servic
           {violations.map((v) => (
             <div key={v.id} className="flex items-center gap-2.5 text-sm">
               <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted">
-                {v.user.avatarUrl ? <img src={v.user.avatarUrl} alt="" className="h-full w-full object-cover" /> : <User className="h-3.5 w-3.5 text-muted-foreground" />}
+                {v.user?.avatarUrl ? <img src={v.user.avatarUrl} alt="" className="h-full w-full object-cover" /> : <User className="h-3.5 w-3.5 text-muted-foreground" />}
               </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium leading-tight">{v.rule.name}</p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {v.user.username} · {timeAgo(v.createdAt)}
+                  {v.user?.username ?? 'Unknown user'} · {timeAgo(v.createdAt)}
                 </p>
               </div>
               <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-xs font-medium', SEVERITY_TONE[v.severity])}>{SEVERITY_LABEL[v.severity]}</span>
