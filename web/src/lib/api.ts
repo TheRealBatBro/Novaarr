@@ -60,6 +60,9 @@ export type ServiceInstance = {
   favorite: boolean;
   sortOrder: number;
   enabled: boolean;
+  /** How often this instance's dashboard carousels/widgets refresh, in minutes — see
+   * REFRESH_INTERVAL_LIMITS in lib/dashboardWidgets.ts for the allowed range per service. */
+  refreshIntervalMinutes: number;
 };
 
 export type ServiceInstanceInput = Partial<Omit<ServiceInstance, 'id'>> & {

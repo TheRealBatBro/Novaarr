@@ -51,6 +51,7 @@ function initDb() {
   ensureColumn('settings', 'auth_mode', "auth_mode TEXT NOT NULL DEFAULT 'pin'");
   ensureColumn('settings', 'failed_attempts', 'failed_attempts INTEGER NOT NULL DEFAULT 0');
   ensureColumn('settings', 'locked_until', 'locked_until INTEGER');
+  ensureColumn('service_instances', 'refresh_interval_minutes', 'refresh_interval_minutes INTEGER NOT NULL DEFAULT 15');
 
   const row = db.prepare('SELECT id FROM settings WHERE id = 1').get();
   if (!row) {
@@ -160,6 +161,21 @@ function restoreFrom(sourcePath) {
   return { credentialPreserved: hadCredential };
 }
 
+// Trakt is a shared cloud API with its own rate limits, worth protecting with a higher floor
+// than a self-hosted service on the local network — everything else just needs *some* bound so
+// a typo doesn't turn into either a dead-slow dashboard or an accidental hammering loop.
+const REFRESH_INTERVAL_LIMITS = {
+  trakt: { min: 60, max: 1440 },
+  default: { min: 5, max: 1440 },
+};
+
+function clampRefreshInterval(serviceId, minutes) {
+  const { min, max } = REFRESH_INTERVAL_LIMITS[serviceId] ?? REFRESH_INTERVAL_LIMITS.default;
+  const n = Number(minutes);
+  if (!Number.isFinite(n)) return min;
+  return Math.min(max, Math.max(min, Math.round(n)));
+}
+
 function parseInstance(row) {
   if (!row) return row;
   return { ...row, credentials: JSON.parse(row.credentials || '{}') };
@@ -176,8 +192,8 @@ function getServiceInstance(id) {
 function createServiceInstance(data) {
   const stmt = getDb().prepare(`
     INSERT INTO service_instances
-      (service_id, display_name, auth_type, local_url, remote_url, preferred_mode, credentials, wol_mac, wol_broadcast, favorite, sort_order, enabled)
-    VALUES (@service_id, @display_name, @auth_type, @local_url, @remote_url, @preferred_mode, @credentials, @wol_mac, @wol_broadcast, @favorite, @sort_order, @enabled)
+      (service_id, display_name, auth_type, local_url, remote_url, preferred_mode, credentials, wol_mac, wol_broadcast, favorite, sort_order, enabled, refresh_interval_minutes)
+    VALUES (@service_id, @display_name, @auth_type, @local_url, @remote_url, @preferred_mode, @credentials, @wol_mac, @wol_broadcast, @favorite, @sort_order, @enabled, @refresh_interval_minutes)
   `);
   const result = stmt.run({
     service_id: data.serviceId,
@@ -192,6 +208,7 @@ function createServiceInstance(data) {
     favorite: data.favorite ? 1 : 0,
     sort_order: data.sortOrder || 0,
     enabled: data.enabled === false ? 0 : 1,
+    refresh_interval_minutes: clampRefreshInterval(data.serviceId, data.refreshIntervalMinutes ?? 15),
   });
   return getServiceInstance(result.lastInsertRowid);
 }
@@ -211,13 +228,17 @@ function updateServiceInstance(id, data) {
     favorite: data.favorite !== undefined ? (data.favorite ? 1 : 0) : existing.favorite,
     sort_order: data.sortOrder ?? existing.sort_order,
     enabled: data.enabled !== undefined ? (data.enabled ? 1 : 0) : existing.enabled,
+    refresh_interval_minutes:
+      data.refreshIntervalMinutes !== undefined
+        ? clampRefreshInterval(existing.service_id, data.refreshIntervalMinutes)
+        : existing.refresh_interval_minutes,
   };
   getDb().prepare(`
     UPDATE service_instances SET
       display_name = @display_name, auth_type = @auth_type, local_url = @local_url, remote_url = @remote_url,
       preferred_mode = @preferred_mode, credentials = @credentials, wol_mac = @wol_mac,
       wol_broadcast = @wol_broadcast, favorite = @favorite, sort_order = @sort_order,
-      enabled = @enabled, updated_at = unixepoch()
+      enabled = @enabled, refresh_interval_minutes = @refresh_interval_minutes, updated_at = unixepoch()
     WHERE id = @id
   `).run({ ...merged, id });
   return getServiceInstance(id);

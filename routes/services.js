@@ -20,6 +20,7 @@ function serialize(instance) {
     favorite: !!instance.favorite,
     sortOrder: instance.sort_order,
     enabled: !!instance.enabled,
+    refreshIntervalMinutes: instance.refresh_interval_minutes,
   };
 }
 

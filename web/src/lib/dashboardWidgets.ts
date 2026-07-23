@@ -38,6 +38,18 @@ export const WIDGET_CATALOG: WidgetDef[] = [
   { key: 'trakt-trending-shows', title: 'Trending Shows', source: 'trakt' },
 ];
 
+// Mirrors db.js's REFRESH_INTERVAL_LIMITS — Trakt is a shared cloud API worth protecting with a
+// higher floor than a self-hosted service on the local network. The server re-clamps on save
+// regardless, this just keeps the Settings > Dashboard input's min/max honest up front.
+export const REFRESH_INTERVAL_LIMITS: Record<string, { min: number; max: number }> = {
+  trakt: { min: 60, max: 1440 },
+  default: { min: 5, max: 1440 },
+};
+
+function refreshMs(instance: ServiceInstance | undefined): number {
+  return (instance?.refreshIntervalMinutes ?? 15) * 60_000;
+}
+
 export const TMDB_IMAGE = 'https://image.tmdb.org/t/p/w342';
 
 export type PosterStatus = 'downloaded' | 'downloading' | 'upcoming' | 'missing';
@@ -111,7 +123,7 @@ function radarrStatus(m: RadarrMovie, downloadingIds: Set<number>): PosterStatus
 }
 
 export function useRadarrCarousel(instance: ServiceInstance | undefined, mode: 'upcoming' | 'recent'): CarouselResult {
-  const { data, isLoading } = useServiceProxy<RadarrMovie[]>(instance, { path: '/api/v3/movie', refetchInterval: 60_000 });
+  const { data, isLoading } = useServiceProxy<RadarrMovie[]>(instance, { path: '/api/v3/movie', refetchInterval: refreshMs(instance) });
   const { data: queueData } = useServiceProxy<{ records?: RadarrQueueRecord[] }>(instance, {
     path: '/api/v3/queue',
     query: { pageSize: '200' },
@@ -176,7 +188,7 @@ function sonarrSeriesStatus(s: SonarrSeries): PosterStatus {
 }
 
 export function useSonarrRecentCarousel(instance: ServiceInstance | undefined): CarouselResult {
-  const { data, isLoading } = useServiceProxy<SonarrSeries[]>(instance, { path: '/api/v3/series', refetchInterval: 60_000 });
+  const { data, isLoading } = useServiceProxy<SonarrSeries[]>(instance, { path: '/api/v3/series', refetchInterval: refreshMs(instance) });
   const series = [...asArray(data)].sort((a, b) => (b.added || '').localeCompare(a.added || ''));
   const items: CarouselItem[] = series.slice(0, LIMIT).map((s) => ({
     id: String(s.id),
@@ -201,7 +213,7 @@ export function useSonarrUpcomingCarousel(instance: ServiceInstance | undefined)
   const { data, isLoading } = useServiceProxy<SonarrCalendarItem[]>(instance, {
     path: '/api/v3/calendar',
     query: { start, end, includeSeries: 'true' },
-    refetchInterval: 60_000,
+    refetchInterval: refreshMs(instance),
   });
   const episodes = [...asArray(data)].sort((a, b) => a.airDateUtc.localeCompare(b.airDateUtc));
   const items: CarouselItem[] = episodes.slice(0, LIMIT).map((ep) => ({
@@ -242,7 +254,7 @@ type OverseerrDiscoverItem = {
 type OverseerrDiscoverResponse = { results?: OverseerrDiscoverItem[] };
 
 export function useOverseerrCarousel(instance: ServiceInstance | undefined, path: string): CarouselResult {
-  const { data, isLoading } = useServiceProxy<OverseerrDiscoverResponse>(instance, { path, refetchInterval: false, timeoutMs: 15_000 });
+  const { data, isLoading } = useServiceProxy<OverseerrDiscoverResponse>(instance, { path, refetchInterval: refreshMs(instance), timeoutMs: 15_000 });
   const results = data?.ok && Array.isArray(data.data?.results) ? data.data!.results! : [];
   const items: CarouselItem[] = results.slice(0, LIMIT).map((r) => {
     const date = r.releaseDate || r.firstAirDate;
@@ -278,7 +290,7 @@ export function useTautulliRecentCarousel(instance: ServiceInstance | undefined)
   const { data, isLoading } = useServiceProxy<TautulliHistoryResponse>(instance, {
     path: '/api/v2',
     query: { cmd: 'get_history', order_column: 'date', order_dir: 'desc', length: String(LIMIT) },
-    refetchInterval: false,
+    refetchInterval: refreshMs(instance),
   });
   const rawRows = data?.ok ? data.data?.response?.data?.data : undefined;
   const rows = Array.isArray(rawRows) ? rawRows : [];
@@ -313,7 +325,7 @@ export function useTraktCarousel(
   path: string,
   mediaType: 'movie' | 'tv',
 ): CarouselResult {
-  const listQuery = useServiceProxy<TraktListEntry[]>(trakt, { path, refetchInterval: false, timeoutMs: 15_000 });
+  const listQuery = useServiceProxy<TraktListEntry[]>(trakt, { path, refetchInterval: refreshMs(trakt), timeoutMs: 15_000 });
   const raw = asArray(listQuery.data).slice(0, LIMIT).map((entry) => entry.movie ?? entry.show ?? entry).filter((m) => m?.title);
   const tmdbIds = raw.map((m) => m.ids?.tmdb).filter((id): id is number => typeof id === 'number');
 
