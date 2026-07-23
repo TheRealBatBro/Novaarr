@@ -51,12 +51,21 @@ function initDb() {
   ensureColumn('settings', 'auth_mode', "auth_mode TEXT NOT NULL DEFAULT 'pin'");
   ensureColumn('settings', 'failed_attempts', 'failed_attempts INTEGER NOT NULL DEFAULT 0');
   ensureColumn('settings', 'locked_until', 'locked_until INTEGER');
-  ensureColumn('service_instances', 'refresh_interval_minutes', 'refresh_interval_minutes INTEGER NOT NULL DEFAULT 15');
+  ensureColumn('service_instances', 'refresh_interval_minutes', 'refresh_interval_minutes INTEGER NOT NULL DEFAULT 5');
 
   const row = db.prepare('SELECT id FROM settings WHERE id = 1').get();
   if (!row) {
     const jwtSecret = crypto.randomBytes(32).toString('hex');
     db.prepare('INSERT INTO settings (id, pin_hash, jwt_secret) VALUES (1, NULL, ?)').run(jwtSecret);
+  }
+
+  // One-time correction for instances that got the old blanket default of 15 minutes before the
+  // per-service default (5 min, 60 min for Trakt) existed — PRAGMA user_version tracks whether
+  // this has already run so it can never clobber a real, deliberate later choice of "15".
+  if (db.pragma('user_version', { simple: true }) < 1) {
+    db.exec("UPDATE service_instances SET refresh_interval_minutes = 60 WHERE service_id = 'trakt' AND refresh_interval_minutes = 15");
+    db.exec("UPDATE service_instances SET refresh_interval_minutes = 5 WHERE service_id != 'trakt' AND refresh_interval_minutes = 15");
+    db.pragma('user_version = 1');
   }
 
   console.log('Database ready:', DB_PATH);
@@ -166,8 +175,12 @@ function restoreFrom(sourcePath) {
 // a typo doesn't turn into either a dead-slow dashboard or an accidental hammering loop.
 const REFRESH_INTERVAL_LIMITS = {
   trakt: { min: 60, max: 1440 },
-  default: { min: 5, max: 1440 },
+  default: { min: 5, max: 720 },
 };
+
+function defaultRefreshInterval(serviceId) {
+  return serviceId === 'trakt' ? 60 : 5;
+}
 
 function clampRefreshInterval(serviceId, minutes) {
   const { min, max } = REFRESH_INTERVAL_LIMITS[serviceId] ?? REFRESH_INTERVAL_LIMITS.default;
@@ -208,7 +221,7 @@ function createServiceInstance(data) {
     favorite: data.favorite ? 1 : 0,
     sort_order: data.sortOrder || 0,
     enabled: data.enabled === false ? 0 : 1,
-    refresh_interval_minutes: clampRefreshInterval(data.serviceId, data.refreshIntervalMinutes ?? 15),
+    refresh_interval_minutes: clampRefreshInterval(data.serviceId, data.refreshIntervalMinutes ?? defaultRefreshInterval(data.serviceId)),
   });
   return getServiceInstance(result.lastInsertRowid);
 }

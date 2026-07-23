@@ -43,11 +43,12 @@ export const WIDGET_CATALOG: WidgetDef[] = [
 // regardless, this just keeps the Settings > Dashboard input's min/max honest up front.
 export const REFRESH_INTERVAL_LIMITS: Record<string, { min: number; max: number }> = {
   trakt: { min: 60, max: 1440 },
-  default: { min: 5, max: 1440 },
+  default: { min: 5, max: 720 },
 };
 
 function refreshMs(instance: ServiceInstance | undefined): number {
-  return (instance?.refreshIntervalMinutes ?? 15) * 60_000;
+  const fallback = instance?.serviceId === 'trakt' ? 60 : 5;
+  return (instance?.refreshIntervalMinutes ?? fallback) * 60_000;
 }
 
 export const TMDB_IMAGE = 'https://image.tmdb.org/t/p/w342';

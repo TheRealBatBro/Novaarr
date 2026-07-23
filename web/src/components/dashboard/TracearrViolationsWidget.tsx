@@ -22,7 +22,7 @@ export function TracearrViolationsWidget({ instance, title }: { instance: Servic
   const { data, isLoading } = useServiceProxy<ViolationsResponse>(instance, {
     path: '/api/v1/public/violations',
     query: { pageSize: '3', acknowledged: 'false' },
-    refetchInterval: (instance.refreshIntervalMinutes ?? 15) * 60_000,
+    refetchInterval: (instance.refreshIntervalMinutes ?? 5) * 60_000,
   });
 
   if (!isLoading && !data?.ok) return null;
