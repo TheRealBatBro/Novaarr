@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data', 'mediaremote.db');
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data', 'remotarr.db');
 
 let _db = null;
 

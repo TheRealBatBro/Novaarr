@@ -9,7 +9,7 @@ import { BASE_PATH } from './lib/api';
 import './styles.css';
 
 // Dark-first by default; only an explicit "light" preference opts out.
-const savedTheme = localStorage.getItem('mediaremote:theme');
+const savedTheme = localStorage.getItem('remotarr:theme');
 document.documentElement.classList.toggle('dark', savedTheme !== 'light');
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {

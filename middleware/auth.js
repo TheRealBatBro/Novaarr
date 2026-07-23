@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 const db = require('../db');
 
-const COOKIE = 'mediaremote_session';
+const COOKIE = 'remotarr_session';
 const MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 // SHOW_ALL_SERVICES=true marks this deployment as a dev/testing instance (see docker-compose.yml

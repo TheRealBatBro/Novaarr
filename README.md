@@ -55,7 +55,7 @@ docker compose up --build -d
 ```
 
 Your services, dashboard layout, and sign-in credential all persist across rebuilds —
-they live in the `mediaremote-data` volume, not the container image.
+they live in the `remotarr-data` volume, not the container image.
 
 ## Configuration (`docker-compose.yml`)
 
@@ -63,11 +63,11 @@ they live in the `mediaremote-data` volume, not the container image.
 |---|---|---|
 | `PORT` | `3000` | Port the app listens on *inside* the container — change the left side of the `ports:` mapping to use a different port on the host. |
 | `BASE_PATH` | `""` (root) | Set to a sub-path (e.g. `/remotarr`) if hosting behind a reverse proxy at a non-root path — see [Running behind a reverse proxy](#running-behind-a-reverse-proxy). |
-| `DB_PATH` | `/data/mediaremote.db` | Where the SQLite database lives. Leave as-is unless you've customized the volume mount. |
+| `DB_PATH` | `/data/remotarr.db` | Where the SQLite database lives. Leave as-is unless you've customized the volume mount. |
 | `SHOW_ALL_SERVICES` | `true` | `true` shows every supported service in the menu regardless of whether it's configured yet (handy while you're still setting things up). Set to `false` once you're done configuring, so the menu only shows services you've actually enabled. |
 
 The included `docker-compose.yml` maps container port `3000` to host port `3210`
-(`http://<host>:3210`) and mounts a named volume, `mediaremote-data`, at `/data` for
+(`http://<host>:3210`) and mounts a named volume, `remotarr-data`, at `/data` for
 the SQLite database — this single file holds your sign-in credential and every service
 you configure (URLs, API keys, Wake-on-LAN settings, dashboard layout).
 
@@ -90,28 +90,28 @@ automatically.
 
 Either way, first stop publishing the port directly — remove the `ports:` section from
 `docker-compose.yml` and put the container on the same Docker network as your proxy so
-it can reach `mediaremote:3000` by container name:
+it can reach `remotarr:3000` by container name:
 
 ```yaml
 services:
-  mediaremote:
+  remotarr:
     build: .
-    container_name: mediaremote
+    container_name: remotarr
     restart: unless-stopped
     # ports: section removed — the proxy reaches this container directly
     volumes:
-      - mediaremote-data:/data
+      - remotarr-data:/data
     environment:
       NODE_ENV: production
       PORT: 3000
       BASE_PATH: "" # or "/remotarr" for Option B
-      DB_PATH: /data/mediaremote.db
+      DB_PATH: /data/remotarr.db
       SHOW_ALL_SERVICES: "false"
     networks:
       - proxy
 
 volumes:
-  mediaremote-data:
+  remotarr-data:
 
 networks:
   proxy:
@@ -140,7 +140,7 @@ server {
     server_name remotarr.yourdomain.com;
 
     location / {
-        proxy_pass http://mediaremote:3000;
+        proxy_pass http://remotarr:3000;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -153,7 +153,7 @@ server {
     server_name yourdomain.com;
 
     location /remotarr/ {
-        proxy_pass http://mediaremote:3000;
+        proxy_pass http://remotarr:3000;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -168,13 +168,13 @@ Caddy sets the forwarded headers automatically — this is the entire config eit
 ```caddy
 # Option A — subdomain
 remotarr.yourdomain.com {
-    reverse_proxy mediaremote:3000
+    reverse_proxy remotarr:3000
 }
 
 # Option B — sub-path (BASE_PATH=/remotarr)
 yourdomain.com {
     handle_path /remotarr/* {
-        reverse_proxy mediaremote:3000
+        reverse_proxy remotarr:3000
     }
 }
 ```
@@ -183,7 +183,7 @@ yourdomain.com {
 
 ```yaml
 services:
-  mediaremote:
+  remotarr:
     # ...same as above...
     labels:
       traefik.enable: "true"
@@ -210,12 +210,12 @@ log out other already-signed-in devices.
 
 Everything Remotarr needs to remember — your sign-in credential, every configured
 service (including API keys and Wake-on-LAN details), and your dashboard layout —
-lives in one SQLite file inside the `mediaremote-data` Docker volume. Back up that
+lives in one SQLite file inside the `remotarr-data` Docker volume. Back up that
 volume (or the file at `DB_PATH`) to back up your whole setup.
 
 ```bash
 # Example: copy the DB out of the named volume for a backup
-docker cp mediaremote:/data/mediaremote.db ./mediaremote-backup.db
+docker cp remotarr:/data/remotarr.db ./remotarr-backup.db
 ```
 
 ## Tech stack
@@ -240,3 +240,20 @@ npm run dev
 This starts a Vite dev server that proxies API calls to a Remotarr backend — run the
 backend separately (`npm start` from the project root, after `npm install`) alongside
 it.
+
+## Publishing to Docker Hub
+
+To push an update to `therealbatbro/remotarr`, build and push with Buildx directly
+rather than `docker compose up --build` + `docker push`:
+
+```bash
+docker buildx build --provenance=false --sbom=false -t therealbatbro/remotarr:latest --push .
+```
+
+`--provenance=false --sbom=false` matters: without it, Buildx attaches a build
+attestation as an extra entry in the pushed manifest list, tagged
+`platform: unknown/unknown`. Many Docker clients — older Docker Engine versions, and
+NAS/Docker-UI tools like Unraid, Synology, Portainer, and Watchtower — can't resolve a
+manifest out of that shape and fail to pull with `manifest unknown`, even though the
+tag exists and pulls fine with a fully up-to-date Docker CLI. Building with those two
+flags produces a plain single-manifest image compatible with everything.

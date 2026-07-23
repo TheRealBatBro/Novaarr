@@ -1,6 +1,6 @@
 // Minimal app-shell cache — deliberately not a full offline-caching worker.
 // Never touches /api/* so live dashboard data always hits the network.
-const CACHE = 'mediaremote-shell-v1';
+const CACHE = 'remotarr-shell-v1';
 
 self.addEventListener('install', () => {
   self.skipWaiting();

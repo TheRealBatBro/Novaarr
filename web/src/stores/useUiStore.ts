@@ -20,7 +20,7 @@ export const useUiStore = create<UiState>()(
       theme: 'dark',
       setTheme: (theme) => {
         document.documentElement.classList.toggle('dark', theme === 'dark');
-        localStorage.setItem('mediaremote:theme', theme);
+        localStorage.setItem('remotarr:theme', theme);
         set({ theme });
       },
       paletteOpen: false,
@@ -31,7 +31,7 @@ export const useUiStore = create<UiState>()(
       setDevShowAllServices: (devShowAllServices) => set({ devShowAllServices }),
     }),
     {
-      name: 'mediaremote:ui',
+      name: 'remotarr:ui',
       partialize: (state) => ({ theme: state.theme, devShowAllServices: state.devShowAllServices }),
     },
   ),
