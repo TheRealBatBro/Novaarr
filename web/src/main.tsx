@@ -5,6 +5,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { getRouter } from './router';
 import { queryClient } from './lib/queryClient';
+import { BASE_PATH } from './lib/api';
 import './styles.css';
 
 // Dark-first by default; only an explicit "light" preference opts out.
@@ -13,7 +14,7 @@ document.documentElement.classList.toggle('dark', savedTheme !== 'light');
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    navigator.serviceWorker.register(`${BASE_PATH}/sw.js`).catch(() => {});
   });
 }
 

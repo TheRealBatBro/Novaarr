@@ -8,6 +8,9 @@ export type VisibleService = { definition: ServiceDefinition; instance?: Service
 declare global {
   interface Window {
     __SHOW_ALL_SERVICES__?: boolean;
+    /** Sub-path this app is mounted at behind a reverse proxy (e.g. "/remotarr"), or "" at
+     * root — injected server-side from BASE_PATH, see server.js and web/src/lib/api.ts. */
+    __BASE_PATH__?: string;
   }
 }
 

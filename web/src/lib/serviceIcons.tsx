@@ -1,3 +1,5 @@
+import { BASE_PATH } from './api';
+
 type IconProps = { className?: string };
 type Icon = (props: IconProps) => JSX.Element;
 
@@ -13,7 +15,7 @@ function svg(props: IconProps, children: JSX.Element) {
 // that has one — only µTorrent and NEWZnab lack a published logo there, so those two keep a
 // simple hand-drawn glyph below rather than a generic placeholder.
 function logo(file: string): Icon {
-  return (p) => <img src={`/icons/${file}.svg`} alt="" className={p.className} style={{ objectFit: 'contain' }} />;
+  return (p) => <img src={`${BASE_PATH}/icons/${file}.svg`} alt="" className={p.className} style={{ objectFit: 'contain' }} />;
 }
 
 const Utorrent: Icon = (p) =>

@@ -12,6 +12,7 @@ import { IndexerSearchScreen } from '@/components/services/indexer/IndexerSearch
 import { OverseerrScreen } from '@/components/services/overseerr/OverseerrScreen';
 import { TautulliScreen } from '@/components/services/tautulli/TautulliScreen';
 import { TracearrScreen } from '@/components/services/tracearr/TracearrScreen';
+import { ProwlarrScreen } from '@/components/services/prowlarr/ProwlarrScreen';
 
 export const Route = createFileRoute('/service/$serviceId')({ component: ServiceDetail });
 
@@ -53,6 +54,7 @@ function ServiceDetail() {
     if (definition.id === 'overseerr') return <OverseerrScreen instance={instance} />;
     if (definition.id === 'tautulli') return <TautulliScreen instance={instance} />;
     if (definition.id === 'tracearr') return <TracearrScreen instance={instance} />;
+    if (definition.id === 'prowlarr') return <ProwlarrScreen instance={instance} />;
     if (ARR_V3.has(definition.id)) return <ArrQueueScreen definition={definition} instance={instance} apiVersion="v3" />;
     if (ARR_V1.has(definition.id)) return <ArrQueueScreen definition={definition} instance={instance} apiVersion="v1" />;
     if (TORZNAB.has(definition.id)) return <IndexerSearchScreen definition={definition} instance={instance} />;

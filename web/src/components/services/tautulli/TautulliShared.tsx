@@ -1,11 +1,11 @@
-import type { ServiceInstance } from '@/lib/api';
+import { apiUrl, type ServiceInstance } from '@/lib/api';
 
 export function tautulliImageUrl(instance: ServiceInstance, img?: string, opts?: { width?: number; height?: number }): string | undefined {
   if (!img) return undefined;
   const params = new URLSearchParams({ img });
   if (opts?.width) params.set('width', String(opts.width));
   if (opts?.height) params.set('height', String(opts.height));
-  return `/api/tautulli/${instance.id}/image?${params.toString()}`;
+  return apiUrl(`/api/tautulli/${instance.id}/image?${params.toString()}`);
 }
 
 /** Seconds -> "70d 4h 32m", dropping leading zero units. */

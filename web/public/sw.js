@@ -15,7 +15,9 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  if (event.request.method !== 'GET' || url.pathname.startsWith('/api/')) return;
+  // A substring check (not startsWith) so this still matches when the app is served from a
+  // reverse-proxy sub-path, e.g. "/remotarr/api/...".
+  if (event.request.method !== 'GET' || url.pathname.includes('/api/')) return;
 
   // Network-first: a fresh redeploy must take effect immediately for anyone with the
   // app open or installed. The cache only exists as an offline fallback, never as the

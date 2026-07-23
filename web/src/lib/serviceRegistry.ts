@@ -219,7 +219,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     brandColor: '#ff6d2d',
     authType: 'apikey-header',
     fields: [apiKeyField],
-    comingSoon: true,
+    hasDetailScreen: true,
   },
 
   // ── Other services ────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useServiceProxy } from './queries';
-import { proxyApi, type ProxyResponse, type ServiceInstance } from './api';
+import { apiUrl, proxyApi, type ProxyResponse, type ServiceInstance } from './api';
 
 export type WidgetSource = 'sonarr' | 'radarr' | 'overseerr' | 'trakt' | 'sabnzbd' | 'tautulli' | 'tracearr';
 
@@ -295,7 +295,7 @@ export function useTautulliRecentCarousel(instance: ServiceInstance | undefined)
       id: String(r.id),
       title: isEpisode ? r.grandparent_title || r.full_title : r.title || r.full_title,
       subtitle,
-      imageUrl: r.thumb && instance ? `/api/tautulli/${instance.id}/image?${new URLSearchParams({ img: r.thumb, width: '300', height: '450' })}` : undefined,
+      imageUrl: r.thumb && instance ? apiUrl(`/api/tautulli/${instance.id}/image?${new URLSearchParams({ img: r.thumb, width: '300', height: '450' })}`) : undefined,
       to: { serviceId: 'tautulli' },
     };
   });

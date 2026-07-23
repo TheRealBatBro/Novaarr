@@ -49,6 +49,7 @@ function serveIndex(_req, res) {
     const raw = fs.readFileSync(path.join(PUBLIC, 'index.html'), 'utf8');
     cachedHtml = raw
       .replace(/__BASE__/g, BASE)
+      .replace(/__BASE_HREF__/g, (BASE || '') + '/')
       .replace(/__VERSION__/g, version)
       .replace(/__SHOW_ALL_SERVICES_VALUE__/g, String(SHOW_ALL_SERVICES));
   }

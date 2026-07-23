@@ -1,3 +1,14 @@
+// Sub-path this app is served from behind a reverse proxy (e.g. "/remotarr"), injected by
+// server.js from BASE_PATH — see web/src/lib/visibility.ts for the Window type declaration.
+// Every request to OUR OWN backend must go through this, since the browser only knows the
+// domain root, not whatever path a proxy mounted us at. Paths passed to the /api/proxy/:id
+// generic proxy (e.g. Sonarr's own `/api/v3/movie`) are a different thing — those describe a
+// path on the REMOTE service, resolved server-side, and must NOT be prefixed with this.
+export const BASE_PATH = typeof window !== 'undefined' ? window.__BASE_PATH__ || '' : '';
+export function apiUrl(path: string): string {
+  return `${BASE_PATH}${path}`;
+}
+
 export type AuthMode = 'pin' | 'password';
 export type AuthStatus = { hasCredential: boolean; authMode: AuthMode | null; authenticated: boolean };
 
@@ -10,24 +21,24 @@ async function json<T>(res: Response): Promise<T> {
 }
 
 export const authApi = {
-  status: () => fetch('/api/auth/status', { credentials: 'same-origin' }).then((r) => json<AuthStatus>(r)),
+  status: () => fetch(apiUrl('/api/auth/status'), { credentials: 'same-origin' }).then((r) => json<AuthStatus>(r)),
   setup: (mode: AuthMode, credential: string) =>
-    fetch('/api/auth/setup', {
+    fetch(apiUrl('/api/auth/setup'), {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mode, credential }),
     }).then((r) => json<{ ok: true }>(r)),
   login: (credential: string) =>
-    fetch('/api/auth/login', {
+    fetch(apiUrl('/api/auth/login'), {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ credential }),
     }).then((r) => json<{ ok: true }>(r)),
-  logout: () => fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).then((r) => json<{ ok: true }>(r)),
+  logout: () => fetch(apiUrl('/api/auth/logout'), { method: 'POST', credentials: 'same-origin' }).then((r) => json<{ ok: true }>(r)),
   changeCredential: (current: string, newMode: AuthMode, newCredential: string) =>
-    fetch('/api/auth/change-credential', {
+    fetch(apiUrl('/api/auth/change-credential'), {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
@@ -58,23 +69,23 @@ export type ServiceInstanceInput = Partial<Omit<ServiceInstance, 'id'>> & {
 };
 
 export const servicesApi = {
-  list: () => fetch('/api/services', { credentials: 'same-origin' }).then((r) => json<ServiceInstance[]>(r)),
+  list: () => fetch(apiUrl('/api/services'), { credentials: 'same-origin' }).then((r) => json<ServiceInstance[]>(r)),
   create: (input: ServiceInstanceInput) =>
-    fetch('/api/services', {
+    fetch(apiUrl('/api/services'), {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
     }).then((r) => json<ServiceInstance>(r)),
   update: (id: number, input: Partial<ServiceInstanceInput>) =>
-    fetch(`/api/services/${id}`, {
+    fetch(apiUrl(`/api/services/${id}`), {
       method: 'PUT',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
     }).then((r) => json<ServiceInstance>(r)),
   remove: (id: number) =>
-    fetch(`/api/services/${id}`, { method: 'DELETE', credentials: 'same-origin' }).then((r) => json<{ ok: true }>(r)),
+    fetch(apiUrl(`/api/services/${id}`), { method: 'DELETE', credentials: 'same-origin' }).then((r) => json<{ ok: true }>(r)),
 };
 
 export type ProxyResponse<T = unknown> = { ok: boolean; status: number; data?: T; error?: string };
@@ -84,7 +95,7 @@ export const proxyApi = {
     instanceId: number,
     opts: { path: string; method?: string; query?: Record<string, string>; body?: unknown; timeoutMs?: number },
   ) =>
-    fetch(`/api/proxy/${instanceId}`, {
+    fetch(apiUrl(`/api/proxy/${instanceId}`), {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
@@ -96,7 +107,7 @@ export const sabnzbdApi = {
   uploadNzb: (instanceId: number, file: File) => {
     const form = new FormData();
     form.append('file', file);
-    return fetch(`/api/sabnzbd/${instanceId}/upload`, {
+    return fetch(apiUrl(`/api/sabnzbd/${instanceId}/upload`), {
       method: 'POST',
       credentials: 'same-origin',
       body: form,
@@ -107,9 +118,9 @@ export const sabnzbdApi = {
 export type DashboardWidgetConfig = { key: string; enabled: boolean };
 
 export const dashboardApi = {
-  getWidgets: () => fetch('/api/dashboard/widgets', { credentials: 'same-origin' }).then((r) => json<DashboardWidgetConfig[]>(r)),
+  getWidgets: () => fetch(apiUrl('/api/dashboard/widgets'), { credentials: 'same-origin' }).then((r) => json<DashboardWidgetConfig[]>(r)),
   setWidgets: (widgets: DashboardWidgetConfig[]) =>
-    fetch('/api/dashboard/widgets', {
+    fetch(apiUrl('/api/dashboard/widgets'), {
       method: 'PUT',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
@@ -119,7 +130,7 @@ export const dashboardApi = {
 
 export const wolApi = {
   wake: (mac: string, broadcast?: string) =>
-    fetch('/api/wol', {
+    fetch(apiUrl('/api/wol'), {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },

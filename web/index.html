@@ -2,6 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <!-- Anchors every relative URL on the page (asset src/href, fetch(), anchors) to the app's
+         actual mount point, not the current document's path depth — without this, reloading a
+         deep route like /remotarr/settings/services would resolve "./assets/x.js" against
+         "/remotarr/settings/" instead of "/remotarr/". Server-templated, see server.js. -->
+    <base href="__BASE_HREF__" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Remotarr</title>
     <meta name="description" content="A self-hosted remote control dashboard for your media and download stack." />
@@ -20,6 +25,7 @@
   <body>
     <div id="root"></div>
     <script>
+      window.__BASE_PATH__ = '__BASE__';
       window.__SHOW_ALL_SERVICES__ = __SHOW_ALL_SERVICES_VALUE__;
     </script>
     <script type="module" src="/src/main.tsx"></script>

@@ -1,8 +1,8 @@
-import type { ServiceInstance } from '@/lib/api';
+import { apiUrl, type ServiceInstance } from '@/lib/api';
 
 export function tracearrImageUrl(instance: ServiceInstance, posterUrl?: string | null): string | undefined {
   if (!posterUrl) return undefined;
-  return `/api/tracearr/${instance.id}/image?path=${encodeURIComponent(posterUrl)}`;
+  return apiUrl(`/api/tracearr/${instance.id}/image?path=${encodeURIComponent(posterUrl)}`);
 }
 
 /** Seconds -> "33h 48m", dropping leading zero units. */

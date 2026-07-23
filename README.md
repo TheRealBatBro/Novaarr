@@ -62,7 +62,7 @@ they live in the `mediaremote-data` volume, not the container image.
 | Variable | Default | Purpose |
 |---|---|---|
 | `PORT` | `3000` | Port the app listens on *inside* the container — change the left side of the `ports:` mapping to use a different port on the host. |
-| `BASE_PATH` | `""` (root) | Set to a sub-path (e.g. `/remotarr`) if hosting behind a reverse proxy at a non-root path. |
+| `BASE_PATH` | `""` (root) | Set to a sub-path (e.g. `/remotarr`) if hosting behind a reverse proxy at a non-root path — see [Running behind a reverse proxy](#running-behind-a-reverse-proxy). |
 | `DB_PATH` | `/data/mediaremote.db` | Where the SQLite database lives. Leave as-is unless you've customized the volume mount. |
 | `SHOW_ALL_SERVICES` | `true` | `true` shows every supported service in the menu regardless of whether it's configured yet (handy while you're still setting things up). Set to `false` once you're done configuring, so the menu only shows services you've actually enabled. |
 
@@ -71,11 +71,133 @@ The included `docker-compose.yml` maps container port `3000` to host port `3210`
 the SQLite database — this single file holds your sign-in credential and every service
 you configure (URLs, API keys, Wake-on-LAN settings, dashboard layout).
 
-### Reverse proxy
+## Running behind a reverse proxy
 
-If you're putting Remotarr behind Nginx/Traefik/Caddy instead of exposing the port
-directly, remove the `ports:` section, attach the container to your proxy's Docker
-network, and point your proxy at `mediaremote:3000` (or whatever `BASE_PATH` you set).
+Remotarr works behind Nginx, Caddy, or Traefik out of the box — no separate "proxy
+mode" to turn on. There are two ways to expose it; pick whichever fits how you already
+organize your other self-hosted apps.
+
+**Option A — a dedicated subdomain (recommended).** Point `remotarr.yourdomain.com` at
+the container with no path prefix. This is the simpler setup and matches how most
+self-hosted dashboards (Sonarr, Radarr, Overseerr, etc.) are usually run. `BASE_PATH`
+stays empty.
+
+**Option B — a sub-path on an existing domain.** Mount Remotarr at
+`https://yourdomain.com/remotarr/` alongside other apps on the same host. Set
+`BASE_PATH=/remotarr` (matching whatever path segment you choose) — the app adjusts
+every asset path, API call, and service-worker registration to that prefix
+automatically.
+
+Either way, first stop publishing the port directly — remove the `ports:` section from
+`docker-compose.yml` and put the container on the same Docker network as your proxy so
+it can reach `mediaremote:3000` by container name:
+
+```yaml
+services:
+  mediaremote:
+    build: .
+    container_name: mediaremote
+    restart: unless-stopped
+    # ports: section removed — the proxy reaches this container directly
+    volumes:
+      - mediaremote-data:/data
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      BASE_PATH: "" # or "/remotarr" for Option B
+      DB_PATH: /data/mediaremote.db
+      SHOW_ALL_SERVICES: "false"
+    networks:
+      - proxy
+
+volumes:
+  mediaremote-data:
+
+networks:
+  proxy:
+    external: true
+```
+
+Whatever proxy you use, it must forward two headers so Remotarr can tell it's being
+accessed over HTTPS (this determines whether the sign-in cookie gets the `Secure`
+flag) and pass along the real client IP:
+
+- `X-Forwarded-Proto` — set to `https` when the proxy terminates TLS
+- `X-Forwarded-For` — the original client IP
+
+The app already trusts exactly one upstream hop (`app.set('trust proxy', 1)` in
+`server.js`), which is correct as long as Remotarr's proxy is the *only* layer in
+front of it. If you're chaining proxies (e.g. Cloudflare in front of your own Nginx),
+only the outermost hop's TLS termination matters for the `Secure` cookie — the chain
+just needs to forward the headers through unmodified.
+
+### Nginx
+
+```nginx
+# Option A — subdomain
+server {
+    listen 443 ssl;
+    server_name remotarr.yourdomain.com;
+
+    location / {
+        proxy_pass http://mediaremote:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+
+# Option B — sub-path (BASE_PATH=/remotarr)
+server {
+    listen 443 ssl;
+    server_name yourdomain.com;
+
+    location /remotarr/ {
+        proxy_pass http://mediaremote:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+```
+
+### Caddy
+
+Caddy sets the forwarded headers automatically — this is the entire config either way:
+
+```caddy
+# Option A — subdomain
+remotarr.yourdomain.com {
+    reverse_proxy mediaremote:3000
+}
+
+# Option B — sub-path (BASE_PATH=/remotarr)
+yourdomain.com {
+    handle_path /remotarr/* {
+        reverse_proxy mediaremote:3000
+    }
+}
+```
+
+### Traefik (Docker labels)
+
+```yaml
+services:
+  mediaremote:
+    # ...same as above...
+    labels:
+      traefik.enable: "true"
+      # Option A — subdomain
+      traefik.http.routers.remotarr.rule: Host(`remotarr.yourdomain.com`)
+      traefik.http.routers.remotarr.tls.certresolver: letsencrypt
+      traefik.http.services.remotarr.loadbalancer.server.port: "3000"
+
+      # Option B — sub-path (BASE_PATH=/remotarr) — replace the router rule above with:
+      # traefik.http.routers.remotarr.rule: Host(`yourdomain.com`) && PathPrefix(`/remotarr`)
+```
+
+Traefik forwards `X-Forwarded-Proto`/`X-Forwarded-For` by default, no extra config
+needed.
 
 ## Sign-in: PIN or password
 

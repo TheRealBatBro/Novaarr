@@ -6,6 +6,7 @@ import { getServiceIcon } from '@/lib/serviceIcons';
 import { CATEGORY_LABELS, CATEGORY_ORDER } from '@/lib/serviceRegistry';
 import { StatusDot } from '@/components/dashboard/StatusDot';
 import { cn } from '@/lib/utils';
+import { BASE_PATH } from '@/lib/api';
 
 /** Sliding pill that marks the active row — shared layoutId animates it between rows on navigation. */
 function ActiveIndicator() {
@@ -61,7 +62,7 @@ export function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <>
       <div className="flex items-center gap-3 border-b border-border p-4">
-        <img src="/icon.svg" alt="" className="h-10 w-10 rounded-xl" />
+        <img src={`${BASE_PATH}/icon.svg`} alt="" className="h-10 w-10 rounded-xl" />
         <div className="min-w-0 flex-1">
           <p className="truncate font-bold leading-tight">Remotarr</p>
           <p className="truncate text-xs text-muted-foreground">
