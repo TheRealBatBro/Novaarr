@@ -1,10 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
-import { X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ProgressBar } from '@/components/shared/ProgressBar';
 import { StatusDot, type ServiceStatus } from '@/components/dashboard/StatusDot';
@@ -14,8 +10,8 @@ import { ArrHistoryScreen } from './ArrHistoryScreen';
 import { ArrOverviewScreen } from './ArrOverviewScreen';
 import { AddSeriesDialog } from './AddSeriesDialog';
 import { AddMovieDialog } from './AddMovieDialog';
+import { ArrQueueItemDialog } from './ArrQueueItemDialog';
 import { useServiceProxy } from '@/lib/queries';
-import { proxyApi } from '@/lib/api';
 import { getServiceIcon } from '@/lib/serviceIcons';
 import { cn } from '@/lib/utils';
 import type { ServiceInstance } from '@/lib/api';
@@ -30,6 +26,7 @@ const LIBRARY_CONFIG: Record<string, { path: string; kind: 'movie' | 'series' }>
 
 type ArrQueueRecord = {
   id: number;
+  downloadId?: string;
   title: string;
   size: number;
   sizeleft: number;
@@ -88,9 +85,9 @@ export function ArrQueueScreen({
   const Icon = getServiceIcon(definition.id);
   const libraryConfig = LIBRARY_CONFIG[definition.id];
   const navigate = useNavigate();
-  const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>(libraryConfig ? 'library' : 'queue');
   const [addOpen, setAddOpen] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState<ArrQueueRecord | null>(null);
   const canManage = definition.id === 'sonarr' || definition.id === 'radarr';
 
   function openDetail(id: number) {
@@ -100,16 +97,6 @@ export function ArrQueueScreen({
     path: `/api/${apiVersion}/queue`,
     query: { includeUnknownMovieItems: 'true', includeUnknownSeriesItems: 'true' },
     refetchInterval: 8000,
-  });
-
-  const removeItem = useMutation({
-    mutationFn: (id: number) =>
-      proxyApi.call(instance.id, { path: `/api/${apiVersion}/queue/${id}`, method: 'DELETE', query: { removeFromClient: 'true', blocklist: 'false' } }),
-    onSuccess: (res) => {
-      if (!res.ok) return toast.error(res.error || 'Failed to remove');
-      qc.invalidateQueries({ queryKey: ['proxy', instance.id] });
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : 'Failed to remove'),
   });
 
   const status: ServiceStatus = isLoading ? 'unknown' : data?.ok ? 'online' : 'offline';
@@ -181,13 +168,13 @@ export function ArrQueueScreen({
               const pillClass = STATUS_PILL[rec.trackedDownloadStatus ?? ''] ?? 'bg-accent text-muted-foreground';
               const warning = rec.statusMessages?.flatMap((m) => m.messages ?? []).join(' · ') || rec.errorMessage;
               return (
-                <div key={rec.id} className="flex flex-col gap-1.5 rounded-lg border border-border p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="min-w-0 flex-1 truncate text-sm font-medium">{labelFor(rec)}</p>
-                    <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => removeItem.mutate(rec.id)} aria-label="Remove">
-                      <X className="h-3.5 w-3.5 text-destructive" />
-                    </Button>
-                  </div>
+                <button
+                  key={rec.id}
+                  type="button"
+                  onClick={() => setSelectedRecord(rec)}
+                  className="flex flex-col gap-1.5 rounded-lg border border-border p-3 text-left transition-colors hover:bg-accent"
+                >
+                  <p className="min-w-0 truncate text-sm font-medium">{labelFor(rec)}</p>
                   <div className="flex flex-wrap items-center gap-1.5 text-xs">
                     <span className={cn('rounded-full px-1.5 py-0.5 font-medium capitalize', pillClass)}>{rec.trackedDownloadStatus ?? rec.status}</span>
                     <span className="text-muted-foreground">
@@ -197,12 +184,12 @@ export function ArrQueueScreen({
                       {rec.downloadClient ? ` · ${rec.downloadClient}` : ''}
                     </span>
                   </div>
-                  {warning && <p className="text-xs text-amber-500">{warning}</p>}
+                  {warning && <p className="truncate text-xs text-amber-500">{warning}</p>}
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <ProgressBar value={pct} className="mr-3 flex-1" />
                     <span className="shrink-0">{rec.timeleft ?? rec.status}</span>
                   </div>
-                </div>
+                </button>
               );
             })}
           </CardContent>
@@ -215,6 +202,25 @@ export function ArrQueueScreen({
 
       {definition.id === 'sonarr' && <AddSeriesDialog instance={instance} open={addOpen} onOpenChange={setAddOpen} onAdded={() => {}} />}
       {definition.id === 'radarr' && <AddMovieDialog instance={instance} open={addOpen} onOpenChange={setAddOpen} onAdded={() => {}} />}
+
+      {selectedRecord && (
+        <ArrQueueItemDialog
+          instance={instance}
+          apiVersion={apiVersion}
+          serviceId={definition.id}
+          record={{
+            id: selectedRecord.id,
+            downloadId: selectedRecord.downloadId,
+            title: labelFor(selectedRecord),
+            status: selectedRecord.trackedDownloadStatus ?? selectedRecord.status,
+            indexer: selectedRecord.indexer,
+            downloadClient: selectedRecord.downloadClient,
+            warning: selectedRecord.statusMessages?.flatMap((m) => m.messages ?? []).join(' · ') || selectedRecord.errorMessage,
+          }}
+          onClose={() => setSelectedRecord(null)}
+          onRemoved={() => setSelectedRecord(null)}
+        />
+      )}
     </div>
   );
 }
