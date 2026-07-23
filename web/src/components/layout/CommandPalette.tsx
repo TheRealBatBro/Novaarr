@@ -82,8 +82,8 @@ export function CommandPalette() {
                     <Icon className="h-4 w-4" />
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate font-medium">{def.displayName}</p>
-                    <p className="truncate text-xs text-muted-foreground">{instance ? instance.displayName : 'Not configured'}</p>
+                    <p className="truncate font-medium">{instance?.displayName ?? def.displayName}</p>
+                    <p className="truncate text-xs text-muted-foreground">{instance ? def.displayName : 'Not configured'}</p>
                   </div>
                 </button>
               );

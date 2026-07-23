@@ -141,7 +141,7 @@ export function DashboardWidget({ widgetKey }: { widgetKey: string }) {
       overseerr={bySource.overseerr}
       sourceId={def.source}
       title={def.title}
-      sourceLabel={`From ${sourceDef?.displayName ?? def.source}`}
+      sourceLabel={`From ${instance.displayName}`}
       sourceColor={sourceDef?.brandColor ?? '#888'}
     />
   );

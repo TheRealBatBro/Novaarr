@@ -66,7 +66,7 @@ function ServiceRow({ definition, instance, active, onClick }: VisibleService & 
       >
         <Icon className="h-5 w-5" />
       </span>
-      <span className="min-w-0 flex-1 truncate">{definition.displayName}</span>
+      <span className="min-w-0 flex-1 truncate">{instance?.displayName ?? definition.displayName}</span>
       <StatusDot status={instance ? health : 'off'} />
     </button>
   );

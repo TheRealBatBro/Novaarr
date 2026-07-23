@@ -35,6 +35,7 @@ function SettingsDashboard() {
   }, [config, isLoading, rows]);
 
   const configuredSources = new Set(instances.filter((i) => i.enabled).map((i) => i.serviceId));
+  const instanceBySource = new Map(instances.map((i) => [i.serviceId, i]));
 
   async function save(next: Row[]) {
     setRows(next);
@@ -80,7 +81,7 @@ function SettingsDashboard() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium leading-tight">{def.title}</p>
                       <p className="truncate text-xs" style={{ color: sourceDef?.brandColor }}>
-                        {sourceDef?.displayName ?? def.source}
+                        {instanceBySource.get(def.source)?.displayName ?? sourceDef?.displayName ?? def.source}
                         {!available && ' · not configured'}
                       </p>
                     </div>

@@ -21,7 +21,7 @@ export function GenericServiceScreen({ definition, instance }: { definition: Ser
           <Icon className="h-7 w-7" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">{definition.displayName}</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{instance?.displayName ?? definition.displayName}</h1>
           {definition.helpText && <p className="text-sm text-muted-foreground">{definition.helpText}</p>}
         </div>
       </div>
@@ -41,7 +41,7 @@ export function GenericServiceScreen({ definition, instance }: { definition: Ser
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle>{instance.displayName}</CardTitle>
+            <CardTitle>Connected</CardTitle>
             <CardDescription>
               {definition.authType === 'none'
                 ? 'This service doesn’t have a live API integration — use the link below to open it directly.'
