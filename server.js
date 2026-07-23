@@ -5,6 +5,7 @@ const cookieParser = require('cookie-parser');
 const { initDb } = require('./db');
 const { version } = require('./package.json');
 const authRouter = require('./routes/auth');
+const backupRouter = require('./routes/backup');
 const servicesRouter = require('./routes/services');
 const proxyRouter = require('./routes/proxy');
 const wolRouter = require('./routes/wol');
@@ -26,6 +27,20 @@ const BASE = RAW_BASE.startsWith('/') || RAW_BASE === '' ? RAW_BASE : '/' + RAW_
 const SHOW_ALL_SERVICES = process.env.SHOW_ALL_SERVICES === 'true';
 
 app.set('trust proxy', 1);
+
+// A few high-value headers by hand rather than pulling in helmet — helmet's default CSP would
+// need every proxied service's asset origins allowlisted to avoid breaking things, which isn't
+// worth the fragility here.
+app.use((req, res, next) => {
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('X-Frame-Options', 'DENY');
+  res.set('Referrer-Policy', 'no-referrer');
+  if (req.secure || req.headers['x-forwarded-proto'] === 'https') {
+    res.set('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
+  }
+  next();
+});
+
 app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
 
@@ -33,6 +48,7 @@ const PUBLIC = path.join(__dirname, 'public');
 app.use(BASE + '/', express.static(PUBLIC, { index: false }));
 
 app.use(BASE + '/api/auth', authRouter);
+app.use(BASE + '/api/backup', backupRouter);
 app.use(BASE + '/api/services', servicesRouter);
 app.use(BASE + '/api/proxy', proxyRouter);
 app.use(BASE + '/api/wol', wolRouter);

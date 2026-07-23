@@ -128,6 +128,30 @@ export const dashboardApi = {
     }).then((r) => json<DashboardWidgetConfig[]>(r)),
 };
 
+export const backupApi = {
+  export: (password: string) =>
+    fetch(apiUrl('/api/backup/export'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    }).then(async (r) => {
+      if (!r.ok) {
+        const data = await r.json().catch(() => null);
+        throw new Error((data && data.error) || `Backup failed (${r.status})`);
+      }
+      return r.blob();
+    }),
+  import: (file: File, password: string) => {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('password', password);
+    return fetch(apiUrl('/api/backup/import'), { method: 'POST', credentials: 'same-origin', body: form }).then((r) =>
+      json<{ ok: true }>(r),
+    );
+  },
+};
+
 export const wolApi = {
   wake: (mac: string, broadcast?: string) =>
     fetch(apiUrl('/api/wol'), {

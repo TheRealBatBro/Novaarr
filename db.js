@@ -49,6 +49,8 @@ function initDb() {
 
   ensureColumn('settings', 'dashboard_widgets', 'dashboard_widgets TEXT');
   ensureColumn('settings', 'auth_mode', "auth_mode TEXT NOT NULL DEFAULT 'pin'");
+  ensureColumn('settings', 'failed_attempts', 'failed_attempts INTEGER NOT NULL DEFAULT 0');
+  ensureColumn('settings', 'locked_until', 'locked_until INTEGER');
 
   const row = db.prepare('SELECT id FROM settings WHERE id = 1').get();
   if (!row) {
@@ -81,6 +83,64 @@ function setCredential(hash, mode) {
 
 function getJwtSecret() {
   return getSettings().jwt_secret;
+}
+
+// Brute-force lockout on the shared credential (login and change-credential's "current"
+// check both call this) — no lockout for the first few tries so a typo doesn't lock anyone
+// out, then an exponential cooldown that keeps climbing (capped at 15 min) for as long as
+// wrong attempts keep coming in.
+const LOCKOUT_THRESHOLD = 5;
+const LOCKOUT_CAP_SECONDS = 15 * 60;
+
+function recordFailedLogin() {
+  const settings = getSettings();
+  const attempts = (settings.failed_attempts || 0) + 1;
+  let lockedUntil = settings.locked_until;
+  if (attempts >= LOCKOUT_THRESHOLD) {
+    const seconds = Math.min(5 * 2 ** (attempts - LOCKOUT_THRESHOLD), LOCKOUT_CAP_SECONDS);
+    lockedUntil = Date.now() + seconds * 1000;
+  }
+  getDb().prepare('UPDATE settings SET failed_attempts = ?, locked_until = ? WHERE id = 1').run(attempts, lockedUntil);
+}
+
+function resetFailedLogins() {
+  getDb().prepare('UPDATE settings SET failed_attempts = 0, locked_until = NULL WHERE id = 1').run();
+}
+
+// Seconds remaining in the current lockout, or 0 if not locked — callers should refuse the
+// credential check entirely while this is positive, rather than running bcrypt.compare again.
+function getLockoutSeconds() {
+  const { locked_until } = getSettings();
+  if (!locked_until || locked_until <= Date.now()) return 0;
+  return Math.ceil((locked_until - Date.now()) / 1000);
+}
+
+function closeDb() {
+  if (_db) {
+    _db.close();
+    _db = null;
+  }
+}
+
+// Consistent point-in-time snapshot for backup download — VACUUM INTO folds the WAL back into
+// a single file, so the export is never mid-write like a raw filesystem copy of the live
+// .db/-wal/-shm trio could be.
+function backupTo(destPath) {
+  getDb().prepare('VACUUM INTO ?').run(destPath);
+}
+
+// Swaps the live database file for `sourcePath` (already validated by the caller) and
+// re-runs migrations, so a backup taken from an older schema version still ends up with any
+// columns added since. Closing first drops the in-process handle (and its WAL/SHM) before the
+// old base file is overwritten; initDb() lazily reopens on the next getDb() call.
+function restoreFrom(sourcePath) {
+  closeDb();
+  for (const suffix of ['-wal', '-shm']) {
+    const sidecar = DB_PATH + suffix;
+    if (fs.existsSync(sidecar)) fs.unlinkSync(sidecar);
+  }
+  fs.copyFileSync(sourcePath, DB_PATH);
+  initDb();
 }
 
 function parseInstance(row) {
@@ -171,6 +231,8 @@ function setDashboardWidgets(widgets) {
 
 module.exports = {
   initDb, getDb, getSettings, setCredential, getJwtSecret,
+  recordFailedLogin, resetFailedLogins, getLockoutSeconds,
+  closeDb, backupTo, restoreFrom, DB_PATH,
   listServiceInstances, getServiceInstance, createServiceInstance, updateServiceInstance, deleteServiceInstance,
   setServiceSessionToken, getDashboardWidgets, setDashboardWidgets,
 };

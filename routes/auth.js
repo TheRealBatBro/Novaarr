@@ -3,8 +3,14 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const db = require('../db');
 const { setAuthCookie, clearAuthCookie, requireAuth, COOKIE } = require('../middleware/auth');
+const { rateLimit } = require('../middleware/rateLimit');
 
 const router = express.Router();
+
+// Caps raw request volume per IP; db.js's account-wide lockout (checked inside each handler
+// below) is the actual brute-force defense, since it can't be dodged by spreading requests
+// across many source IPs the way an IP-scoped limit can.
+const credentialLimiter = rateLimit({ windowMs: 60_000, max: 20 });
 
 // Shared by setup (new credential) and change-credential (its new-credential half) — login
 // only ever compares against a hash, so it doesn't need this.
@@ -45,13 +51,24 @@ router.post('/setup', async (req, res) => {
   res.status(201).json({ ok: true });
 });
 
-router.post('/login', async (req, res) => {
+router.post('/login', credentialLimiter, async (req, res) => {
   const settings = db.getSettings();
   if (!settings.pin_hash) return res.status(409).json({ error: 'Not set up yet' });
+
+  const lockedSeconds = db.getLockoutSeconds();
+  if (lockedSeconds > 0) {
+    res.set('Retry-After', String(lockedSeconds));
+    return res.status(429).json({ error: `Too many failed attempts. Try again in ${lockedSeconds}s.`, retryAfter: lockedSeconds });
+  }
+
   const { credential } = req.body || {};
   if (!credential) return res.status(400).json({ error: 'Credential required' });
   const ok = await bcrypt.compare(credential, settings.pin_hash);
-  if (!ok) return res.status(401).json({ error: settings.auth_mode === 'pin' ? 'Incorrect PIN' : 'Incorrect password' });
+  if (!ok) {
+    db.recordFailedLogin();
+    return res.status(401).json({ error: settings.auth_mode === 'pin' ? 'Incorrect PIN' : 'Incorrect password' });
+  }
+  db.resetFailedLogins();
   setAuthCookie(res, req);
   res.json({ ok: true });
 });
@@ -63,12 +80,23 @@ router.post('/logout', (_req, res) => {
 
 // Changes the credential and/or switches between PIN and password — always requires the
 // current credential, regardless of whether the mode is also changing.
-router.post('/change-credential', requireAuth, async (req, res) => {
+router.post('/change-credential', requireAuth, credentialLimiter, async (req, res) => {
   const settings = db.getSettings();
+
+  const lockedSeconds = db.getLockoutSeconds();
+  if (lockedSeconds > 0) {
+    res.set('Retry-After', String(lockedSeconds));
+    return res.status(429).json({ error: `Too many failed attempts. Try again in ${lockedSeconds}s.`, retryAfter: lockedSeconds });
+  }
+
   const { current, newMode, newCredential } = req.body || {};
   if (!current || !newCredential) return res.status(400).json({ error: 'current and newCredential are required' });
   const ok = await bcrypt.compare(current, settings.pin_hash);
-  if (!ok) return res.status(401).json({ error: settings.auth_mode === 'pin' ? 'Incorrect current PIN' : 'Incorrect current password' });
+  if (!ok) {
+    db.recordFailedLogin();
+    return res.status(401).json({ error: settings.auth_mode === 'pin' ? 'Incorrect current PIN' : 'Incorrect current password' });
+  }
+  db.resetFailedLogins();
   const validationError = validateCredential(newMode, newCredential);
   if (validationError) return res.status(400).json({ error: validationError });
   const hash = await bcrypt.hash(newCredential, 12);
