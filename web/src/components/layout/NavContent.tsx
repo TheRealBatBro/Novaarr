@@ -1,10 +1,10 @@
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
 import { Home, CalendarDays, Settings, type LucideIcon } from 'lucide-react';
-import { useVisibleServices } from '@/lib/visibility';
+import { useVisibleServices, type VisibleService } from '@/lib/visibility';
 import { getServiceIcon } from '@/lib/serviceIcons';
-import { CATEGORY_LABELS, CATEGORY_ORDER } from '@/lib/serviceRegistry';
 import { StatusDot } from '@/components/dashboard/StatusDot';
+import { useServiceHealth } from '@/lib/serviceHealth';
 import { cn } from '@/lib/utils';
 import { BASE_PATH } from '@/lib/api';
 
@@ -46,6 +46,32 @@ function NavRow({
   );
 }
 
+function ServiceRow({ definition, instance, active, onClick }: VisibleService & { active: boolean; onClick: () => void }) {
+  const Icon = getServiceIcon(definition.id);
+  const health = useServiceHealth(instance, definition);
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[15px] font-medium transition-colors hover:bg-accent',
+        active && 'bg-accent',
+      )}
+    >
+      {active && <ActiveIndicator />}
+      <span
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+        style={{ backgroundColor: `${definition.brandColor}22`, color: definition.brandColor }}
+      >
+        <Icon className="h-5 w-5" />
+      </span>
+      <span className="min-w-0 flex-1 truncate">{definition.displayName}</span>
+      <StatusDot status={instance ? health : 'off'} />
+    </button>
+  );
+}
+
 /** Shared nav content — rendered inside the mobile overlay drawer and the persistent desktop sidebar. */
 export function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   const navigate = useNavigate();
@@ -57,58 +83,28 @@ export function NavContent({ onNavigate }: { onNavigate?: () => void }) {
     navigate({ to });
   }
 
-  const configuredCount = visible.filter((v) => v.instance).length;
-
   return (
     <>
       <div className="flex items-center gap-3 border-b border-border p-4">
         <img src={`${BASE_PATH}/icon.svg`} alt="" className="h-10 w-10 rounded-xl" />
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-bold leading-tight">Remotarr</p>
-          <p className="truncate text-xs text-muted-foreground">
-            {configuredCount} service{configuredCount === 1 ? '' : 's'} configured
-          </p>
-        </div>
+        <p className="min-w-0 flex-1 truncate font-bold leading-tight">Remotarr</p>
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
         <NavRow icon={Home} label="Dashboard" active={pathname === '/'} onClick={() => go('/')} />
         <NavRow icon={CalendarDays} label="Calendar" active={pathname === '/calendar'} onClick={() => go('/calendar')} />
 
-        {CATEGORY_ORDER.map((cat) => {
-          const rows = visible.filter((v) => v.definition.category === cat);
-          if (!rows.length) return null;
-          return (
-            <div key={cat} className="mt-5">
-              <p className="mb-1.5 px-3 text-[11px] font-bold uppercase tracking-widest text-muted-foreground">{CATEGORY_LABELS[cat]}</p>
-              {rows.map(({ definition, instance }) => {
-                const Icon = getServiceIcon(definition.id);
-                const active = pathname === `/service/${definition.id}`;
-                return (
-                  <button
-                    key={definition.id}
-                    type="button"
-                    onClick={() => go(`/service/${definition.id}`)}
-                    className={cn(
-                      'relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[15px] font-medium transition-colors hover:bg-accent',
-                      active && 'bg-accent',
-                    )}
-                  >
-                    {active && <ActiveIndicator />}
-                    <span
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-                      style={{ backgroundColor: `${definition.brandColor}22`, color: definition.brandColor }}
-                    >
-                      <Icon className="h-5 w-5" />
-                    </span>
-                    <span className="min-w-0 flex-1 truncate">{definition.displayName}</span>
-                    <StatusDot status={instance ? 'unknown' : 'off'} />
-                  </button>
-                );
-              })}
-            </div>
-          );
-        })}
+        <div className="mt-5">
+          {visible.map(({ definition, instance }) => (
+            <ServiceRow
+              key={definition.id}
+              definition={definition}
+              instance={instance}
+              active={pathname === `/service/${definition.id}`}
+              onClick={() => go(`/service/${definition.id}`)}
+            />
+          ))}
+        </div>
       </div>
 
       <div className="border-t border-border p-2">

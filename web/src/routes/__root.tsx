@@ -2,6 +2,7 @@ import { createRootRoute, Outlet, useRouterState } from '@tanstack/react-router'
 import { motion } from 'framer-motion';
 import { AppLockGate } from '@/components/layout/AppLockGate';
 import { AppShell } from '@/components/layout/AppShell';
+import { RouteErrorBoundary } from '@/components/layout/RouteErrorBoundary';
 
 function RootLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -18,7 +19,9 @@ function RootLayout() {
           transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
           className="mx-auto max-w-6xl px-4 py-6 sm:px-6"
         >
-          <Outlet />
+          <RouteErrorBoundary resetKey={pathname}>
+            <Outlet />
+          </RouteErrorBoundary>
         </motion.div>
       </AppShell>
     </AppLockGate>

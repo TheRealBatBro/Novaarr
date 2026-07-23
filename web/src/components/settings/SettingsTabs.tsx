@@ -3,11 +3,12 @@ import { cn } from '@/lib/utils';
 
 const TABS = [
   { key: 'services', label: 'Services', to: '/settings/services' },
+  { key: 'menu', label: 'Menu', to: '/settings/menu' },
   { key: 'dashboard', label: 'Dashboard', to: '/settings/dashboard' },
   { key: 'security', label: 'Security', to: '/settings/security' },
 ] as const;
 
-export function SettingsTabs({ active }: { active: 'services' | 'dashboard' | 'security' }) {
+export function SettingsTabs({ active }: { active: 'services' | 'menu' | 'dashboard' | 'security' }) {
   return (
     <div className="mb-4 flex gap-1.5">
       {TABS.map((t) => (

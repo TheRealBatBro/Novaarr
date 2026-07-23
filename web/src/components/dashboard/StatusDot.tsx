@@ -16,8 +16,8 @@ export function StatusDot({ status }: { status: ServiceStatus }) {
       {status === 'online' && (
         <motion.span
           className="absolute inline-flex h-full w-full rounded-full bg-success"
-          animate={{ scale: [1, 1.9], opacity: [0.6, 0] }}
-          transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut' }}
+          animate={{ scale: [1, 1.8, 1], opacity: [0.5, 0, 0.5] }}
+          transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
         />
       )}
       <span className={cn('relative inline-flex h-2.5 w-2.5 rounded-full', COLOR[status])} />

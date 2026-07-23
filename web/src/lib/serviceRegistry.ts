@@ -22,6 +22,16 @@ export type ServiceFieldDef = {
   helpText?: string;
 };
 
+/** The cheapest real request that proves an instance is reachable and responding — used for
+ * the nav's online/offline dot. Routed through the same /api/proxy adapter as everything else,
+ * so it inherits that adapter's own auth handling, timeout, and error containment. */
+export type ServiceHealthCheck = {
+  path: string;
+  method?: string;
+  query?: Record<string, string>;
+  body?: unknown;
+};
+
 export type ServiceDefinition = {
   id: string;
   category: ServiceCategory;
@@ -41,6 +51,8 @@ export type ServiceDefinition = {
    * GenericServiceScreen's stub. Settings > Services shows "Coming soon" instead of an Add
    * button so users aren't surprised by an empty page. */
   comingSoon?: boolean;
+  /** Omitted for services with no pingable API (e.g. Unraid) — their nav dot stays neutral. */
+  healthCheck?: ServiceHealthCheck;
 };
 
 const apiKeyField: ServiceFieldDef = {
@@ -63,6 +75,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     authType: 'apikey-query',
     fields: [apiKeyField],
     hasDetailScreen: true,
+    healthCheck: { path: '/api', query: { mode: 'version', output: 'json' } },
   },
   {
     id: 'nzbget',
@@ -72,6 +85,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     authType: 'basic-auth',
     fields: [usernameField, passwordField],
     hasDetailScreen: true,
+    healthCheck: { path: '/jsonrpc', method: 'POST', body: { method: 'version', params: [], id: 1 } },
   },
   {
     id: 'deluge',
@@ -82,6 +96,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     fields: [{ ...passwordField, label: 'Web UI Password' }],
     hasDetailScreen: true,
     helpText: 'The daemon-connect handshake is best-effort and unverified against a live Deluge instance.',
+    healthCheck: { path: '/json', method: 'POST', body: { method: 'daemon.info', params: [] } },
   },
   {
     id: 'transmission',
@@ -94,6 +109,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
       { ...passwordField, required: false, helpText: 'Leave blank if Transmission has no auth enabled' },
     ],
     hasDetailScreen: true,
+    healthCheck: { path: '/transmission/rpc', method: 'POST', body: { method: 'session-get' } },
   },
   {
     id: 'utorrent',
@@ -113,6 +129,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     authType: 'qbittorrent-session',
     fields: [usernameField, passwordField],
     hasDetailScreen: true,
+    healthCheck: { path: '/api/v2/app/version' },
   },
   {
     id: 'rutorrent',
@@ -134,6 +151,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     authType: 'apikey-header',
     fields: [apiKeyField],
     hasDetailScreen: true,
+    healthCheck: { path: '/api/v3/system/status' },
   },
   {
     id: 'radarr',
@@ -143,6 +161,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     authType: 'apikey-header',
     fields: [apiKeyField],
     hasDetailScreen: true,
+    healthCheck: { path: '/api/v3/system/status' },
   },
   {
     id: 'lidarr',
@@ -152,6 +171,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     authType: 'apikey-header',
     fields: [apiKeyField],
     hasDetailScreen: true,
+    healthCheck: { path: '/api/v1/system/status' },
   },
   {
     id: 'readarr',
@@ -161,6 +181,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     authType: 'apikey-header',
     fields: [apiKeyField],
     hasDetailScreen: true,
+    healthCheck: { path: '/api/v1/system/status' },
   },
   {
     id: 'bazarr',
@@ -191,6 +212,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     fields: [apiKeyField],
     hasDetailScreen: true,
     helpText: 'Enter the exact Torznab endpoint URL (including any indexer-specific path) as the Local URL.',
+    healthCheck: { path: '', query: { t: 'caps' } },
   },
   {
     id: 'jackett',
@@ -201,6 +223,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     fields: [apiKeyField],
     hasDetailScreen: true,
     helpText: 'Enter one indexer’s Torznab feed URL from Jackett (e.g. .../api/v2.0/indexers/all/results/torznab) as the Local URL.',
+    healthCheck: { path: '', query: { t: 'caps' } },
   },
   {
     id: 'nzbhydra2',
@@ -211,6 +234,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     fields: [apiKeyField],
     hasDetailScreen: true,
     helpText: 'Enter NZBHydra2’s Torznab endpoint (e.g. .../torznab/api) as the Local URL.',
+    healthCheck: { path: '', query: { t: 'caps' } },
   },
   {
     id: 'prowlarr',
@@ -220,6 +244,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     authType: 'apikey-header',
     fields: [apiKeyField],
     hasDetailScreen: true,
+    healthCheck: { path: '/api/v1/system/status' },
   },
 
   // ── Other services ────────────────────────────────────────────────────
@@ -240,6 +265,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     authType: 'apikey-header',
     fields: [apiKeyField],
     hasDetailScreen: true,
+    healthCheck: { path: '/api/v1/status' },
   },
   {
     id: 'tautulli',
@@ -249,6 +275,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     authType: 'apikey-query',
     fields: [apiKeyField],
     hasDetailScreen: true,
+    healthCheck: { path: '/api/v2', query: { cmd: 'get_server_info' } },
   },
   {
     id: 'tracearr',
@@ -258,6 +285,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     authType: 'bearer-token',
     fields: [apiKeyField],
     hasDetailScreen: true,
+    healthCheck: { path: '/api/v1/public/stats/today' },
   },
   {
     id: 'trakt',
@@ -276,6 +304,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
       },
     ],
     helpText: 'Powers the dashboard’s trending/anticipated carousels. A cloud API — no local/remote URL to configure.',
+    healthCheck: { path: '/genres/movies' },
   },
 ];
 
