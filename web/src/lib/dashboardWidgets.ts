@@ -339,17 +339,25 @@ export function useTraktCarousel(
     queryFn: async () => {
       const entries = await Promise.all(
         tmdbIds.map(async (id) => {
-          const res = await proxyApi.call<TmdbPosterInfo>(overseerr!.id, {
-            path: `/api/v1/${mediaType}/${id}`,
-            timeoutMs: 8000,
-          });
-          return [id, res.ok ? res.data : undefined] as const;
+          // Each lookup is isolated — a single flaky/slow request (more likely on a mobile
+          // connection, with 10-15 of these firing in parallel) must not blank out every other
+          // poster in the batch just because Promise.all rejects on the first rejection.
+          try {
+            const res = await proxyApi.call<TmdbPosterInfo>(overseerr!.id, {
+              path: `/api/v1/${mediaType}/${id}`,
+              timeoutMs: 8000,
+            });
+            return [id, res.ok ? res.data : undefined] as const;
+          } catch {
+            return [id, undefined] as const;
+          }
         }),
       );
       return Object.fromEntries(entries) as Record<number, TmdbPosterInfo | undefined>;
     },
     enabled: !!overseerr && tmdbIds.length > 0,
     staleTime: 10 * 60 * 1000,
+    retry: 1,
   });
 
   const items: CarouselItem[] = raw.map((m, i) => {
