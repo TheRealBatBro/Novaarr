@@ -6,7 +6,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { proxyApi, type ServiceInstance } from '@/lib/api';
+import { MoviePickerDialog, SeriesEpisodePickerDialog } from './ArrMatchPickerDialog';
 
+type ManualImportEpisode = { id: number; seasonNumber: number; episodeNumber: number };
 type ManualImportCandidate = {
   path: string;
   folderName?: string;
@@ -14,10 +16,17 @@ type ManualImportCandidate = {
   quality?: { quality?: { name?: string } };
   languages?: { id: number; name: string }[];
   seriesId?: number;
-  episodes?: { id: number }[];
+  series?: { id: number; title: string };
+  episodes?: ManualImportEpisode[];
   movieId?: number;
+  movie?: { id: number; title: string; year?: number };
   rejections?: { reason: string }[];
 };
+
+// A user-chosen match always wins over whatever the system guessed for that same candidate.
+type MatchOverride =
+  | { kind: 'movie'; movieId: number; label: string }
+  | { kind: 'series'; seriesId: number; episodes: ManualImportEpisode[]; label: string };
 
 function formatSize(bytes?: number): string {
   if (!bytes || bytes <= 0) return '';
@@ -25,17 +34,26 @@ function formatSize(bytes?: number): string {
   return gb >= 1 ? `${gb.toFixed(1)} GB` : `${(bytes / 1024 / 1024).toFixed(0)} MB`;
 }
 
-// Forwards exactly the fields Sonarr/Radarr's own ManualImport command needs, using whichever
-// series/episode or movie mapping the GET already resolved — this accepts the system's own best
-// guess rather than offering to reassign it, which covers the common "stuck download" case
-// without building out a full per-file quality/episode picker.
-function toImportPayload(c: ManualImportCandidate, downloadId?: string) {
+function episodeLabel(episodes?: ManualImportEpisode[]): string {
+  return (episodes ?? []).map((e) => `S${e.seasonNumber}E${String(e.episodeNumber).padStart(2, '0')}`).join(', ');
+}
+
+function currentMatchLabel(c: ManualImportCandidate, override?: MatchOverride): string | null {
+  if (override) return override.label;
+  if (c.movie) return `${c.movie.title}${c.movie.year ? ` (${c.movie.year})` : ''}`;
+  if (c.series) return [c.series.title, episodeLabel(c.episodes)].filter(Boolean).join(' · ');
+  return null;
+}
+
+// Forwards exactly the fields Sonarr/Radarr's own ManualImport command needs. A user override
+// (picked via MoviePickerDialog/SeriesEpisodePickerDialog) always wins; otherwise this falls
+// back to whichever series/episode or movie mapping the GET already resolved on its own.
+function toImportPayload(c: ManualImportCandidate, override: MatchOverride | undefined, downloadId?: string) {
+  const base = { path: c.path, folderName: c.folderName, quality: c.quality, languages: c.languages, downloadId };
+  if (override?.kind === 'movie') return { ...base, movieId: override.movieId };
+  if (override?.kind === 'series') return { ...base, seriesId: override.seriesId, episodeIds: override.episodes.map((e) => e.id) };
   return {
-    path: c.path,
-    folderName: c.folderName,
-    quality: c.quality,
-    languages: c.languages,
-    downloadId,
+    ...base,
     ...(c.seriesId !== undefined ? { seriesId: c.seriesId, episodeIds: c.episodes?.map((e) => e.id) ?? [] } : {}),
     ...(c.movieId !== undefined ? { movieId: c.movieId } : {}),
   };
@@ -58,6 +76,8 @@ export function ArrQueueItemDialog({
 }) {
   const qc = useQueryClient();
   const [showImport, setShowImport] = useState(false);
+  const [overrides, setOverrides] = useState<Record<number, MatchOverride>>({});
+  const [pickerOpenFor, setPickerOpenFor] = useState<number | null>(null);
   const canManualImport = serviceId === 'sonarr' || serviceId === 'radarr';
 
   const remove = useMutation({
@@ -87,13 +107,13 @@ export function ArrQueueItemDialog({
   });
 
   const importFile = useMutation({
-    mutationFn: (c: ManualImportCandidate) =>
+    mutationFn: ({ c, index }: { c: ManualImportCandidate; index: number }) =>
       proxyApi.call(instance.id, {
         path: `/api/${apiVersion}/command`,
         method: 'POST',
-        body: { name: 'ManualImport', files: [toImportPayload(c, record.downloadId)], importMode: 'auto' },
+        body: { name: 'ManualImport', files: [toImportPayload(c, overrides[index], record.downloadId)], importMode: 'auto' },
       }),
-    onSuccess: (res, c) => {
+    onSuccess: (res, { c }) => {
       if (!res.ok) return toast.error(res.error || 'Import failed');
       toast.success(`Importing ${c.folderName || c.path.split('/').pop()}`);
       qc.invalidateQueries({ queryKey: ['proxy', instance.id] });
@@ -151,21 +171,44 @@ export function ArrQueueItemDialog({
                 <p className="text-sm text-muted-foreground">No importable files found for this download.</p>
               )}
               {candidates.map((c, i) => {
-                const busy = importFile.isPending && importFile.variables === c;
+                const busy = importFile.isPending && importFile.variables?.index === i;
+                const matchLabel = currentMatchLabel(c, overrides[i]);
                 return (
-                  <div key={i} className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-border p-3 text-sm">
-                    <div className="min-w-0">
-                      <p className="truncate font-medium">{c.folderName || c.path.split('/').pop()}</p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {c.quality?.quality?.name ?? 'Unknown quality'}
-                        {formatSize(c.size) ? ` · ${formatSize(c.size)}` : ''}
-                        {c.rejections?.length ? ` · ${c.rejections[0].reason}` : ''}
-                      </p>
+                  <div key={i} className="flex min-w-0 flex-col gap-2 rounded-lg border border-border p-3 text-sm">
+                    <div className="flex min-w-0 items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{c.folderName || c.path.split('/').pop()}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {c.quality?.quality?.name ?? 'Unknown quality'}
+                          {formatSize(c.size) ? ` · ${formatSize(c.size)}` : ''}
+                          {c.rejections?.length ? ` · ${c.rejections[0].reason}` : ''}
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0"
+                        disabled={busy}
+                        onClick={() => importFile.mutate({ c, index: i })}
+                      >
+                        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FolderInput className="h-3.5 w-3.5" />}
+                        Import
+                      </Button>
                     </div>
-                    <Button variant="outline" size="sm" className="shrink-0" disabled={busy} onClick={() => importFile.mutate(c)}>
-                      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FolderInput className="h-3.5 w-3.5" />}
-                      Import
-                    </Button>
+                    {canManualImport && (
+                      <div className="flex min-w-0 items-center justify-between gap-2 rounded-md bg-accent/50 px-2 py-1.5 text-xs">
+                        <span className="min-w-0 truncate text-muted-foreground">
+                          Matched to: <span className="font-medium text-foreground">{matchLabel ?? 'no match found'}</span>
+                        </span>
+                        <button
+                          type="button"
+                          className="shrink-0 text-primary hover:underline"
+                          onClick={() => setPickerOpenFor(i)}
+                        >
+                          Change
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -175,6 +218,38 @@ export function ArrQueueItemDialog({
             </Button>
           </div>
         )}
+
+        {pickerOpenFor !== null &&
+          (serviceId === 'radarr' ? (
+            <MoviePickerDialog
+              instance={instance}
+              onClose={() => setPickerOpenFor(null)}
+              onPick={(movie) => {
+                setOverrides((prev) => ({
+                  ...prev,
+                  [pickerOpenFor]: { kind: 'movie', movieId: movie.id, label: `${movie.title}${movie.year ? ` (${movie.year})` : ''}` },
+                }));
+                setPickerOpenFor(null);
+              }}
+            />
+          ) : (
+            <SeriesEpisodePickerDialog
+              instance={instance}
+              onClose={() => setPickerOpenFor(null)}
+              onPick={(pickedSeries, pickedEpisodes) => {
+                setOverrides((prev) => ({
+                  ...prev,
+                  [pickerOpenFor]: {
+                    kind: 'series',
+                    seriesId: pickedSeries.id,
+                    episodes: pickedEpisodes,
+                    label: `${pickedSeries.title} · ${episodeLabel(pickedEpisodes)}`,
+                  },
+                }));
+                setPickerOpenFor(null);
+              }}
+            />
+          ))}
       </DialogContent>
     </Dialog>
   );
