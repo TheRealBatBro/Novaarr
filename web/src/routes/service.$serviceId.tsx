@@ -1,0 +1,62 @@
+import { createFileRoute, Link } from '@tanstack/react-router';
+import { getServiceDefinition } from '@/lib/serviceRegistry';
+import { useServices } from '@/lib/queries';
+import { GenericServiceScreen } from '@/components/services/generic/GenericServiceScreen';
+import { SabnzbdScreen } from '@/components/services/sabnzbd/SabnzbdScreen';
+import { ArrQueueScreen } from '@/components/services/arr/ArrQueueScreen';
+import { QBittorrentScreen } from '@/components/services/qbittorrent/QBittorrentScreen';
+import { TransmissionScreen } from '@/components/services/transmission/TransmissionScreen';
+import { NzbgetScreen } from '@/components/services/nzbget/NzbgetScreen';
+import { DelugeScreen } from '@/components/services/deluge/DelugeScreen';
+import { IndexerSearchScreen } from '@/components/services/indexer/IndexerSearchScreen';
+import { OverseerrScreen } from '@/components/services/overseerr/OverseerrScreen';
+import { TautulliScreen } from '@/components/services/tautulli/TautulliScreen';
+import { TracearrScreen } from '@/components/services/tracearr/TracearrScreen';
+
+export const Route = createFileRoute('/service/$serviceId')({ component: ServiceDetail });
+
+const ARR_V3 = new Set(['sonarr', 'radarr']);
+const ARR_V1 = new Set(['lidarr', 'readarr']);
+const TORZNAB = new Set(['newznab', 'jackett', 'nzbhydra2']);
+
+function ServiceDetail() {
+  const { serviceId } = Route.useParams();
+  const definition = getServiceDefinition(serviceId);
+  const { data: instances = [] } = useServices();
+  const instance = instances.find((i) => i.serviceId === serviceId);
+
+  if (!definition) {
+    return <p className="text-muted-foreground">Unknown service “{serviceId}”.</p>;
+  }
+
+  if (definition.hideFromNav) {
+    return (
+      <div className="mx-auto max-w-md py-12 text-center">
+        <p className="mb-2 text-lg font-semibold">{definition.displayName} has no page of its own</p>
+        <p className="text-sm text-muted-foreground">
+          {definition.displayName} powers features embedded in other screens instead. Manage its connection from{' '}
+          <Link to="/settings/services" className="text-primary underline">
+            Settings → Services
+          </Link>
+          .
+        </p>
+      </div>
+    );
+  }
+
+  if (instance && definition.hasDetailScreen) {
+    if (definition.id === 'sabnzbd') return <SabnzbdScreen instance={instance} />;
+    if (definition.id === 'nzbget') return <NzbgetScreen instance={instance} />;
+    if (definition.id === 'qbittorrent') return <QBittorrentScreen instance={instance} />;
+    if (definition.id === 'transmission') return <TransmissionScreen instance={instance} />;
+    if (definition.id === 'deluge') return <DelugeScreen instance={instance} />;
+    if (definition.id === 'overseerr') return <OverseerrScreen instance={instance} />;
+    if (definition.id === 'tautulli') return <TautulliScreen instance={instance} />;
+    if (definition.id === 'tracearr') return <TracearrScreen instance={instance} />;
+    if (ARR_V3.has(definition.id)) return <ArrQueueScreen definition={definition} instance={instance} apiVersion="v3" />;
+    if (ARR_V1.has(definition.id)) return <ArrQueueScreen definition={definition} instance={instance} apiVersion="v1" />;
+    if (TORZNAB.has(definition.id)) return <IndexerSearchScreen definition={definition} instance={instance} />;
+  }
+
+  return <GenericServiceScreen definition={definition} instance={instance} />;
+}

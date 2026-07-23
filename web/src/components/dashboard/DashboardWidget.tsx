@@ -1,0 +1,148 @@
+import { useServices } from '@/lib/queries';
+import { getServiceDefinition } from '@/lib/serviceRegistry';
+import {
+  useRadarrCarousel,
+  useSonarrRecentCarousel,
+  useSonarrUpcomingCarousel,
+  useOverseerrCarousel,
+  useTraktCarousel,
+  useTautulliRecentCarousel,
+  WIDGET_CATALOG,
+  type WidgetSource,
+} from '@/lib/dashboardWidgets';
+import type { ServiceInstance } from '@/lib/api';
+import { DashboardCarousel } from './DashboardCarousel';
+import { SabnzbdStatusWidget } from './SabnzbdStatusWidget';
+import { OverseerrSearchWidget } from './OverseerrSearchWidget';
+import { TautulliStatusWidget } from './TautulliStatusWidget';
+import { TracearrStatusWidget } from './TracearrStatusWidget';
+import { TracearrViolationsWidget } from './TracearrViolationsWidget';
+
+type SourceProps = {
+  instance: ServiceInstance;
+  overseerr?: ServiceInstance;
+  sourceId: string;
+  title: string;
+  sourceLabel: string;
+  sourceColor: string;
+};
+
+function RadarrUpcoming({ instance, overseerr, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
+  const result = useRadarrCarousel(instance, 'upcoming');
+  return <DashboardCarousel title={title} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} sourceInstance={instance} overseerrInstance={overseerr} {...result} />;
+}
+function RadarrRecent({ instance, overseerr, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
+  const result = useRadarrCarousel(instance, 'recent');
+  return <DashboardCarousel title={title} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} sourceInstance={instance} overseerrInstance={overseerr} {...result} />;
+}
+function SonarrUpcoming({ instance, overseerr, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
+  const result = useSonarrUpcomingCarousel(instance);
+  return <DashboardCarousel title={title} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} sourceInstance={instance} overseerrInstance={overseerr} {...result} />;
+}
+function SonarrRecent({ instance, overseerr, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
+  const result = useSonarrRecentCarousel(instance);
+  return <DashboardCarousel title={title} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} sourceInstance={instance} overseerrInstance={overseerr} {...result} />;
+}
+function OverseerrTrending({ instance, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
+  const result = useOverseerrCarousel(instance, '/api/v1/discover/trending');
+  return <DashboardCarousel title={title} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} overseerrInstance={instance} {...result} />;
+}
+function OverseerrPopularMovies({ instance, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
+  const result = useOverseerrCarousel(instance, '/api/v1/discover/movies');
+  return <DashboardCarousel title={title} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} overseerrInstance={instance} {...result} />;
+}
+function OverseerrPopularTv({ instance, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
+  const result = useOverseerrCarousel(instance, '/api/v1/discover/tv');
+  return <DashboardCarousel title={title} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} overseerrInstance={instance} {...result} />;
+}
+function OverseerrUpcomingMovies({ instance, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
+  const result = useOverseerrCarousel(instance, '/api/v1/discover/movies/upcoming');
+  return <DashboardCarousel title={title} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} overseerrInstance={instance} {...result} />;
+}
+function TraktAnticipatedMovies({ instance, overseerr, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
+  const result = useTraktCarousel(instance, overseerr, '/movies/anticipated', 'movie');
+  return <DashboardCarousel title={title} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} overseerrInstance={overseerr} {...result} />;
+}
+function TraktTrendingMovies({ instance, overseerr, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
+  const result = useTraktCarousel(instance, overseerr, '/movies/trending', 'movie');
+  return <DashboardCarousel title={title} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} overseerrInstance={overseerr} {...result} />;
+}
+function TraktAnticipatedShows({ instance, overseerr, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
+  const result = useTraktCarousel(instance, overseerr, '/shows/anticipated', 'tv');
+  return <DashboardCarousel title={title} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} overseerrInstance={overseerr} {...result} />;
+}
+function TraktTrendingShows({ instance, overseerr, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
+  const result = useTraktCarousel(instance, overseerr, '/shows/trending', 'tv');
+  return <DashboardCarousel title={title} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} overseerrInstance={overseerr} {...result} />;
+}
+function TautulliRecent({ instance, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
+  const result = useTautulliRecentCarousel(instance);
+  return <DashboardCarousel title={title} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} {...result} />;
+}
+
+const WIDGET_COMPONENTS: Record<string, (props: SourceProps) => JSX.Element> = {
+  'radarr-upcoming': RadarrUpcoming,
+  'radarr-recent': RadarrRecent,
+  'sonarr-upcoming': SonarrUpcoming,
+  'sonarr-recent': SonarrRecent,
+  'overseerr-trending': OverseerrTrending,
+  'overseerr-popular-movies': OverseerrPopularMovies,
+  'overseerr-popular-tv': OverseerrPopularTv,
+  'overseerr-upcoming-movies': OverseerrUpcomingMovies,
+  'trakt-anticipated-movies': TraktAnticipatedMovies,
+  'trakt-trending-movies': TraktTrendingMovies,
+  'trakt-anticipated-shows': TraktAnticipatedShows,
+  'trakt-trending-shows': TraktTrendingShows,
+  'tautulli-recent': TautulliRecent,
+};
+
+export function DashboardWidget({ widgetKey }: { widgetKey: string }) {
+  const def = WIDGET_CATALOG.find((w) => w.key === widgetKey);
+  const { data: instances = [] } = useServices();
+
+  if (!def) return null;
+
+  const bySource: Record<WidgetSource, ServiceInstance | undefined> = {
+    radarr: instances.find((i) => i.serviceId === 'radarr'),
+    sonarr: instances.find((i) => i.serviceId === 'sonarr'),
+    overseerr: instances.find((i) => i.serviceId === 'overseerr'),
+    trakt: instances.find((i) => i.serviceId === 'trakt'),
+    sabnzbd: instances.find((i) => i.serviceId === 'sabnzbd'),
+    tautulli: instances.find((i) => i.serviceId === 'tautulli'),
+    tracearr: instances.find((i) => i.serviceId === 'tracearr'),
+  };
+  const instance = bySource[def.source];
+  if (!instance || !instance.enabled) return null;
+
+  if (def.kind === 'status') {
+    if (def.source === 'sabnzbd') return <SabnzbdStatusWidget instance={instance} title={def.title} />;
+    if (def.source === 'tautulli') return <TautulliStatusWidget instance={instance} title={def.title} />;
+    if (def.source === 'tracearr') return <TracearrStatusWidget instance={instance} title={def.title} />;
+    return null;
+  }
+
+  if (def.kind === 'search') {
+    if (def.source === 'overseerr') return <OverseerrSearchWidget instance={instance} title={def.title} />;
+    return null;
+  }
+
+  if (def.kind === 'violations') {
+    if (def.source === 'tracearr') return <TracearrViolationsWidget instance={instance} title={def.title} />;
+    return null;
+  }
+
+  const Component = WIDGET_COMPONENTS[widgetKey];
+  if (!Component) return null;
+
+  const sourceDef = getServiceDefinition(def.source);
+  return (
+    <Component
+      instance={instance}
+      overseerr={bySource.overseerr}
+      sourceId={def.source}
+      title={def.title}
+      sourceLabel={`From ${sourceDef?.displayName ?? def.source}`}
+      sourceColor={sourceDef?.brandColor ?? '#888'}
+    />
+  );
+}

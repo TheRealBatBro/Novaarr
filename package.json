@@ -1,0 +1,22 @@
+{
+  "name": "mediaremote",
+  "version": "0.1.0",
+  "description": "Self-hosted NZB360-style remote dashboard for your download/media stack",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.3.0",
+    "cookie-parser": "^1.4.6",
+    "express": "^4.19.2",
+    "fast-xml-parser": "^4.5.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

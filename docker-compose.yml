@@ -1,0 +1,31 @@
+services:
+  mediaremote:
+    build: .
+    container_name: mediaremote
+    restart: unless-stopped
+    ports:
+      - "3210:3000"           # remove/change if using a reverse proxy
+    volumes:
+      - mediaremote-data:/data   # SQLite database (your PIN + service configs) persists here
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      # Set to a sub-path if hosting at e.g. https://myserver.local/mediaremote
+      # Leave empty ("") to serve from root
+      BASE_PATH: ""
+      DB_PATH: /data/mediaremote.db
+      # true: menu shows every known service regardless of enabled state (handy while you're
+      #   still setting things up). false: menu only shows services you've enabled in Settings.
+      # Flip to "false" once you're done configuring and want the tidied-up production menu.
+      SHOW_ALL_SERVICES: "true"
+    # Uncomment to expose only to a local reverse proxy (Nginx/Traefik/Caddy)
+    # and remove the `ports` section above:
+    # networks:
+    #   - proxy
+
+volumes:
+  mediaremote-data:
+
+# networks:
+#   proxy:
+#     external: true

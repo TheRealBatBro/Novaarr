@@ -1,0 +1,189 @@
+import { useEffect, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useServiceProxy } from '@/lib/queries';
+import { proxyApi, type ServiceInstance } from '@/lib/api';
+
+type LookupImage = { coverType: string; remoteUrl?: string; url?: string };
+type MovieLookupResult = { title: string; year?: number; tmdbId: number; images?: LookupImage[] };
+type Profile = { id: number; name: string };
+type RootFolder = { id: number; path: string };
+
+function posterUrl(item: { images?: LookupImage[] }): string | undefined {
+  const img = item.images?.find((i) => i.coverType === 'poster');
+  return img?.remoteUrl || img?.url;
+}
+
+export function AddMovieDialog({
+  instance,
+  open,
+  onOpenChange,
+  onAdded,
+}: {
+  instance: ServiceInstance;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onAdded: () => void;
+}) {
+  const qc = useQueryClient();
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<MovieLookupResult[] | null>(null);
+  const [selected, setSelected] = useState<MovieLookupResult | null>(null);
+  const [qualityProfileId, setQualityProfileId] = useState<number | ''>('');
+  const [rootFolderPath, setRootFolderPath] = useState('');
+
+  const { data: profiles } = useServiceProxy<Profile[]>(instance, { path: '/api/v3/qualityprofile' });
+  const { data: rootFolders } = useServiceProxy<RootFolder[]>(instance, { path: '/api/v3/rootfolder' });
+
+  useEffect(() => {
+    if (qualityProfileId === '' && profiles?.ok && profiles.data?.[0]) setQualityProfileId(profiles.data[0].id);
+    if (rootFolderPath === '' && rootFolders?.ok && rootFolders.data?.[0]) setRootFolderPath(rootFolders.data[0].path);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profiles, rootFolders]);
+
+  const search = useMutation({
+    mutationFn: (term: string) => proxyApi.call<MovieLookupResult[]>(instance.id, { path: '/api/v3/movie/lookup', query: { term } }),
+    onSuccess: (res) => {
+      if (!res.ok) {
+        toast.error(res.error || 'Search failed');
+        setResults([]);
+        return;
+      }
+      setResults(res.data ?? []);
+    },
+    onError: (e) => {
+      toast.error(e instanceof Error ? e.message : 'Search failed');
+      setResults([]);
+    },
+  });
+
+  const add = useMutation({
+    mutationFn: () =>
+      proxyApi.call(instance.id, {
+        path: '/api/v3/movie',
+        method: 'POST',
+        body: {
+          title: selected!.title,
+          tmdbId: selected!.tmdbId,
+          qualityProfileId: Number(qualityProfileId),
+          rootFolderPath,
+          monitored: true,
+          minimumAvailability: 'released',
+          addOptions: { searchForMovie: true },
+        },
+      }),
+    onSuccess: (res) => {
+      if (!res.ok) {
+        toast.error(res.error || 'Failed to add movie');
+        return;
+      }
+      toast.success(`${selected!.title} added`);
+      qc.invalidateQueries({ queryKey: ['proxy', instance.id] });
+      onAdded();
+      close();
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : 'Failed to add movie'),
+  });
+
+  function close() {
+    setQuery('');
+    setResults(null);
+    setSelected(null);
+    onOpenChange(false);
+  }
+
+  function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    if (!query.trim()) return;
+    search.mutate(query.trim());
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(true) : close())}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Add movie</DialogTitle>
+          <DialogDescription>Search for a movie and add it to Radarr.</DialogDescription>
+        </DialogHeader>
+
+        {!selected ? (
+          <>
+            <form onSubmit={handleSearch} className="flex gap-2">
+              <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search for a movie…" className="flex-1" />
+              <Button type="submit" disabled={search.isPending || !query.trim()}>
+                Search
+              </Button>
+            </form>
+            <div className="grid max-h-80 grid-cols-3 gap-2 overflow-y-auto">
+              {search.isPending && Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="aspect-[2/3] w-full rounded-lg" />)}
+              {!search.isPending &&
+                results?.map((r) => (
+                  <button
+                    key={r.tmdbId}
+                    type="button"
+                    onClick={() => setSelected(r)}
+                    className="overflow-hidden rounded-lg border border-border text-left transition-colors hover:border-primary"
+                  >
+                    <div className="aspect-[2/3] w-full bg-muted">
+                      {posterUrl(r) && <img src={posterUrl(r)} alt={r.title} className="h-full w-full object-cover" />}
+                    </div>
+                    <p className="truncate p-1 text-xs font-medium">
+                      {r.title} {r.year ? `(${r.year})` : ''}
+                    </p>
+                  </button>
+                ))}
+              {!search.isPending && results?.length === 0 && <p className="col-span-full text-sm text-muted-foreground">No results.</p>}
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center gap-3">
+              <div className="h-20 w-14 shrink-0 overflow-hidden rounded bg-muted">
+                {posterUrl(selected) && <img src={posterUrl(selected)} alt={selected.title} className="h-full w-full object-cover" />}
+              </div>
+              <div>
+                <p className="font-medium">
+                  {selected.title} {selected.year ? `(${selected.year})` : ''}
+                </p>
+                <button type="button" onClick={() => setSelected(null)} className="text-xs text-primary hover:underline">
+                  Choose a different movie
+                </button>
+              </div>
+            </div>
+
+            <div className="grid gap-1.5">
+              <Label>Quality profile</Label>
+              <Select value={qualityProfileId} onChange={(e) => setQualityProfileId(Number(e.target.value))}>
+                {profiles?.data?.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Root folder</Label>
+              <Select value={rootFolderPath} onChange={(e) => setRootFolderPath(e.target.value)}>
+                {rootFolders?.data?.map((f) => (
+                  <option key={f.id} value={f.path}>
+                    {f.path}
+                  </option>
+                ))}
+              </Select>
+            </div>
+
+            <Button onClick={() => add.mutate()} disabled={add.isPending || !qualityProfileId || !rootFolderPath}>
+              Add movie &amp; search
+            </Button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
