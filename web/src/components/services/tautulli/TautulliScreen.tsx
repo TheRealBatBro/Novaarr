@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { WolButton } from '@/components/shared/WolButton';
 import { getServiceIcon } from '@/lib/serviceIcons';
 import { cn } from '@/lib/utils';
+import { useResetScrollOnChange } from '@/lib/useResetScrollOnChange';
 import type { ServiceInstance } from '@/lib/api';
 import { TautulliActivityTab } from './TautulliActivityTab';
 import { TautulliUsersTab } from './TautulliUsersTab';
@@ -15,6 +16,7 @@ const TAB_LABEL: Record<(typeof TABS)[number], string> = { activity: 'Activity',
 
 export function TautulliScreen({ instance }: { instance: ServiceInstance }) {
   const [tab, setTab] = useState<(typeof TABS)[number]>('activity');
+  useResetScrollOnChange(tab);
 
   return (
     <div>

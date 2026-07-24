@@ -14,6 +14,7 @@ import { ArrQueueItemDialog } from './ArrQueueItemDialog';
 import { useServiceProxy } from '@/lib/queries';
 import { getServiceIcon } from '@/lib/serviceIcons';
 import { cn } from '@/lib/utils';
+import { useResetScrollOnChange } from '@/lib/useResetScrollOnChange';
 import type { ServiceInstance } from '@/lib/api';
 import type { ServiceDefinition } from '@/lib/serviceRegistry';
 
@@ -86,6 +87,7 @@ export function ArrQueueScreen({
   const libraryConfig = LIBRARY_CONFIG[definition.id];
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>(libraryConfig ? 'library' : 'queue');
+  useResetScrollOnChange(tab);
   const [addOpen, setAddOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<ArrQueueRecord | null>(null);
   const canManage = definition.id === 'sonarr' || definition.id === 'radarr';

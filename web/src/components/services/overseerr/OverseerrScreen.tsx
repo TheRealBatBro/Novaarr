@@ -9,6 +9,7 @@ import { WolButton } from '@/components/shared/WolButton';
 import { useServiceProxy } from '@/lib/queries';
 import { getServiceIcon } from '@/lib/serviceIcons';
 import { cn } from '@/lib/utils';
+import { useResetScrollOnChange } from '@/lib/useResetScrollOnChange';
 import { proxyApi, type ServiceInstance } from '@/lib/api';
 import { OverseerrRequestRow, type OverseerrRequest } from './OverseerrRequestRow';
 import { OverseerrIssueRow, type OverseerrIssue } from './OverseerrIssueRow';
@@ -38,6 +39,7 @@ type IssueList = { results?: OverseerrIssue[] };
 export function OverseerrScreen({ instance }: { instance: ServiceInstance }) {
   const qc = useQueryClient();
   const [tab, setTab] = useState<'search' | 'requests' | 'issues'>('requests');
+  useResetScrollOnChange(tab);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<OverseerrSearchResult[] | null>(null);
   const [requestFilter, setRequestFilter] = useState<(typeof REQUEST_FILTERS)[number]>('all');

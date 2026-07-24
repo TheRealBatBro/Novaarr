@@ -1,3 +1,4 @@
+import { User } from 'lucide-react';
 import { useServices } from '@/lib/queries';
 import { getServiceDefinition } from '@/lib/serviceRegistry';
 import {
@@ -96,10 +97,12 @@ function TautulliRecommendations({ instance, overseerr, sourceId, title, sourceL
 
   return (
     <div>
-      {users.length > 1 && (
-        <div className="mb-1 flex justify-end">
+      {users.length > 0 && (
+        <div className="mb-2 flex items-center justify-end gap-2">
+          <User className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">Recommend for</span>
           <Select
-            className="h-7 w-40 text-xs"
+            className="h-8 w-44 text-xs"
             value={plexRecommendationUserId ?? ''}
             onChange={(e) => setPlexRecommendationUserId(e.target.value || null)}
           >

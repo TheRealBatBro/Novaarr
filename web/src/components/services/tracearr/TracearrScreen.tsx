@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { WolButton } from '@/components/shared/WolButton';
 import { getServiceIcon } from '@/lib/serviceIcons';
 import { cn } from '@/lib/utils';
+import { useResetScrollOnChange } from '@/lib/useResetScrollOnChange';
 import type { ServiceInstance } from '@/lib/api';
 import { TracearrDashboardTab } from './TracearrDashboardTab';
 import { TracearrActivityTab } from './TracearrActivityTab';
@@ -21,6 +22,7 @@ const TAB_LABEL: Record<(typeof TABS)[number], string> = {
 
 export function TracearrScreen({ instance }: { instance: ServiceInstance }) {
   const [tab, setTab] = useState<(typeof TABS)[number]>('dashboard');
+  useResetScrollOnChange(tab);
 
   return (
     <div>

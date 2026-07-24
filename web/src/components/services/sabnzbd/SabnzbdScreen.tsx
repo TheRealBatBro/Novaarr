@@ -14,6 +14,7 @@ import { useServiceProxy } from '@/lib/queries';
 import { useRollingHistory } from '@/lib/useRollingHistory';
 import { getServiceIcon } from '@/lib/serviceIcons';
 import { cn } from '@/lib/utils';
+import { useResetScrollOnChange } from '@/lib/useResetScrollOnChange';
 import { proxyApi, type ServiceInstance } from '@/lib/api';
 import { SabnzbdAddDialog } from './SabnzbdAddDialog';
 import { SabnzbdHistoryDetailDialog, type SabnzbdHistorySlot } from './SabnzbdHistoryDetailDialog';
@@ -60,6 +61,7 @@ function relativeTime(unixSeconds?: number): string {
 export function SabnzbdScreen({ instance }: { instance: ServiceInstance }) {
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>('queue');
+  useResetScrollOnChange(tab);
   const [addOpen, setAddOpen] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
