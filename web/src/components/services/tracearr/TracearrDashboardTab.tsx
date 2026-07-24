@@ -4,6 +4,7 @@ import { SessionBackdrop, SessionDetails } from '@/components/shared/NowPlayingC
 import { useServiceProxy } from '@/lib/queries';
 import {
   tracearrImageUrl,
+  sessionBackdropUrl,
   historyDisplayTitle,
   historySubtitle,
   sessionUserLabel,
@@ -79,7 +80,7 @@ export function TracearrDashboardTab({ instance }: { instance: ServiceInstance }
           const pct = total > 0 ? Math.min(100, (progress / total) * 100) : 0;
           return (
             <div key={s.id} className="relative overflow-hidden rounded-xl border border-border bg-card p-3">
-              <SessionBackdrop url={tracearrImageUrl(instance, s.posterUrl)} blurred />
+              <SessionBackdrop url={sessionBackdropUrl(instance, s)} />
               <div className="relative z-10">
                 <SessionDetails
                   posterUrl={tracearrImageUrl(instance, s.posterUrl)}

@@ -6,6 +6,7 @@ import { getServiceDefinition } from '@/lib/serviceRegistry';
 import { useServiceProxy } from '@/lib/queries';
 import {
   tracearrImageUrl,
+  sessionBackdropUrl,
   historyDisplayTitle,
   historySubtitle,
   sessionUserLabel,
@@ -42,7 +43,7 @@ export function TracearrStatusWidget({ instance, title }: { instance: ServiceIns
       whileHover={{ scale: 1.005 }}
       whileTap={{ scale: 0.995 }}
     >
-      {first && <SessionBackdrop url={tracearrImageUrl(instance, first.posterUrl)} blurred />}
+      {first && <SessionBackdrop url={sessionBackdropUrl(instance, first)} />}
       <div className="relative z-10 flex items-center gap-3">
         <span
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"

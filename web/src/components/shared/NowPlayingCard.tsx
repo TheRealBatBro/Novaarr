@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { User } from 'lucide-react';
 import { ProgressBar } from '@/components/shared/ProgressBar';
 import { cn } from '@/lib/utils';
@@ -6,16 +7,24 @@ import { cn } from '@/lib/utils';
 // solid-card → transparent left-to-right so the backdrop image "fades in" as it goes right, while
 // the left side (where title/text sit) stays legible.
 //
-// `blurred` is for portrait-only sources (Tracearr only ever has a 300x450 poster, no landscape
-// fanart) — object-cover on a wide-short card forces a huge zoom factor and crops to a thin band
-// through the middle of the source image, which reads as an accidental slice through people's
-// torsos rather than a scene. Blurring + scaling it up hides that crop and reads as an intentional
-// soft/atmospheric background instead.
+// Falls back to the plain gradient if `url` fails to load — a session whose backdrop request
+// 404s (e.g. no fanart set for that item) would otherwise render a broken image icon on top of
+// the gradient instead of just... not having a backdrop.
 export function SessionBackdrop({ url, blurred }: { url?: string; blurred?: boolean }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [url]);
+  const showImage = url && !failed;
+
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
-      {url ? (
-        <img src={url} alt="" loading="lazy" className={cn('h-full w-full object-cover', blurred && 'scale-125 blur-md')} />
+      {showImage ? (
+        <img
+          src={url}
+          alt=""
+          loading="lazy"
+          onError={() => setFailed(true)}
+          className={cn('h-full w-full object-cover', blurred && 'scale-125 blur-md')}
+        />
       ) : (
         <div className="h-full w-full bg-gradient-to-br from-muted/50 to-card" />
       )}

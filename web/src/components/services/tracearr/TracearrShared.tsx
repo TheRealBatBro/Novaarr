@@ -85,6 +85,8 @@ export type TracearrSessionHistory = {
   platform?: string | null;
   isTranscode?: boolean | null;
   resolution?: string | null;
+  serverId?: string;
+  thumbPath?: string | null;
   // The live-streams endpoint (/api/v1/public/streams) puts these at the top level; the history
   // endpoint (/api/v1/public/history) nests the same info under `user` instead — a session tied
   // to a deleted/unresolved Plex account has neither.
@@ -93,6 +95,20 @@ export type TracearrSessionHistory = {
   userAvatarUrl?: string | null;
   user?: { id: string; username: string; thumbUrl?: string | null; avatarUrl?: string | null };
 };
+
+// Tracearr's session payloads only ever carry a portrait poster (posterUrl, baked in at
+// 300x450) — there's no landscape fanart field. But `thumbPath` is the same Plex library path
+// Tautulli's `art` field is derived from, just pointed at the "/thumb/" (poster) asset instead of
+// the "/art/" (fanart) one at that same rating key — swapping the segment gets the real backdrop
+// through Tracearr's own image proxy instead of stretching the poster into a wide crop.
+export function sessionBackdropUrl(instance: ServiceInstance, item: TracearrSessionHistory): string | undefined {
+  if (item.serverId && item.thumbPath?.includes('/thumb/')) {
+    const artPath = item.thumbPath.replace('/thumb/', '/art/');
+    const proxyPath = `/api/v1/images/proxy?server=${item.serverId}&url=${encodeURIComponent(artPath)}&width=800&height=300&fallback=poster`;
+    return tracearrImageUrl(instance, proxyPath);
+  }
+  return tracearrImageUrl(instance, item.posterUrl);
+}
 
 export function historySubtitle(item: TracearrSessionHistory): string {
   if (item.mediaType === 'episode' && item.showTitle) {
