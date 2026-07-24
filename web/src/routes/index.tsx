@@ -1,33 +1,11 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Settings2 } from 'lucide-react';
 import { useDashboardWidgets, useServices } from '@/lib/queries';
-import { WIDGET_CATALOG, type WidgetDef } from '@/lib/dashboardWidgets';
+import { WIDGET_CATALOG, mergeNewWidgetsByCatalogPosition } from '@/lib/dashboardWidgets';
 import { DashboardWidget } from '@/components/dashboard/DashboardWidget';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export const Route = createFileRoute('/')({ component: Dashboard });
-
-// Inserts only genuinely-new catalog widgets (in newKeys — never present in the user's saved
-// config at all) into baseOrder, right after their nearest catalog neighbor that's already in
-// baseOrder. A disabled widget is deliberately absent from baseOrder too, but it's NOT in
-// newKeys (it has a saved row, just with enabled: false) — the two must stay distinguishable, or
-// disabling a widget and a brand new widget showing up look identical and both end up visible.
-function mergeNewWidgetsByCatalogPosition(baseOrder: string[], catalog: WidgetDef[], newKeys: Set<string>): string[] {
-  const result = [...baseOrder];
-  catalog.forEach((w, i) => {
-    if (!newKeys.has(w.key)) return;
-    let insertAt = result.length;
-    for (let j = i - 1; j >= 0; j--) {
-      const idx = result.indexOf(catalog[j].key);
-      if (idx !== -1) {
-        insertAt = idx + 1;
-        break;
-      }
-    }
-    result.splice(insertAt, 0, w.key);
-  });
-  return result;
-}
 
 function Dashboard() {
   const { isLoading: instancesLoading } = useServices();

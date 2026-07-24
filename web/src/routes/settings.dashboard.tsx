@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import { WIDGET_CATALOG } from '@/lib/dashboardWidgets';
+import { WIDGET_CATALOG, mergeNewWidgetsByCatalogPosition } from '@/lib/dashboardWidgets';
 import { getServiceDefinition } from '@/lib/serviceRegistry';
 import { getServiceIcon } from '@/lib/serviceIcons';
 import { useDashboardWidgets, useSetDashboardWidgets, useServices, useUpdateService } from '@/lib/queries';
@@ -188,10 +188,14 @@ function SettingsDashboard() {
   useEffect(() => {
     if (isLoading || rows) return;
     if (config && config.length > 0) {
-      const byKey = new Map(config.map((c) => [c.key, c.enabled]));
-      const known = config.filter((c) => WIDGET_CATALOG.some((w) => w.key === c.key));
-      const missing = WIDGET_CATALOG.filter((w) => !byKey.has(w.key)).map((w) => ({ key: w.key, enabled: true }));
-      setRows([...known, ...missing]);
+      // Same reconciliation the dashboard page itself uses — otherwise a toggle or reorder here
+      // re-saves whatever position this effect picked, and if that position was "brand new
+      // widget appended at the very end," it cements it there permanently.
+      const byEnabled = new Map(config.map((c) => [c.key, c.enabled]));
+      const known = config.filter((c) => WIDGET_CATALOG.some((w) => w.key === c.key)).map((c) => c.key);
+      const newKeys = new Set(WIDGET_CATALOG.filter((w) => !byEnabled.has(w.key)).map((w) => w.key));
+      const mergedKeys = mergeNewWidgetsByCatalogPosition(known, WIDGET_CATALOG, newKeys);
+      setRows(mergedKeys.map((key) => ({ key, enabled: byEnabled.get(key) ?? true })));
     } else {
       setRows(WIDGET_CATALOG.map((w) => ({ key: w.key, enabled: true })));
     }

@@ -15,6 +15,31 @@ export type WidgetDef = {
   kind?: 'carousel' | 'status' | 'search' | 'violations';
 };
 
+// Inserts only genuinely-new catalog widgets (keys in `newKeys`, meaning no saved row exists for
+// them at all yet — not merely disabled) into baseOrder, right after their nearest catalog
+// neighbor that's already in baseOrder. Both the dashboard page and Settings > Dashboard need
+// this same reconciliation — the dashboard for display order, Settings so a toggle/reorder there
+// doesn't re-save a brand new widget at the tail and cement it there permanently, which is what
+// actually happened here: the dashboard computed a good position for display, but Settings had
+// its own separate (and simpler, always-append) reconciliation that won as soon as anything was
+// saved from that page.
+export function mergeNewWidgetsByCatalogPosition(baseOrder: string[], catalog: WidgetDef[], newKeys: Set<string>): string[] {
+  const result = [...baseOrder];
+  catalog.forEach((w, i) => {
+    if (!newKeys.has(w.key)) return;
+    let insertAt = result.length;
+    for (let j = i - 1; j >= 0; j--) {
+      const idx = result.indexOf(catalog[j].key);
+      if (idx !== -1) {
+        insertAt = idx + 1;
+        break;
+      }
+    }
+    result.splice(insertAt, 0, w.key);
+  });
+  return result;
+}
+
 // NZB360's dashboard sources trending/anticipated lists from Trakt and TMDB directly. We don't
 // have a standalone TMDB integration, so Trakt list items (which carry a tmdb id but no artwork)
 // get their poster art via Overseerr's own TMDB-backed movie/tv detail endpoints when available.
