@@ -501,9 +501,16 @@ export function usePlexRecommendationsCarousel(
   }
   const seedKey = seeds.map((s) => s.ratingKey).join(',');
 
+  // Each per-seed lookup is isolated (one flaky seed shouldn't blank the rest), but that same
+  // isolation was silently swallowing a total failure (every seed timing out) into "just show
+  // nothing" — indistinguishable from "genuinely no seeds resolved." failCount lets the final
+  // result tell those apart and surface a real error instead of the widget quietly vanishing.
   const metadataQuery = useQuery({
-    queryKey: ['plex-rec-metadata', tautulli?.id, seedKey],
+    // v2: the cached value's shape changed ({tmdbIds, failCount} instead of a bare Record) — a
+    // stale cache entry under the old key crashed on `.tmdbIds` of the old plain-object shape.
+    queryKey: ['plex-rec-metadata-v2', tautulli?.id, seedKey],
     queryFn: async () => {
+      let failCount = 0;
       const entries = await Promise.all(
         seeds.map(async (s) => {
           try {
@@ -512,27 +519,32 @@ export function usePlexRecommendationsCarousel(
               query: { cmd: 'get_metadata', rating_key: s.ratingKey },
               timeoutMs: 10_000,
             });
+            if (!res.ok) failCount++;
             return [s.ratingKey, res.ok ? extractTmdbId(res.data?.response) : undefined] as const;
           } catch {
+            failCount++;
             return [s.ratingKey, undefined] as const;
           }
         }),
       );
-      return Object.fromEntries(entries) as Record<string, number | undefined>;
+      return { tmdbIds: Object.fromEntries(entries) as Record<string, number | undefined>, failCount };
     },
     enabled: !!tautulli && seeds.length > 0,
     staleTime: 10 * 60_000,
     retry: 1,
   });
+  const metadataFailedCompletely = seeds.length > 0 && metadataQuery.data?.failCount === seeds.length;
 
   const seedsWithTmdb = seeds
-    .map((s) => ({ ...s, tmdbId: metadataQuery.data?.[s.ratingKey] }))
+    .map((s) => ({ ...s, tmdbId: metadataQuery.data?.tmdbIds?.[s.ratingKey] }))
     .filter((s): s is RecSeed & { tmdbId: number } => s.tmdbId !== undefined);
   const seedTmdbKey = seedsWithTmdb.map((s) => `${s.mediaType}-${s.tmdbId}`).join(',');
 
   const recsQuery = useQuery({
-    queryKey: ['plex-recommendations', overseerr?.id, seedTmdbKey],
+    // v2: see metadataQuery above — the cached value's shape changed here too.
+    queryKey: ['plex-recommendations-v2', overseerr?.id, seedTmdbKey],
     queryFn: async () => {
+      let failCount = 0;
       const entries = await Promise.all(
         seedsWithTmdb.map(async (s) => {
           try {
@@ -540,24 +552,27 @@ export function usePlexRecommendationsCarousel(
               path: `/api/v1/${s.mediaType}/${s.tmdbId}/recommendations`,
               timeoutMs: 15_000,
             });
+            if (!res.ok) failCount++;
             return res.ok ? res.data?.results ?? [] : [];
           } catch {
+            failCount++;
             return [];
           }
         }),
       );
-      return entries.flat();
+      return { results: entries.flat(), failCount };
     },
     enabled: !!overseerr && seedsWithTmdb.length > 0,
     refetchInterval: ms,
     staleTime: ms,
     retry: 1,
   });
+  const recsFailedCompletely = seedsWithTmdb.length > 0 && recsQuery.data?.failCount === seedsWithTmdb.length;
 
   const seedResultKeys = new Set(seedsWithTmdb.map((s) => `${s.mediaType}-${s.tmdbId}`));
   const seen = new Set<string>();
   const deduped: OverseerrDiscoverItem[] = [];
-  for (const r of recsQuery.data ?? []) {
+  for (const r of recsQuery.data?.results ?? []) {
     const mediaType = r.mediaType ?? 'movie';
     const key = `${mediaType}-${r.id}`;
     if (seedResultKeys.has(key) || seen.has(key)) continue;
@@ -583,7 +598,10 @@ export function usePlexRecommendationsCarousel(
   return {
     items,
     isLoading: historyQuery.isLoading || (seeds.length > 0 && metadataQuery.isLoading) || (seedsWithTmdb.length > 0 && recsQuery.isLoading),
-    error: proxyError(historyQuery.data),
+    error:
+      proxyError(historyQuery.data) ||
+      (metadataFailedCompletely ? 'Could not look up watched titles' : undefined) ||
+      (recsFailedCompletely ? 'Could not fetch recommendations' : undefined),
     seed: seeds[0] ? { title: seeds[0].title, mediaType: seeds[0].mediaType, extraCount: seeds.length - 1 } : undefined,
     refetch: async () => {
       await historyQuery.refetch();
