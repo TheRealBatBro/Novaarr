@@ -175,7 +175,7 @@ function restoreFrom(sourcePath) {
 // a typo doesn't turn into either a dead-slow dashboard or an accidental hammering loop.
 const REFRESH_INTERVAL_LIMITS = {
   trakt: { min: 60, max: 1440 },
-  default: { min: 5, max: 720 },
+  default: { min: 5, max: 1440 },
 };
 
 function defaultRefreshInterval(serviceId) {

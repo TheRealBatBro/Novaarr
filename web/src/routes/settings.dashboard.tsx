@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Reorder } from 'framer-motion';
+import { Reorder, useDragControls } from 'framer-motion';
 import { GripVertical, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { SettingsTabs } from '@/components/settings/SettingsTabs';
@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import { WIDGET_CATALOG, mergeNewWidgetsByCatalogPosition } from '@/lib/dashboardWidgets';
+import { WIDGET_CATALOG, mergeNewWidgetsByCatalogPosition, type WidgetDef } from '@/lib/dashboardWidgets';
 import { getServiceDefinition } from '@/lib/serviceRegistry';
 import { getServiceIcon } from '@/lib/serviceIcons';
 import { useDashboardWidgets, useSetDashboardWidgets, useServices, useUpdateService } from '@/lib/queries';
@@ -36,7 +36,7 @@ const CONFIGURABLE_SOURCES = [
 // on an odd value like "347 minutes".
 const PRESET_STOPS: Record<string, number[]> = {
   trakt: [60, 120, 180, 240, 360, 480, 720, 1440],
-  default: [5, 10, 15, 30, 60, 120, 240, 360, 480, 720],
+  default: [5, 10, 15, 30, 60, 120, 240, 360, 480, 720, 1440],
 };
 
 function formatMinutes(minutes: number): string {
@@ -179,6 +179,55 @@ function RecommendationRefreshRow({ available }: { available: boolean }) {
   );
 }
 
+function WidgetRow({
+  row,
+  def,
+  available,
+  instanceLabel,
+  onToggle,
+}: {
+  row: Row;
+  def: WidgetDef;
+  available: boolean;
+  instanceLabel: string;
+  onToggle: () => void;
+}) {
+  const dragControls = useDragControls();
+  const sourceDef = getServiceDefinition(def.source);
+  const Icon = getServiceIcon(def.source);
+
+  return (
+    <Reorder.Item value={row} as="div" dragListener={false} dragControls={dragControls}>
+      <Card className={!available ? 'opacity-50' : undefined}>
+        <CardContent className="flex items-center gap-3 p-3">
+          <button
+            type="button"
+            onPointerDown={(e) => dragControls.start(e)}
+            aria-label={`Drag to reorder ${def.title}`}
+            className="shrink-0 cursor-grab touch-none rounded p-1 text-muted-foreground active:cursor-grabbing"
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+          <span
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+            style={{ backgroundColor: `${sourceDef?.brandColor ?? '#888'}22`, color: sourceDef?.brandColor ?? '#888' }}
+          >
+            <Icon className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium leading-tight">{def.title}</p>
+            <p className="truncate text-xs" style={{ color: sourceDef?.brandColor }}>
+              {instanceLabel}
+              {!available && ' · not configured'}
+            </p>
+          </div>
+          <Switch checked={row.enabled} onCheckedChange={onToggle} disabled={!available} aria-label={`Toggle ${def.title}`} />
+        </CardContent>
+      </Card>
+    </Reorder.Item>
+  );
+}
+
 function SettingsDashboard() {
   const { data: instances = [] } = useServices();
   const { data: config, isLoading } = useDashboardWidgets();
@@ -231,31 +280,16 @@ function SettingsDashboard() {
           {rows.map((row) => {
             const def = WIDGET_CATALOG.find((w) => w.key === row.key);
             if (!def) return null;
-            const sourceDef = getServiceDefinition(def.source);
-            const Icon = getServiceIcon(def.source);
             const available = configuredSources.has(def.source);
             return (
-              <Reorder.Item key={row.key} value={row} as="div">
-                <Card className={!available ? 'opacity-50' : undefined}>
-                  <CardContent className="flex items-center gap-3 p-3">
-                    <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-muted-foreground" />
-                    <span
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-                      style={{ backgroundColor: `${sourceDef?.brandColor ?? '#888'}22`, color: sourceDef?.brandColor ?? '#888' }}
-                    >
-                      <Icon className="h-5 w-5" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium leading-tight">{def.title}</p>
-                      <p className="truncate text-xs" style={{ color: sourceDef?.brandColor }}>
-                        {instanceBySource.get(def.source)?.displayName ?? sourceDef?.displayName ?? def.source}
-                        {!available && ' · not configured'}
-                      </p>
-                    </div>
-                    <Switch checked={row.enabled} onCheckedChange={() => toggle(row.key)} disabled={!available} aria-label={`Toggle ${def.title}`} />
-                  </CardContent>
-                </Card>
-              </Reorder.Item>
+              <WidgetRow
+                key={row.key}
+                row={row}
+                def={def}
+                available={available}
+                instanceLabel={instanceBySource.get(def.source)?.displayName ?? getServiceDefinition(def.source)?.displayName ?? def.source}
+                onToggle={() => toggle(row.key)}
+              />
             );
           })}
         </Reorder.Group>
@@ -268,8 +302,9 @@ function SettingsDashboard() {
       <h2 className="mb-1 mt-8 text-lg font-bold tracking-tight">Refresh schedule</h2>
       <p className="mb-4 text-sm text-muted-foreground">
         How often each service's dashboard data is refreshed in the background. Cached data shows instantly while a
-        stale check quietly updates it — Trakt and Because you watched only go down to 1 hour (up to 24h) since each
-        refresh is a heavier shared/multi-call request; everything else can go as low as 5 minutes, up to 12 hours.
+        stale check quietly updates it — Trakt and Because you watched only go down to 1 hour since each refresh is a
+        heavier shared/multi-call request; everything else can go as low as 5 minutes. Every schedule tops out at 24
+        hours.
       </p>
       <div className="flex flex-col gap-2">
         {CONFIGURABLE_SOURCES.map((source) => (

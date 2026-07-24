@@ -113,6 +113,18 @@ const adapters = {
     }, timeoutMs);
   },
 
+  // Plex's own REST API — token passed as a query param (also valid as a header; query is
+  // simpler here since every adapter already funnels through buildUrl's query merging), and
+  // `Accept: application/json` since Plex defaults to XML without it.
+  'plex-token': (instance, { path, method = 'GET', query = {}, body }, timeoutMs) => {
+    const url = buildUrl(instance.local_url, path, { ...query, 'X-Plex-Token': instance.credentials.apiKey });
+    return fetchWithTimeout(url, {
+      method,
+      headers: { Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    }, timeoutMs);
+  },
+
   // Torznab/Newznab manual search — the response is XML, parsed to JSON by the route handler below.
   torznab: (instance, { path = '', method = 'GET', query = {} }, timeoutMs) => {
     const url = buildUrl(instance.local_url, path, { ...query, apikey: instance.credentials.apiKey });

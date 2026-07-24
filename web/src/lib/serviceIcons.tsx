@@ -38,6 +38,17 @@ const Newznab: Icon = (p) =>
     </>,
   );
 
+// No published logo in the dashboard-icons set at hand-authoring time — a simple play-mark-in-an-
+// arc glyph, same treatment as the µTorrent/NEWZnab hand-drawn fallbacks above.
+const Plex: Icon = (p) =>
+  svg(
+    p,
+    <>
+      <path d="M12 3a9 9 0 100 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M10 8l5 4-5 4V8z" fill="currentColor" />
+    </>,
+  );
+
 const Fallback: Icon = (p) => svg(p, <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />);
 
 const REGISTRY: Record<string, Icon> = {
@@ -63,6 +74,7 @@ const REGISTRY: Record<string, Icon> = {
   tautulli: logo('tautulli'),
   tracearr: logo('tracearr'),
   trakt: logo('trakt'),
+  plex: Plex,
 };
 
 export function getServiceIcon(serviceId: string): Icon {

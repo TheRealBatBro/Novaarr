@@ -13,6 +13,7 @@ const dashboardRouter = require('./routes/dashboard');
 const sabnzbdRouter = require('./routes/sabnzbd');
 const tautulliRouter = require('./routes/tautulli');
 const tracearrRouter = require('./routes/tracearr');
+const plexRouter = require('./routes/plex');
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -56,6 +57,7 @@ app.use(BASE + '/api/dashboard', dashboardRouter);
 app.use(BASE + '/api/sabnzbd', sabnzbdRouter);
 app.use(BASE + '/api/tautulli', tautulliRouter);
 app.use(BASE + '/api/tracearr', tracearrRouter);
+app.use(BASE + '/api/plex', plexRouter);
 app.get(BASE + '/api/health', (_req, res) => res.json({ ok: true }));
 
 // SPA fallback: serve index.html with __BASE__/__SHOW_ALL_SERVICES__ injected

@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, ChevronLeft, ChevronRight, Star } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, ChevronRight, RefreshCw, Star } from 'lucide-react';
+import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getServiceIcon } from '@/lib/serviceIcons';
 import { cn } from '@/lib/utils';
@@ -33,6 +34,7 @@ export function DashboardCarousel({
   error,
   sourceInstance,
   overseerrInstance,
+  refetch,
 }: {
   title: string;
   sourceId: string;
@@ -48,15 +50,33 @@ export function DashboardCarousel({
    * in place, so "back" closes it and returns to the dashboard instead of full-page navigation. */
   sourceInstance?: ServiceInstance;
   overseerrInstance?: ServiceInstance;
+  /** Named to match CarouselResult's own field, so callers can just spread {...result} instead of
+   * remapping it — present on widgets that run on a slow/cached schedule rather than the default
+   * ~10s poll, and shown as a manual refresh button next to the source label. */
+  refetch?: () => Promise<void>;
 }) {
   const navigate = useNavigate();
   const trackRef = useRef<HTMLDivElement>(null);
   const [hovering, setHovering] = useState(false);
   const [detailItem, setDetailItem] = useState<CarouselItem | null>(null);
   const [titleDetail, setTitleDetail] = useState<{ serviceId: 'radarr' | 'sonarr'; itemId: number } | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const Icon = getServiceIcon(sourceId);
 
   if (!isLoading && items.length === 0 && !error) return null;
+
+  async function handleRefresh() {
+    if (!refetch) return;
+    setRefreshing(true);
+    try {
+      await refetch();
+      toast.success(`${title} refreshed`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Refresh failed');
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   function scrollByPage(dir: 1 | -1) {
     trackRef.current?.scrollBy({ left: dir * trackRef.current.clientWidth * 0.85, behavior: 'smooth' });
@@ -83,13 +103,27 @@ export function DashboardCarousel({
       onHoverStart={() => setHovering(true)}
       onHoverEnd={() => setHovering(false)}
     >
-      <div className="mb-2 flex items-center gap-1.5">
-        <span className="flex h-4 w-4 items-center justify-center" style={{ color: sourceColor }}>
-          <Icon className="h-3.5 w-3.5" />
-        </span>
-        <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: sourceColor }}>
-          {sourceLabel}
-        </p>
+      <div className="mb-2 flex items-center justify-between gap-1.5">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center" style={{ color: sourceColor }}>
+            <Icon className="h-3.5 w-3.5" />
+          </span>
+          <p className="truncate text-xs font-semibold uppercase tracking-wide" style={{ color: sourceColor }}>
+            {sourceLabel}
+          </p>
+        </div>
+        {refetch && (
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            aria-label={`Refresh ${title}`}
+            title={`Refresh ${title}`}
+            className="shrink-0 rounded-full p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+          >
+            <RefreshCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
+          </button>
+        )}
       </div>
       <h2 className="mb-2 text-lg font-bold tracking-tight">{title}</h2>
 

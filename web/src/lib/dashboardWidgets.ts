@@ -7,7 +7,7 @@ import { mapWithConcurrency } from './concurrency';
 // concurrency.ts for why this exists.
 const POSTER_FETCH_CONCURRENCY = 4;
 
-export type WidgetSource = 'sonarr' | 'radarr' | 'overseerr' | 'trakt' | 'sabnzbd' | 'tautulli' | 'tracearr';
+export type WidgetSource = 'sonarr' | 'radarr' | 'overseerr' | 'trakt' | 'sabnzbd' | 'tautulli' | 'tracearr' | 'plex';
 export type RecommendationSeed = { title: string; mediaType: 'movie' | 'tv'; extraCount: number } | undefined;
 
 export type WidgetDef = {
@@ -16,8 +16,9 @@ export type WidgetDef = {
   source: WidgetSource;
   /** 'carousel' (default) renders a poster row; 'status' renders a compact live-stats card;
    * 'search' renders a compact search box that opens the request dialog on a result tap;
-   * 'violations' renders Tracearr's recent-unacknowledged-violations list. */
-  kind?: 'carousel' | 'status' | 'search' | 'violations';
+   * 'violations' renders Tracearr's recent-unacknowledged-violations list; 'stats' renders a
+   * grid of library name + item count tiles. */
+  kind?: 'carousel' | 'status' | 'search' | 'violations' | 'stats';
 };
 
 // Inserts only genuinely-new catalog widgets (keys in `newKeys`, meaning no saved row exists for
@@ -54,6 +55,10 @@ export const WIDGET_CATALOG: WidgetDef[] = [
   { key: 'overseerr-search', title: 'Search Seerr', source: 'overseerr', kind: 'search' },
   { key: 'tautulli-recent', title: 'Recently Watched', source: 'tautulli' },
   { key: 'tautulli-recommendations', title: 'Because You Watched', source: 'tautulli' },
+  { key: 'tautulli-recently-added', title: 'Recently Added to Plex', source: 'tautulli' },
+  { key: 'plex-recently-added', title: 'Recently Added', source: 'plex' },
+  { key: 'plex-collections', title: 'Collections', source: 'plex' },
+  { key: 'plex-library-stats', title: 'Library Stats', source: 'plex', kind: 'stats' },
   { key: 'tracearr-status', title: 'Streaming Activity', source: 'tracearr', kind: 'status' },
   { key: 'tracearr-violations', title: 'Rule Violations', source: 'tracearr', kind: 'violations' },
   { key: 'radarr-upcoming', title: 'Downloading Soon', source: 'radarr' },
@@ -75,7 +80,7 @@ export const WIDGET_CATALOG: WidgetDef[] = [
 // regardless, this just keeps the Settings > Dashboard input's min/max honest up front.
 export const REFRESH_INTERVAL_LIMITS: Record<string, { min: number; max: number }> = {
   trakt: { min: 60, max: 1440 },
-  default: { min: 5, max: 720 },
+  default: { min: 5, max: 1440 },
 };
 
 // staleTime matches refetchInterval so a page remount (navigating away and back, or a reload)
@@ -104,7 +109,15 @@ export type CarouselItem = {
    * request dialog (fetches full TMDB detail + lets the user request it) instead of navigating. */
   overseerrDetail?: { mediaType: 'movie' | 'tv'; tmdbId: number };
 };
-export type CarouselResult = { items: CarouselItem[]; isLoading: boolean; error?: string; seed?: RecommendationSeed };
+export type CarouselResult = {
+  items: CarouselItem[];
+  isLoading: boolean;
+  error?: string;
+  seed?: RecommendationSeed;
+  /** Present on widgets that run on a slow/cached schedule rather than the default ~10s poll —
+   * DashboardCarousel shows a manual refresh button next to the source label when this is set. */
+  refetch?: () => Promise<void>;
+};
 
 const LIMIT = 15;
 
@@ -351,6 +364,50 @@ export function useTautulliRecentCarousel(instance: ServiceInstance | undefined)
     };
   });
   return { items, isLoading, error: proxyError(data) };
+}
+
+// Confirmed live: get_recently_added nests under response.data.recently_added (not
+// response.data.data like get_history) — Tautulli's API shape isn't consistent between commands.
+type TautulliRecentlyAddedEntry = {
+  media_type: 'movie' | 'episode' | 'season' | 'show' | 'track' | 'clip';
+  rating_key: string;
+  title: string;
+  full_title: string;
+  grandparent_title?: string;
+  parent_media_index?: string;
+  media_index?: string;
+  year?: string;
+  thumb?: string;
+  grandparent_thumb?: string;
+  added_at: string;
+};
+type TautulliRecentlyAddedResponse = { response?: { result: string; data?: { recently_added?: TautulliRecentlyAddedEntry[] } } };
+
+export function useTautulliRecentlyAddedCarousel(instance: ServiceInstance | undefined): CarouselResult {
+  const { data, isLoading, refetch } = useServiceProxy<TautulliRecentlyAddedResponse>(instance, {
+    path: '/api/v2',
+    query: { cmd: 'get_recently_added', count: String(LIMIT) },
+    ...refreshSchedule(instance),
+  });
+  const rawRows = data?.ok ? data.data?.response?.data?.recently_added : undefined;
+  const rows = Array.isArray(rawRows) ? rawRows : [];
+  const items: CarouselItem[] = rows.map((r) => {
+    const isEpisode = r.media_type === 'episode';
+    const thumb = isEpisode ? r.grandparent_thumb || r.thumb : r.thumb;
+    const subtitle = isEpisode
+      ? r.parent_media_index !== undefined && r.media_index !== undefined
+        ? `S${r.parent_media_index}E${String(r.media_index).padStart(2, '0')}`
+        : undefined
+      : r.year;
+    return {
+      id: r.rating_key,
+      title: isEpisode ? r.grandparent_title || r.full_title : r.title || r.full_title,
+      subtitle,
+      imageUrl: thumb && instance ? apiUrl(`/api/tautulli/${instance.id}/image?${new URLSearchParams({ img: thumb, width: '300', height: '450' })}`) : undefined,
+      to: { serviceId: 'tautulli' },
+    };
+  });
+  return { items, isLoading, error: proxyError(data), refetch: async () => void (await refetch()) };
 }
 
 type TraktIds = { tmdb?: number };
@@ -607,6 +664,155 @@ export function usePlexRecommendationsCarousel(
       await historyQuery.refetch();
       await metadataQuery.refetch();
       await recsQuery.refetch();
+    },
+  };
+}
+
+// --- Plex (direct) ---
+// Built against Plex's long-stable, well-documented REST API (MediaContainer JSON envelope,
+// X-Plex-Token auth) but not verified against a live Plex server in this session — no instance
+// was available to test against. If a path/field is off, a widget just yields no items rather
+// than showing something wrong; report back the actual response shape to fix it.
+
+function plexImageUrl(plex: ServiceInstance | undefined, thumbPath?: string): string | undefined {
+  if (!plex || !thumbPath) return undefined;
+  return apiUrl(`/api/plex/${plex.id}/image?${new URLSearchParams({ path: thumbPath })}`);
+}
+
+type PlexMetadataItem = {
+  ratingKey: string;
+  type: 'movie' | 'episode' | 'season' | 'show';
+  title: string;
+  grandparentTitle?: string;
+  year?: number;
+  thumb?: string;
+  grandparentThumb?: string;
+  index?: number;
+  parentIndex?: number;
+};
+type PlexDirectory = { key: string; title: string; type: string };
+type PlexCollectionItem = { ratingKey: string; title: string; thumb?: string; childCount?: string };
+type PlexContainerResponse<T> = { MediaContainer?: { Metadata?: T[]; Directory?: PlexDirectory[]; size?: number; totalSize?: number } };
+
+export function usePlexRecentlyAddedCarousel(plex: ServiceInstance | undefined): CarouselResult {
+  const { data, isLoading, refetch } = useServiceProxy<PlexContainerResponse<PlexMetadataItem>>(plex, {
+    path: '/library/recentlyAdded',
+    query: { 'X-Plex-Container-Size': String(LIMIT) },
+    ...refreshSchedule(plex),
+  });
+  const rows = data?.ok ? data.data?.MediaContainer?.Metadata ?? [] : [];
+  const items: CarouselItem[] = rows.slice(0, LIMIT).map((r) => {
+    const isEpisode = r.type === 'episode';
+    const thumb = isEpisode ? r.grandparentThumb || r.thumb : r.thumb;
+    const subtitle = isEpisode
+      ? r.parentIndex !== undefined && r.index !== undefined
+        ? `S${r.parentIndex}E${String(r.index).padStart(2, '0')}`
+        : undefined
+      : r.year
+        ? String(r.year)
+        : undefined;
+    return {
+      id: r.ratingKey,
+      title: isEpisode ? r.grandparentTitle || r.title : r.title,
+      subtitle,
+      imageUrl: plexImageUrl(plex, thumb),
+      to: { serviceId: 'plex' },
+    };
+  });
+  return { items, isLoading, error: proxyError(data), refetch: async () => void (await refetch()) };
+}
+
+export function usePlexCollectionsCarousel(plex: ServiceInstance | undefined): CarouselResult {
+  const sectionsQuery = useServiceProxy<PlexContainerResponse<never>>(plex, {
+    path: '/library/sections',
+    refetchInterval: false,
+    enabled: !!plex,
+  });
+  const sections = (sectionsQuery.data?.ok ? sectionsQuery.data.data?.MediaContainer?.Directory ?? [] : []).filter(
+    (s) => s.type === 'movie' || s.type === 'show',
+  );
+  const sectionKey = sections.map((s) => s.key).join(',');
+
+  const collectionsQuery = useQuery({
+    queryKey: ['plex-collections', plex?.id, sectionKey],
+    queryFn: async () => {
+      const perSection = await mapWithConcurrency(sections, 4, async (s) => {
+        try {
+          const res = await proxyApi.call<PlexContainerResponse<PlexCollectionItem>>(plex!.id, {
+            path: `/library/sections/${s.key}/collections`,
+            timeoutMs: 10_000,
+          });
+          return res.ok ? res.data?.MediaContainer?.Metadata ?? [] : [];
+        } catch {
+          return [];
+        }
+      });
+      return perSection.flat();
+    },
+    enabled: !!plex && sections.length > 0,
+    ...refreshSchedule(plex),
+    retry: 1,
+  });
+
+  const items: CarouselItem[] = (collectionsQuery.data ?? []).slice(0, LIMIT).map((c) => ({
+    id: c.ratingKey,
+    title: c.title,
+    subtitle: c.childCount ? `${c.childCount} items` : undefined,
+    imageUrl: plexImageUrl(plex, c.thumb),
+    to: { serviceId: 'plex' },
+  }));
+
+  return {
+    items,
+    isLoading: sectionsQuery.isLoading || (sections.length > 0 && collectionsQuery.isLoading),
+    error: proxyError(sectionsQuery.data),
+    refetch: async () => {
+      await sectionsQuery.refetch();
+      await collectionsQuery.refetch();
+    },
+  };
+}
+
+export type LibraryStat = { key: string; title: string; type: string; count: number };
+export type LibraryStatsResult = { stats: LibraryStat[]; isLoading: boolean; error?: string; refetch: () => Promise<void> };
+
+export function usePlexLibraryStats(plex: ServiceInstance | undefined): LibraryStatsResult {
+  const sectionsQuery = useServiceProxy<PlexContainerResponse<never>>(plex, {
+    path: '/library/sections',
+    ...refreshSchedule(plex),
+  });
+  const sections = sectionsQuery.data?.ok ? sectionsQuery.data.data?.MediaContainer?.Directory ?? [] : [];
+  const sectionKey = sections.map((s) => s.key).join(',');
+
+  const countsQuery = useQuery({
+    queryKey: ['plex-library-counts', plex?.id, sectionKey],
+    queryFn: async () => {
+      return mapWithConcurrency(sections, 4, async (s) => {
+        try {
+          const res = await proxyApi.call<PlexContainerResponse<never>>(plex!.id, {
+            path: `/library/sections/${s.key}/all`,
+            query: { 'X-Plex-Container-Start': '0', 'X-Plex-Container-Size': '0' },
+            timeoutMs: 10_000,
+          });
+          const count = res.ok ? (res.data?.MediaContainer?.totalSize ?? res.data?.MediaContainer?.size ?? 0) : 0;
+          return { key: s.key, title: s.title, type: s.type, count };
+        } catch {
+          return { key: s.key, title: s.title, type: s.type, count: 0 };
+        }
+      });
+    },
+    enabled: !!plex && sections.length > 0,
+    ...refreshSchedule(plex),
+    retry: 1,
+  });
+
+  return {
+    stats: countsQuery.data ?? [],
+    isLoading: sectionsQuery.isLoading || (sections.length > 0 && countsQuery.isLoading),
+    error: proxyError(sectionsQuery.data),
+    refetch: async () => {
+      await sectionsQuery.refetch();
+      await countsQuery.refetch();
     },
   };
 }

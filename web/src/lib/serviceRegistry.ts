@@ -11,6 +11,7 @@ export type AuthType =
   | 'torznab'
   | 'trakt'
   | 'bearer-token'
+  | 'plex-token'
   | 'none';
 
 export type ServiceFieldDef = {
@@ -286,6 +287,26 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     fields: [apiKeyField],
     hasDetailScreen: true,
     healthCheck: { path: '/api/v2', query: { cmd: 'get_server_info' } },
+  },
+  {
+    id: 'plex',
+    category: 'other',
+    displayName: 'Plex',
+    brandColor: '#e5a00d',
+    authType: 'plex-token',
+    fields: [
+      {
+        key: 'apiKey',
+        label: 'Plex Token',
+        type: 'password',
+        required: true,
+        helpText: 'Your X-Plex-Token — find it by inspecting any request Plex Web makes in your browser’s dev tools, or search "finding an authentication token" on plex.tv/support.',
+      },
+    ],
+    helpText: 'Powers the dashboard’s recently-added, collections, and library-stats widgets directly from Plex — separate from Tautulli, which tracks watch activity instead.',
+    // Purely a background data source for dashboard widgets (like Trakt) — no page of its own.
+    hideFromNav: true,
+    healthCheck: { path: '/identity' },
   },
   {
     id: 'tracearr',
