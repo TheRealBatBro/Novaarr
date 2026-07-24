@@ -84,7 +84,13 @@ export type TracearrSessionHistory = {
   player?: string | null;
   platform?: string | null;
   isTranscode?: boolean | null;
-  // Optional — a session tied to a deleted/unresolved Plex account has no user to report.
+  resolution?: string | null;
+  // The live-streams endpoint (/api/v1/public/streams) puts these at the top level; the history
+  // endpoint (/api/v1/public/history) nests the same info under `user` instead — a session tied
+  // to a deleted/unresolved Plex account has neither.
+  username?: string | null;
+  userThumb?: string | null;
+  userAvatarUrl?: string | null;
   user?: { id: string; username: string; thumbUrl?: string | null; avatarUrl?: string | null };
 };
 
@@ -98,4 +104,29 @@ export function historySubtitle(item: TracearrSessionHistory): string {
 
 export function historyDisplayTitle(item: TracearrSessionHistory): string {
   return item.mediaType === 'episode' ? item.showTitle || item.mediaTitle : item.mediaTitle;
+}
+
+export function sessionUserLabel(item: TracearrSessionHistory): string {
+  return item.user?.username || item.username || 'Unknown user';
+}
+
+export function sessionUserAvatar(item: TracearrSessionHistory): string | null | undefined {
+  return item.user?.avatarUrl || item.userAvatarUrl || item.user?.thumbUrl || item.userThumb;
+}
+
+export function sessionQualityLabel(item: TracearrSessionHistory): string {
+  return [item.resolution, item.isTranscode ? 'Transcode' : 'Direct Play'].filter(Boolean).join(' · ');
+}
+
+export function sessionPlayerLabel(item: TracearrSessionHistory): string | undefined {
+  return item.player || item.device || undefined;
+}
+
+export function sessionRemaining(item: TracearrSessionHistory): string | undefined {
+  const progress = Number(item.progressMs ?? 0);
+  const total = Number(item.totalDurationMs ?? item.durationMs ?? 0);
+  if (!total) return undefined;
+  const remainingMs = total - progress;
+  if (remainingMs <= 0) return undefined;
+  return `${formatMsDuration(remainingMs)} left`;
 }

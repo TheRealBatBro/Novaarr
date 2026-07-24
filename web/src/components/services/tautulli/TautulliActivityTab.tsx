@@ -1,13 +1,22 @@
 import { Tv } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ProgressBar } from '@/components/shared/ProgressBar';
 import { Sparkline } from '@/components/shared/Sparkline';
+import { SessionBackdrop, SessionDetails } from '@/components/shared/NowPlayingCard';
 import { useServiceProxy } from '@/lib/queries';
 import { useRollingHistory } from '@/lib/useRollingHistory';
+import {
+  historyDisplayTitle,
+  historySubtitle,
+  sessionBackdrop,
+  sessionPlayerLabel,
+  sessionPoster,
+  sessionQualityLabel,
+  sessionRemaining,
+  type TautulliSession,
+} from './TautulliShared';
 import type { ServiceInstance } from '@/lib/api';
 
-type TautulliSession = { session_key: string; user: string; full_title: string; progress_percent: string; state: string };
 type TautulliActivity = { response?: { result: string; data?: { stream_count?: string; sessions?: TautulliSession[] } } };
 
 export function TautulliActivityTab({ instance }: { instance: ServiceInstance }) {
@@ -54,16 +63,22 @@ export function TautulliActivityTab({ instance }: { instance: ServiceInstance })
         <CardHeader>
           <CardTitle>Now Playing</CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-col gap-4">
+        <CardContent className="flex flex-col gap-2">
           {sessions.map((s) => (
-            <div key={s.session_key} className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between text-sm">
-                <span className="truncate pr-4 font-medium">{s.full_title}</span>
-                <span className="shrink-0 text-muted-foreground">
-                  {s.user} · {s.state}
-                </span>
+            <div key={s.session_key} className="relative overflow-hidden rounded-xl border border-border bg-card p-3">
+              <SessionBackdrop url={sessionBackdrop(instance, s)} />
+              <div className="relative z-10">
+                <SessionDetails
+                  posterUrl={sessionPoster(instance, s)}
+                  title={historyDisplayTitle(s)}
+                  subtitle={historySubtitle(s)}
+                  userLabel={s.friendly_name || s.user}
+                  state={s.state}
+                  meta={[sessionQualityLabel(s), sessionPlayerLabel(s)].filter(Boolean).join(' · ')}
+                  progressPercent={Number(s.progress_percent) || 0}
+                  remaining={sessionRemaining(s)}
+                />
               </div>
-              <ProgressBar value={Number(s.progress_percent) || 0} />
             </div>
           ))}
         </CardContent>

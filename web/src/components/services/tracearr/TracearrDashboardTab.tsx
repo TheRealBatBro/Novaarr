@@ -1,8 +1,18 @@
-import { AlertTriangle, Play, Clock, Users, Monitor, User } from 'lucide-react';
+import { AlertTriangle, Play, Clock, Users, Monitor } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ProgressBar } from '@/components/shared/ProgressBar';
+import { SessionBackdrop, SessionDetails } from '@/components/shared/NowPlayingCard';
 import { useServiceProxy } from '@/lib/queries';
-import { tracearrImageUrl, historyDisplayTitle, historySubtitle, type TracearrSessionHistory } from './TracearrShared';
+import {
+  tracearrImageUrl,
+  historyDisplayTitle,
+  historySubtitle,
+  sessionUserLabel,
+  sessionUserAvatar,
+  sessionQualityLabel,
+  sessionPlayerLabel,
+  sessionRemaining,
+  type TracearrSessionHistory,
+} from './TracearrShared';
 import type { ServiceInstance } from '@/lib/api';
 
 type StatsToday = { activeStreams: number; todayPlays: number; watchTimeHours: number; alertsLast24h: number; activeUsersToday: number };
@@ -67,24 +77,21 @@ export function TracearrDashboardTab({ instance }: { instance: ServiceInstance }
           const progress = Number(s.progressMs ?? 0);
           const total = Number(s.totalDurationMs ?? s.durationMs ?? 0);
           const pct = total > 0 ? Math.min(100, (progress / total) * 100) : 0;
-          const posterUrl = tracearrImageUrl(instance, s.posterUrl);
           return (
-            <div key={s.id} className="flex gap-3 rounded-xl border border-border bg-card p-2.5">
-              <div className="h-20 w-14 shrink-0 overflow-hidden rounded-lg bg-muted">
-                {posterUrl && <img src={posterUrl} alt="" loading="lazy" className="h-full w-full object-cover" />}
-              </div>
-              <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
-                <p className="truncate font-semibold leading-tight">{historyDisplayTitle(s)}</p>
-                <p className="truncate text-xs text-muted-foreground">{historySubtitle(s)}</p>
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span className="flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted">
-                    {s.user?.avatarUrl ? <img src={s.user.avatarUrl} alt="" className="h-full w-full object-cover" /> : <User className="h-2.5 w-2.5" />}
-                  </span>
-                  <span className="truncate">{s.user?.username ?? 'Unknown user'}</span>
-                  <span>·</span>
-                  <span className="shrink-0 capitalize">{s.state}</span>
-                </div>
-                <ProgressBar value={pct} />
+            <div key={s.id} className="relative overflow-hidden rounded-xl border border-border bg-card p-3">
+              <SessionBackdrop url={tracearrImageUrl(instance, s.posterUrl)} />
+              <div className="relative z-10">
+                <SessionDetails
+                  posterUrl={tracearrImageUrl(instance, s.posterUrl)}
+                  title={historyDisplayTitle(s)}
+                  subtitle={historySubtitle(s)}
+                  userLabel={sessionUserLabel(s)}
+                  userAvatarUrl={sessionUserAvatar(s)}
+                  state={s.state}
+                  meta={[sessionQualityLabel(s), sessionPlayerLabel(s)].filter(Boolean).join(' · ')}
+                  progressPercent={pct}
+                  remaining={sessionRemaining(s)}
+                />
               </div>
             </div>
           );
