@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Search, Trash2, Eye, EyeOff, Radio, CalendarDays, Activity, Wand2, Loader2 } from 'lucide-react';
+import { Search, Eye, EyeOff, Radio, CalendarDays, Activity, Wand2, Loader2, ChevronDown, ChevronRight, CheckCircle2, CloudOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
@@ -14,8 +14,11 @@ import { ReleaseSearchDialog } from './ReleaseSearchDialog';
 import { MediaHero } from './detail/MediaHero';
 import { MediaCastCrew } from './detail/MediaCastCrew';
 import { MediaSimilar } from './detail/MediaSimilar';
+import { TrailerModal } from './detail/TrailerModal';
+import { useTrailerKey } from './detail/useTrailerKey';
+import { EpisodeDetailDialog } from './detail/EpisodeDetailDialog';
 import { daysUntil, countdownLabel } from './ArrLibraryGrid';
-import { useBazarrInstance, useBazarrSeriesSubtitles, useBazarrSeasonAutoSearch, SubtitleLanguageChips, BazarrSubtitleControls } from './BazarrSubtitles';
+import { useBazarrInstance, useBazarrSeriesSubtitles, useBazarrSeasonAutoSearch, SubtitleLanguageChips } from './BazarrSubtitles';
 
 type SonarrSeriesFull = Record<string, unknown> & {
   id: number;
@@ -56,6 +59,7 @@ type Episode = {
   monitored: boolean;
   hasFile: boolean;
   episodeFileId?: number;
+  airDateUtc?: string;
 };
 
 const SERIES_TYPES = ['standard', 'anime', 'daily'] as const;
@@ -76,6 +80,15 @@ function formatDate(iso?: string, withWeekday = false): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return 'Unknown';
   return d.toLocaleDateString(undefined, withWeekday ? { weekday: 'long', month: 'long', day: 'numeric' } : { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function formatAirDate(iso?: string): string {
+  if (!iso) return 'Unaired';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return 'Unaired';
+  const label = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  const days = daysUntil(iso);
+  return days !== undefined && days > 0 ? `Airs ${label}` : label;
 }
 
 function DetailRow({ icon: Icon, label, children }: { icon: typeof Search; label: string; children: React.ReactNode }) {
@@ -140,6 +153,9 @@ export function SeriesDetailPage({
   const [releaseSearch, setReleaseSearch] = useState<
     null | { title: string; params: { episodeId: number } | { seriesId: number; seasonNumber: number }; autoCommand: 'episode' | 'season'; ids?: number[] }
   >(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [trailerOpen, setTrailerOpen] = useState(false);
+  const [openEpisodeId, setOpenEpisodeId] = useState<number | null>(null);
   const { data: instances = [] } = useServices();
   const overseerr = instances.find((i) => i.serviceId === 'overseerr');
 
@@ -151,13 +167,14 @@ export function SeriesDetailPage({
   const bazarr = useBazarrInstance();
   const subtitleMap = useBazarrSeriesSubtitles(seriesId);
   const seasonAutoSearch = useBazarrSeasonAutoSearch(bazarr);
+  const trailerKey = useTrailerKey(overseerr, seriesResp?.data?.tmdbId, 'tv');
 
   const series = seriesResp?.data;
   const episodes = episodesResp?.data ?? [];
   const profiles = profilesResp?.data ?? [];
   const rootFolders = rootFoldersResp?.data ?? [];
   const tags = tagsResp?.data ?? [];
-  const seasons = Array.from(new Set(episodes.map((e) => e.seasonNumber))).sort((a, b) => a - b);
+  const seasons = Array.from(new Set(episodes.map((e) => e.seasonNumber))).sort((a, b) => b - a);
 
   function goBack() {
     if (onBack) return onBack();
@@ -208,15 +225,6 @@ export function SeriesDetailPage({
     onError: (e) => toast.error(e instanceof Error ? e.message : 'Update failed'),
   });
 
-  const deleteEpisodeFile = useMutation({
-    mutationFn: (episodeFileId: number) => proxyApi.call(instance.id, { path: `/api/v3/episodefile/${episodeFileId}`, method: 'DELETE' }),
-    onSuccess: (res) => {
-      if (!res.ok) return toast.error(res.error || 'Delete failed');
-      invalidate();
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : 'Delete failed'),
-  });
-
   function toggleTag(tagId: number) {
     const current = series?.tags ?? [];
     const next = current.includes(tagId) ? current.filter((t) => t !== tagId) : [...current, tagId];
@@ -253,6 +261,7 @@ export function SeriesDetailPage({
         onDelete={() => deleteSeries.mutate()}
         deleteDisabled={deleteSeries.isPending}
         deleteLabel="Remove series"
+        onPlayTrailer={trailerKey ? () => setTrailerOpen(true) : undefined}
       />
 
       <div className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -301,62 +310,69 @@ export function SeriesDetailPage({
       </div>
 
       <div className="mb-6 rounded-xl border border-border bg-card p-4">
-        <h2 className="mb-1 text-lg font-bold tracking-tight">Details</h2>
-        <DetailRow icon={Radio} label="Network">
-          {series.network || '—'}
-        </DetailRow>
-        <DetailRow icon={Activity} label="Status">
-          {series.status ? series.status[0].toUpperCase() + series.status.slice(1) : '—'}
-        </DetailRow>
-        <DetailRow icon={CalendarDays} label="Added">
-          {formatDate(series.added)}
-        </DetailRow>
-        <div className="flex items-center justify-between gap-3 border-b border-border py-2.5 text-sm">
-          <span className="text-muted-foreground">Series type</span>
-          <Select
-            className="h-8 w-40 text-xs capitalize"
-            value={series.seriesType ?? 'standard'}
-            onChange={(e) => saveSeries.mutate({ seriesType: e.target.value as SonarrSeriesFull['seriesType'] })}
-          >
-            {SERIES_TYPES.map((t) => (
-              <option key={t} value={t} className="capitalize">
-                {t}
-              </option>
-            ))}
-          </Select>
-        </div>
-        <div className="flex items-center justify-between gap-3 border-b border-border py-2.5 text-sm">
-          <span className="text-muted-foreground">Root folder</span>
-          <Select className="h-8 w-52 text-xs" value={series.rootFolderPath ?? ''} onChange={(e) => saveSeries.mutate({ rootFolderPath: e.target.value })}>
-            {rootFolders.map((f) => (
-              <option key={f.id} value={f.path}>
-                {f.path}
-              </option>
-            ))}
-          </Select>
-        </div>
-        <div className="flex items-center justify-between gap-3 py-2.5 text-sm">
-          <span className="text-muted-foreground">Tags</span>
-          <div className="flex flex-wrap justify-end gap-1.5">
-            {tags.length === 0 && <span className="text-xs text-muted-foreground">No tags</span>}
-            {tags.map((t) => {
-              const active = series.tags?.includes(t.id);
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => toggleTag(t.id)}
-                  className={cn(
-                    'rounded-full border px-2 py-0.5 text-xs font-medium transition-colors',
-                    active ? 'border-primary bg-primary/15 text-primary' : 'border-border text-muted-foreground hover:bg-accent',
-                  )}
-                >
-                  {t.label}
-                </button>
-              );
-            })}
+        <button type="button" onClick={() => setDetailsOpen((v) => !v)} className="flex w-full items-center justify-between gap-2">
+          <h2 className="text-lg font-bold tracking-tight">Details</h2>
+          {detailsOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+        </button>
+        {detailsOpen && (
+          <div className="mt-1">
+            <DetailRow icon={Radio} label="Network">
+              {series.network || '—'}
+            </DetailRow>
+            <DetailRow icon={Activity} label="Status">
+              {series.status ? series.status[0].toUpperCase() + series.status.slice(1) : '—'}
+            </DetailRow>
+            <DetailRow icon={CalendarDays} label="Added">
+              {formatDate(series.added)}
+            </DetailRow>
+            <div className="flex items-center justify-between gap-3 border-b border-border py-2.5 text-sm">
+              <span className="text-muted-foreground">Series type</span>
+              <Select
+                className="h-8 w-40 text-xs capitalize"
+                value={series.seriesType ?? 'standard'}
+                onChange={(e) => saveSeries.mutate({ seriesType: e.target.value as SonarrSeriesFull['seriesType'] })}
+              >
+                {SERIES_TYPES.map((t) => (
+                  <option key={t} value={t} className="capitalize">
+                    {t}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="flex items-center justify-between gap-3 border-b border-border py-2.5 text-sm">
+              <span className="text-muted-foreground">Root folder</span>
+              <Select className="h-8 w-52 text-xs" value={series.rootFolderPath ?? ''} onChange={(e) => saveSeries.mutate({ rootFolderPath: e.target.value })}>
+                {rootFolders.map((f) => (
+                  <option key={f.id} value={f.path}>
+                    {f.path}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="flex items-center justify-between gap-3 py-2.5 text-sm">
+              <span className="text-muted-foreground">Tags</span>
+              <div className="flex flex-wrap justify-end gap-1.5">
+                {tags.length === 0 && <span className="text-xs text-muted-foreground">No tags</span>}
+                {tags.map((t) => {
+                  const active = series.tags?.includes(t.id);
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => toggleTag(t.id)}
+                      className={cn(
+                        'rounded-full border px-2 py-0.5 text-xs font-medium transition-colors',
+                        active ? 'border-primary bg-primary/15 text-primary' : 'border-border text-muted-foreground hover:bg-accent',
+                      )}
+                    >
+                      {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="mb-6">
@@ -371,7 +387,12 @@ export function SeriesDetailPage({
             return (
               <div key={sn} className="rounded-xl border border-border bg-card">
                 <div className="flex items-center justify-between px-4 py-3 text-sm font-medium">
-                  <button type="button" onClick={() => setExpandedSeason(expanded ? null : sn)} className="flex-1 text-left">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedSeason(expanded ? null : sn)}
+                    className="flex flex-1 items-center gap-1.5 text-left"
+                  >
+                    {expanded ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
                     {sn === 0 ? 'Specials' : `Season ${sn}`}{' '}
                     <span className="text-xs font-normal text-muted-foreground">
                       {seasonEpisodes.filter((e) => e.hasFile).length}/{seasonEpisodes.length}
@@ -414,56 +435,39 @@ export function SeriesDetailPage({
                   </div>
                 </div>
                 {expanded && (
-                  <div className="grid grid-cols-1 gap-1.5 border-t border-border p-3 md:grid-cols-2">
+                  <div className="flex flex-col gap-1 border-t border-border p-3">
                     {seasonEpisodes.map((ep) => {
                       const subInfo = subtitleMap[ep.id];
                       return (
-                        <div key={ep.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-accent">
-                          <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <button
+                          key={ep.id}
+                          type="button"
+                          onClick={() => setOpenEpisodeId(ep.id)}
+                          className="flex min-w-0 items-center gap-3 rounded-lg px-2 py-2 text-left text-sm hover:bg-accent"
+                        >
+                          <span className="shrink-0" onClick={(e) => e.stopPropagation()}>
                             <Switch
                               checked={ep.monitored}
                               onCheckedChange={(v) => toggleEpisodeMonitor.mutate({ episodeIds: [ep.id], monitored: v })}
                               aria-label="Monitored"
                               className="h-5 w-9"
                             />
-                            <span className="truncate">
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate font-medium">
                               E{ep.episodeNumber} — {ep.title}
-                            </span>
-                            <SubtitleLanguageChips info={subInfo} />
+                            </p>
+                            <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+                              <span className="shrink-0">{formatAirDate(ep.airDateUtc)}</span>
+                              {subInfo && <SubtitleLanguageChips info={subInfo} />}
+                            </div>
                           </div>
-                          <div className="flex shrink-0 items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={() =>
-                                setReleaseSearch({ title: `${series.title} — E${ep.episodeNumber}`, params: { episodeId: ep.id }, autoCommand: 'episode', ids: [ep.id] })
-                              }
-                              aria-label="Search"
-                            >
-                              <Search className="h-3.5 w-3.5" />
-                            </Button>
-                            {ep.hasFile && ep.episodeFileId && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7"
-                                onClick={() => deleteEpisodeFile.mutate(ep.episodeFileId!)}
-                                aria-label="Delete file"
-                              >
-                                <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                              </Button>
-                            )}
-                            {bazarr && ep.hasFile && (
-                              <BazarrSubtitleControls
-                                bazarr={bazarr}
-                                target={{ kind: 'episode', episodeId: ep.id, seriesId }}
-                                missing={subInfo?.missing ?? []}
-                                title={`${series.title} — E${ep.episodeNumber}`}
-                              />
-                            )}
-                          </div>
-                        </div>
+                          {ep.hasFile ? (
+                            <CheckCircle2 className="h-4 w-4 shrink-0 text-success" aria-label="Downloaded" />
+                          ) : (
+                            <CloudOff className="h-4 w-4 shrink-0 text-muted-foreground" aria-label="Missing" />
+                          )}
+                        </button>
                       );
                     })}
                   </div>
@@ -476,6 +480,24 @@ export function SeriesDetailPage({
 
       <MediaCastCrew overseerr={overseerr} tmdbId={series.tmdbId} mediaType="tv" />
       <MediaSimilar overseerr={overseerr} tmdbId={series.tmdbId} mediaType="tv" title={series.title} />
+
+      {trailerOpen && trailerKey && <TrailerModal youtubeKey={trailerKey} title={series.title} onClose={() => setTrailerOpen(false)} />}
+
+      {openEpisodeId !== null && (
+        <EpisodeDetailDialog
+          instance={instance}
+          episodeId={openEpisodeId}
+          seriesId={seriesId}
+          seriesTitle={series.title}
+          bazarr={bazarr}
+          subtitleInfo={subtitleMap[openEpisodeId]}
+          onClose={() => setOpenEpisodeId(null)}
+          onOpenSearch={(ep) => {
+            setOpenEpisodeId(null);
+            setReleaseSearch({ title: `${series.title} — E${ep.episodeNumber}`, params: { episodeId: ep.id }, autoCommand: 'episode', ids: [ep.id] });
+          }}
+        />
+      )}
 
       {releaseSearch && (
         <ReleaseSearchDialog

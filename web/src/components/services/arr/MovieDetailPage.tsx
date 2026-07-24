@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Search, Trash2, Clapperboard, Cloud, Disc, Building2, CalendarDays } from 'lucide-react';
+import { Search, Trash2, Clapperboard, Cloud, Disc, Building2, CalendarDays, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
@@ -15,6 +15,8 @@ import { ReleaseSearchDialog } from './ReleaseSearchDialog';
 import { MediaHero } from './detail/MediaHero';
 import { MediaCastCrew } from './detail/MediaCastCrew';
 import { MediaSimilar } from './detail/MediaSimilar';
+import { TrailerModal } from './detail/TrailerModal';
+import { useTrailerKey } from './detail/useTrailerKey';
 import { daysUntil, countdownLabel } from './ArrLibraryGrid';
 import { useBazarrInstance, useBazarrMovieSubtitles, SubtitleLanguageChips, BazarrSubtitleControls } from './BazarrSubtitles';
 
@@ -93,12 +95,15 @@ export function MovieDetailPage({
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [releaseSearchOpen, setReleaseSearchOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [trailerOpen, setTrailerOpen] = useState(false);
   const { data: instances = [] } = useServices();
   const overseerr = instances.find((i) => i.serviceId === 'overseerr');
   const bazarr = useBazarrInstance();
   const subtitleInfo = useBazarrMovieSubtitles(movieId);
 
   const { data: movieResp, isLoading } = useServiceProxy<RadarrMovieFull>(instance, { path: `/api/v3/movie/${movieId}` });
+  const trailerKey = useTrailerKey(overseerr, movieResp?.data?.tmdbId, 'movie');
   const { data: profilesResp } = useServiceProxy<Profile[]>(instance, { path: '/api/v3/qualityprofile' });
   const { data: rootFoldersResp } = useServiceProxy<RootFolder[]>(instance, { path: '/api/v3/rootfolder' });
   const { data: tagsResp } = useServiceProxy<Tag[]>(instance, { path: '/api/v3/tag' });
@@ -196,6 +201,7 @@ export function MovieDetailPage({
         onDelete={() => deleteMovie.mutate()}
         deleteDisabled={deleteMovie.isPending}
         deleteLabel="Remove movie"
+        onPlayTrailer={trailerKey ? () => setTrailerOpen(true) : undefined}
       />
 
       <div className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -246,77 +252,84 @@ export function MovieDetailPage({
       )}
 
       <div className="mb-6 rounded-xl border border-border bg-card p-4">
-        <h2 className="mb-1 text-lg font-bold tracking-tight">Details</h2>
-        <div className="mb-2 grid grid-cols-3 gap-2 border-b border-border py-3 text-center">
-          <div>
-            <Clapperboard className="mx-auto mb-1 h-4 w-4 text-muted-foreground" />
-            <p className="text-xs text-muted-foreground">Theaters</p>
-            <p className="text-xs font-medium">{formatDate(movie.inCinemas)}</p>
-          </div>
-          <div>
-            <Cloud className="mx-auto mb-1 h-4 w-4 text-muted-foreground" />
-            <p className="text-xs text-muted-foreground">Digital</p>
-            <p className="text-xs font-medium">{formatDate(movie.digitalRelease)}</p>
-          </div>
-          <div>
-            <Disc className="mx-auto mb-1 h-4 w-4 text-muted-foreground" />
-            <p className="text-xs text-muted-foreground">Physical</p>
-            <p className="text-xs font-medium">{formatDate(movie.physicalRelease)}</p>
-          </div>
-        </div>
+        <button type="button" onClick={() => setDetailsOpen((v) => !v)} className="flex w-full items-center justify-between gap-2">
+          <h2 className="text-lg font-bold tracking-tight">Details</h2>
+          {detailsOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+        </button>
+        {detailsOpen && (
+          <div className="mt-1">
+            <div className="mb-2 grid grid-cols-3 gap-2 border-b border-border py-3 text-center">
+              <div>
+                <Clapperboard className="mx-auto mb-1 h-4 w-4 text-muted-foreground" />
+                <p className="text-xs text-muted-foreground">Theaters</p>
+                <p className="text-xs font-medium">{formatDate(movie.inCinemas)}</p>
+              </div>
+              <div>
+                <Cloud className="mx-auto mb-1 h-4 w-4 text-muted-foreground" />
+                <p className="text-xs text-muted-foreground">Digital</p>
+                <p className="text-xs font-medium">{formatDate(movie.digitalRelease)}</p>
+              </div>
+              <div>
+                <Disc className="mx-auto mb-1 h-4 w-4 text-muted-foreground" />
+                <p className="text-xs text-muted-foreground">Physical</p>
+                <p className="text-xs font-medium">{formatDate(movie.physicalRelease)}</p>
+              </div>
+            </div>
 
-        <DetailRow icon={Building2} label="Studio">
-          {movie.studio || '—'}
-        </DetailRow>
-        <DetailRow icon={CalendarDays} label="Added">
-          {formatDate(movie.added)}
-        </DetailRow>
-        <div className="flex items-center justify-between gap-3 border-b border-border py-2.5 text-sm">
-          <span className="text-muted-foreground">Min. availability</span>
-          <Select
-            className="h-8 w-40 text-xs"
-            value={movie.minimumAvailability ?? 'released'}
-            onChange={(e) => saveMovie.mutate({ minimumAvailability: e.target.value as RadarrMovieFull['minimumAvailability'] })}
-          >
-            {MIN_AVAILABILITY.map((m) => (
-              <option key={m} value={m}>
-                {MIN_AVAILABILITY_LABEL[m]}
-              </option>
-            ))}
-          </Select>
-        </div>
-        <div className="flex items-center justify-between gap-3 border-b border-border py-2.5 text-sm">
-          <span className="text-muted-foreground">Root folder</span>
-          <Select className="h-8 w-52 text-xs" value={movie.rootFolderPath ?? ''} onChange={(e) => saveMovie.mutate({ rootFolderPath: e.target.value })}>
-            {rootFolders.map((f) => (
-              <option key={f.id} value={f.path}>
-                {f.path}
-              </option>
-            ))}
-          </Select>
-        </div>
-        <div className="flex items-center justify-between gap-3 py-2.5 text-sm">
-          <span className="text-muted-foreground">Tags</span>
-          <div className="flex flex-wrap justify-end gap-1.5">
-            {tags.length === 0 && <span className="text-xs text-muted-foreground">No tags</span>}
-            {tags.map((t) => {
-              const active = movie.tags?.includes(t.id);
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => toggleTag(t.id)}
-                  className={cn(
-                    'rounded-full border px-2 py-0.5 text-xs font-medium transition-colors',
-                    active ? 'border-primary bg-primary/15 text-primary' : 'border-border text-muted-foreground hover:bg-accent',
-                  )}
-                >
-                  {t.label}
-                </button>
-              );
-            })}
+            <DetailRow icon={Building2} label="Studio">
+              {movie.studio || '—'}
+            </DetailRow>
+            <DetailRow icon={CalendarDays} label="Added">
+              {formatDate(movie.added)}
+            </DetailRow>
+            <div className="flex items-center justify-between gap-3 border-b border-border py-2.5 text-sm">
+              <span className="text-muted-foreground">Min. availability</span>
+              <Select
+                className="h-8 w-40 text-xs"
+                value={movie.minimumAvailability ?? 'released'}
+                onChange={(e) => saveMovie.mutate({ minimumAvailability: e.target.value as RadarrMovieFull['minimumAvailability'] })}
+              >
+                {MIN_AVAILABILITY.map((m) => (
+                  <option key={m} value={m}>
+                    {MIN_AVAILABILITY_LABEL[m]}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="flex items-center justify-between gap-3 border-b border-border py-2.5 text-sm">
+              <span className="text-muted-foreground">Root folder</span>
+              <Select className="h-8 w-52 text-xs" value={movie.rootFolderPath ?? ''} onChange={(e) => saveMovie.mutate({ rootFolderPath: e.target.value })}>
+                {rootFolders.map((f) => (
+                  <option key={f.id} value={f.path}>
+                    {f.path}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="flex items-center justify-between gap-3 py-2.5 text-sm">
+              <span className="text-muted-foreground">Tags</span>
+              <div className="flex flex-wrap justify-end gap-1.5">
+                {tags.length === 0 && <span className="text-xs text-muted-foreground">No tags</span>}
+                {tags.map((t) => {
+                  const active = movie.tags?.includes(t.id);
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => toggleTag(t.id)}
+                      className={cn(
+                        'rounded-full border px-2 py-0.5 text-xs font-medium transition-colors',
+                        active ? 'border-primary bg-primary/15 text-primary' : 'border-border text-muted-foreground hover:bg-accent',
+                      )}
+                    >
+                      {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {bazarr && movie.hasFile && (
@@ -337,6 +350,8 @@ export function MovieDetailPage({
 
       <MediaCastCrew overseerr={overseerr} tmdbId={movie.tmdbId} mediaType="movie" />
       <MediaSimilar overseerr={overseerr} tmdbId={movie.tmdbId} mediaType="movie" title={movie.title} />
+
+      {trailerOpen && trailerKey && <TrailerModal youtubeKey={trailerKey} title={movie.title} onClose={() => setTrailerOpen(false)} />}
 
       {releaseSearchOpen && (
         <ReleaseSearchDialog

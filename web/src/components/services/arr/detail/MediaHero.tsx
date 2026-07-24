@@ -1,4 +1,4 @@
-import { ArrowLeft, Trash2, Star, Clock, CloudOff } from 'lucide-react';
+import { ArrowLeft, Trash2, Star, Clock, CloudOff, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -13,6 +13,7 @@ export function MediaHero({
   onDelete,
   deleteDisabled,
   deleteLabel = 'Remove',
+  onPlayTrailer,
 }: {
   backdropUrl?: string;
   posterUrl?: string;
@@ -24,6 +25,7 @@ export function MediaHero({
   onDelete?: () => void;
   deleteDisabled?: boolean;
   deleteLabel?: string;
+  onPlayTrailer?: () => void;
 }) {
   return (
     <div className="mb-6">
@@ -36,6 +38,18 @@ export function MediaHero({
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/10 to-transparent" />
           <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-transparent" />
+          {onPlayTrailer && (
+            <button
+              type="button"
+              onClick={onPlayTrailer}
+              aria-label="Play trailer"
+              className="absolute inset-0 flex items-center justify-center"
+            >
+              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm transition-colors hover:bg-black/60 sm:h-16 sm:w-16">
+                <Play className="h-6 w-6 translate-x-0.5 fill-white sm:h-7 sm:w-7" />
+              </span>
+            </button>
+          )}
         </div>
         <div className="absolute inset-x-0 top-0 flex items-center justify-between p-3">
           <Button variant="ghost" size="icon" onClick={onBack} aria-label="Back to library" className="bg-black/30 text-white backdrop-blur-sm hover:bg-black/50">
