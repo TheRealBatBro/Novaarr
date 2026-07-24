@@ -30,6 +30,7 @@ import { ProwlarrStatusWidget } from './ProwlarrStatusWidget';
 import { NzbHydra2StatusWidget } from './NzbHydra2StatusWidget';
 import { UnraidStatusWidget } from './UnraidStatusWidget';
 import { JackettStatusWidget } from './JackettStatusWidget';
+import { NzbgetStatusWidget } from './NzbgetStatusWidget';
 
 type SourceProps = {
   instance: ServiceInstance;
@@ -186,6 +187,7 @@ export function DashboardWidget({ widgetKey }: { widgetKey: string }) {
     nzbhydra2: instances.find((i) => i.serviceId === 'nzbhydra2'),
     unraid: instances.find((i) => i.serviceId === 'unraid'),
     jackett: instances.find((i) => i.serviceId === 'jackett'),
+    nzbget: instances.find((i) => i.serviceId === 'nzbget'),
   };
   const instance = bySource[def.source];
   if (!instance || !instance.enabled) return null;
@@ -197,6 +199,7 @@ export function DashboardWidget({ widgetKey }: { widgetKey: string }) {
     if (def.source === 'prowlarr') return <ProwlarrStatusWidget instance={instance} title={def.title} />;
     if (def.source === 'nzbhydra2') return <NzbHydra2StatusWidget instance={instance} title={def.title} />;
     if (def.source === 'jackett') return <JackettStatusWidget instance={instance} title={def.title} />;
+    if (def.source === 'nzbget') return <NzbgetStatusWidget instance={instance} title={def.title} />;
     if (def.source === 'unraid') return <UnraidStatusWidget instance={instance} title={def.title} />;
     return null;
   }

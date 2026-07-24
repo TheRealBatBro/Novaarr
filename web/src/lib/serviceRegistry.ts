@@ -86,7 +86,6 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     authType: 'basic-auth',
     fields: [usernameField, passwordField],
     hasDetailScreen: true,
-    comingSoon: true,
     healthCheck: { path: '/jsonrpc', method: 'POST', body: { method: 'version', params: [], id: 1 } },
   },
   {

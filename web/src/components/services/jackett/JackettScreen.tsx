@@ -6,10 +6,11 @@ import { useResetScrollOnChange } from '@/lib/useResetScrollOnChange';
 import type { ServiceInstance } from '@/lib/api';
 import { JackettSearchTab } from './JackettSearchTab';
 import { JackettIndexersTab } from './JackettIndexersTab';
+import { JackettServerTab } from './JackettServerTab';
 
 const Icon = getServiceIcon('jackett');
-const TABS = ['search', 'indexers'] as const;
-const TAB_LABEL: Record<(typeof TABS)[number], string> = { search: 'Search', indexers: 'Indexers' };
+const TABS = ['search', 'indexers', 'server'] as const;
+const TAB_LABEL: Record<(typeof TABS)[number], string> = { search: 'Search', indexers: 'Indexers', server: 'Server' };
 
 export function JackettScreen({ instance }: { instance: ServiceInstance }) {
   const [tab, setTab] = useState<(typeof TABS)[number]>('search');
@@ -46,6 +47,7 @@ export function JackettScreen({ instance }: { instance: ServiceInstance }) {
 
       {tab === 'search' && <JackettSearchTab instance={instance} />}
       {tab === 'indexers' && <JackettIndexersTab instance={instance} />}
+      {tab === 'server' && <JackettServerTab instance={instance} />}
     </div>
   );
 }
