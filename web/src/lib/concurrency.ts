@@ -20,3 +20,32 @@ export async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (i
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
   return results;
 }
+
+// The per-widget cap above only helps within a single widget's own fan-out — it doesn't stop
+// several independent widgets that all happen to share one backend (e.g. Tautulli: its own
+// Now Playing + Recently Watched + Recently Added + the recommendations widget's history and
+// per-seed metadata calls) from all firing at once and piling onto that one service. Each proxy
+// call funnels through here (see proxyApi.call in api.ts) and queues per service instance —
+// unrelated services aren't slowed down by one busy one, and requests only actually go out once
+// admitted, so a queued request's own timeout doesn't start ticking while it waits its turn.
+const MAX_CONCURRENT_PER_INSTANCE = 3;
+const instanceQueues = new Map<number, { active: number; waiting: (() => void)[] }>();
+
+export async function runWithInstanceLimit<T>(instanceId: number, fn: () => Promise<T>): Promise<T> {
+  let state = instanceQueues.get(instanceId);
+  if (!state) {
+    state = { active: 0, waiting: [] };
+    instanceQueues.set(instanceId, state);
+  }
+  if (state.active >= MAX_CONCURRENT_PER_INSTANCE) {
+    await new Promise<void>((resolve) => state!.waiting.push(resolve));
+  }
+  state.active++;
+  try {
+    return await fn();
+  } finally {
+    state.active--;
+    const next = state.waiting.shift();
+    if (next) next();
+  }
+}

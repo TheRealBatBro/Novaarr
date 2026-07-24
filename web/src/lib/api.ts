@@ -4,6 +4,8 @@
 // domain root, not whatever path a proxy mounted us at. Paths passed to the /api/proxy/:id
 // generic proxy (e.g. Sonarr's own `/api/v3/movie`) are a different thing — those describe a
 // path on the REMOTE service, resolved server-side, and must NOT be prefixed with this.
+import { runWithInstanceLimit } from './concurrency';
+
 export const BASE_PATH = typeof window !== 'undefined' ? window.__BASE_PATH__ || '' : '';
 export function apiUrl(path: string): string {
   return `${BASE_PATH}${path}`;
@@ -94,16 +96,23 @@ export const servicesApi = {
 export type ProxyResponse<T = unknown> = { ok: boolean; status: number; data?: T; error?: string };
 
 export const proxyApi = {
+  // Every dashboard widget's request to a given service instance funnels through here — capped
+  // per instance (see runWithInstanceLimit) so however many independently-mounted widgets happen
+  // to share one backend (several Tautulli widgets, several Trakt lists resolving posters through
+  // Overseerr, ...), only a few of their requests are ever actually in flight to that instance at
+  // once. Unrelated services queue separately and aren't slowed down by one busy one.
   call: <T = unknown>(
     instanceId: number,
     opts: { path: string; method?: string; query?: Record<string, string>; body?: unknown; timeoutMs?: number },
   ) =>
-    fetch(apiUrl(`/api/proxy/${instanceId}`), {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(opts),
-    }).then((r) => json<ProxyResponse<T>>(r)),
+    runWithInstanceLimit(instanceId, () =>
+      fetch(apiUrl(`/api/proxy/${instanceId}`), {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(opts),
+      }).then((r) => json<ProxyResponse<T>>(r)),
+    ),
 };
 
 export const sabnzbdApi = {
