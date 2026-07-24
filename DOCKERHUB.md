@@ -87,10 +87,10 @@ they live in the volume, not the image.
 
 - **Download clients**: SABnzbd
 - **_arr suite**: Sonarr, Radarr, Bazarr (subtitles)
-- **Indexers**: Prowlarr
+- **Indexers**: Prowlarr, NZBHydra2
 - **Other**: Plex, Overseerr / Seerr, Tautulli, Tracearr, Trakt
 - **Coming soon**: NZBGet, Deluge, Transmission, µTorrent, qBittorrent,
-  rTorrent/ruTorrent, Lidarr, Readarr, Sick Beard, NEWZnab, Jackett, NZBHydra2, Unraid
+  rTorrent/ruTorrent, Lidarr, Readarr, Sick Beard, NEWZnab, Jackett, Unraid
 
 Every service is optional — add only what you run. Anything left unconfigured is
 simply hidden from the menu.

@@ -26,6 +26,8 @@ import { TautulliStatusWidget } from './TautulliStatusWidget';
 import { TracearrStatusWidget } from './TracearrStatusWidget';
 import { TracearrViolationsWidget } from './TracearrViolationsWidget';
 import { PlexLibraryStatsWidget } from './PlexLibraryStatsWidget';
+import { ProwlarrStatusWidget } from './ProwlarrStatusWidget';
+import { NzbHydra2StatusWidget } from './NzbHydra2StatusWidget';
 
 type SourceProps = {
   instance: ServiceInstance;
@@ -178,6 +180,8 @@ export function DashboardWidget({ widgetKey }: { widgetKey: string }) {
     tautulli: instances.find((i) => i.serviceId === 'tautulli'),
     tracearr: instances.find((i) => i.serviceId === 'tracearr'),
     plex: instances.find((i) => i.serviceId === 'plex'),
+    prowlarr: instances.find((i) => i.serviceId === 'prowlarr'),
+    nzbhydra2: instances.find((i) => i.serviceId === 'nzbhydra2'),
   };
   const instance = bySource[def.source];
   if (!instance || !instance.enabled) return null;
@@ -186,6 +190,8 @@ export function DashboardWidget({ widgetKey }: { widgetKey: string }) {
     if (def.source === 'sabnzbd') return <SabnzbdStatusWidget instance={instance} title={def.title} />;
     if (def.source === 'tautulli') return <TautulliStatusWidget instance={instance} title={def.title} />;
     if (def.source === 'tracearr') return <TracearrStatusWidget instance={instance} title={def.title} />;
+    if (def.source === 'prowlarr') return <ProwlarrStatusWidget instance={instance} title={def.title} />;
+    if (def.source === 'nzbhydra2') return <NzbHydra2StatusWidget instance={instance} title={def.title} />;
     return null;
   }
 

@@ -242,8 +242,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     authType: 'torznab',
     fields: [apiKeyField],
     hasDetailScreen: true,
-    comingSoon: true,
-    helpText: 'Enter NZBHydra2’s Torznab endpoint (e.g. .../torznab/api) as the Local URL.',
+    helpText: 'Enter NZBHydra2’s Newznab API endpoint (e.g. http://host:5076/api) as the Local URL — find it via the “API?” button on NZBHydra2’s config page.',
     healthCheck: { path: '', query: { t: 'caps' } },
   },
   {

@@ -7,7 +7,7 @@ import { mapWithConcurrency } from './concurrency';
 // concurrency.ts for why this exists.
 const POSTER_FETCH_CONCURRENCY = 4;
 
-export type WidgetSource = 'sonarr' | 'radarr' | 'overseerr' | 'trakt' | 'sabnzbd' | 'tautulli' | 'tracearr' | 'plex';
+export type WidgetSource = 'sonarr' | 'radarr' | 'overseerr' | 'trakt' | 'sabnzbd' | 'tautulli' | 'tracearr' | 'plex' | 'prowlarr' | 'nzbhydra2';
 export type RecommendationSeed = { title: string; mediaType: 'movie' | 'tv'; extraCount: number } | undefined;
 
 export type WidgetDef = {
@@ -51,6 +51,8 @@ export function mergeNewWidgetsByCatalogPosition(baseOrder: string[], catalog: W
 // Overseerr's own TMDB-backed movie/tv detail endpoints when available.
 export const WIDGET_CATALOG: WidgetDef[] = [
   { key: 'sabnzbd-status', title: 'SABnzbd', source: 'sabnzbd', kind: 'status' },
+  { key: 'prowlarr-status', title: 'Prowlarr', source: 'prowlarr', kind: 'status' },
+  { key: 'nzbhydra2-status', title: 'NZBHydra2', source: 'nzbhydra2', kind: 'status' },
   { key: 'tautulli-status', title: 'Now Playing', source: 'tautulli', kind: 'status' },
   { key: 'overseerr-search', title: 'Search Seerr', source: 'overseerr', kind: 'search' },
   { key: 'tautulli-recent', title: 'Recently Watched', source: 'tautulli' },

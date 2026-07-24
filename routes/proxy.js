@@ -294,7 +294,10 @@ router.post('/:instanceId', async (req, res) => {
     const upstream = await adapter({ ...instance, local_url: baseUrl }, { path, method, query, body }, timeoutMs);
     const text = await upstream.text();
     let data;
-    if (instance.auth_type === 'torznab') {
+    // Torznab/Newznab services are usually pure XML feeds, but NZBHydra2 also exposes JSON REST
+    // endpoints (e.g. /api/stats/indexers) under that same instance/auth type — sniff the real
+    // response instead of assuming XML, so both shapes work through the one configured instance.
+    if (instance.auth_type === 'torznab' && !(upstream.headers.get('content-type') || '').includes('json')) {
       try { data = xmlParser.parse(text); } catch { data = text; }
     } else {
       try { data = JSON.parse(text); } catch { data = text; }

@@ -13,12 +13,13 @@ import { OverseerrScreen } from '@/components/services/overseerr/OverseerrScreen
 import { TautulliScreen } from '@/components/services/tautulli/TautulliScreen';
 import { TracearrScreen } from '@/components/services/tracearr/TracearrScreen';
 import { ProwlarrScreen } from '@/components/services/prowlarr/ProwlarrScreen';
+import { NzbHydra2Screen } from '@/components/services/nzbhydra2/NzbHydra2Screen';
 
 export const Route = createFileRoute('/service/$serviceId')({ component: ServiceDetail });
 
 const ARR_V3 = new Set(['sonarr', 'radarr']);
 const ARR_V1 = new Set(['lidarr', 'readarr']);
-const TORZNAB = new Set(['newznab', 'jackett', 'nzbhydra2']);
+const TORZNAB = new Set(['newznab', 'jackett']);
 
 function ServiceDetail() {
   const { serviceId } = Route.useParams();
@@ -55,6 +56,7 @@ function ServiceDetail() {
     if (definition.id === 'tautulli') return <TautulliScreen instance={instance} />;
     if (definition.id === 'tracearr') return <TracearrScreen instance={instance} />;
     if (definition.id === 'prowlarr') return <ProwlarrScreen instance={instance} />;
+    if (definition.id === 'nzbhydra2') return <NzbHydra2Screen instance={instance} />;
     if (ARR_V3.has(definition.id)) return <ArrQueueScreen definition={definition} instance={instance} apiVersion="v3" />;
     if (ARR_V1.has(definition.id)) return <ArrQueueScreen definition={definition} instance={instance} apiVersion="v1" />;
     if (TORZNAB.has(definition.id)) return <IndexerSearchScreen definition={definition} instance={instance} />;
