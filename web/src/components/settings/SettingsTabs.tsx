@@ -7,9 +7,10 @@ const TABS = [
   { key: 'dashboard', label: 'Dashboard', to: '/settings/dashboard' },
   { key: 'security', label: 'Security', to: '/settings/security' },
   { key: 'backup', label: 'Backup', to: '/settings/backup' },
+  { key: 'about', label: 'About', to: '/settings/about' },
 ] as const;
 
-export function SettingsTabs({ active }: { active: 'services' | 'menu' | 'dashboard' | 'security' | 'backup' }) {
+export function SettingsTabs({ active }: { active: 'services' | 'menu' | 'dashboard' | 'security' | 'backup' | 'about' }) {
   return (
     <div className="mb-4 flex gap-1.5">
       {TABS.map((t) => (

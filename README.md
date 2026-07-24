@@ -9,14 +9,20 @@ SABnzbd, qBittorrent, Overseerr, Tautulli, and more) through a small backend pro
 it works around browser CORS restrictions and can send Wake-on-LAN packets to boot a
 sleeping server before waking up its services.
 
+**Remotarr can be the only thing you expose to the internet.** Every request to a
+configured service — Sonarr, Radarr, SABnzbd, whatever you've added — is relayed
+server-side through that same proxy; your browser never talks to those services
+directly, and they never need a port of their own opened up. Put Remotarr behind your
+reverse proxy or VPN and everything else can stay bound to your local network only.
+
 ## Supported services
 
 - **Download clients**: SABnzbd, NZBGet, qBittorrent, Transmission, Deluge
 - **_arr suite**: Sonarr, Radarr, Lidarr, Readarr, Bazarr (subtitles)
 - **Indexers**: NEWZnab, Jackett, NZBHydra2
-- **Other**: Overseerr / Seerr, Tautulli, Tracearr, Trakt, Unraid (deep link)
-- **Coming soon**: µTorrent, rTorrent/ruTorrent, Sick Beard, Prowlarr — registered but
-  not yet given a full screen; see Settings > Services for what's live today.
+- **Other**: Overseerr / Seerr, Tautulli, Tracearr, Trakt, Prowlarr, Unraid (deep link)
+- **Coming soon**: µTorrent, rTorrent/ruTorrent, Sick Beard — registered but not yet
+  given a full screen; see Settings > Services for what's live today.
 
 Every service is optional. Add only what you run — anything left unconfigured is
 simply hidden from the menu.
@@ -217,6 +223,16 @@ volume (or the file at `DB_PATH`) to back up your whole setup.
 # Example: copy the DB out of the named volume for a backup
 docker cp remotarr:/data/remotarr.db ./remotarr-backup.db
 ```
+
+## Feature requests & support
+
+Both are handled through GitHub Issues on this repo:
+
+- **Feature request**: [open one here](https://github.com/TheRealBatBro/Remotarr/issues/new?labels=enhancement&title=Feature%20request%3A%20)
+- **Something broken or need help?**: [open a support issue here](https://github.com/TheRealBatBro/Remotarr/issues/new?labels=question&title=Support%3A%20)
+
+Both links are also available from inside the app under **Settings > About**, which
+also lists what's changed in each version.
 
 ## Tech stack
 
