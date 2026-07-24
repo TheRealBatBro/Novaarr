@@ -283,13 +283,20 @@ export function useSonarrUpcomingCarousel(instance: ServiceInstance | undefined)
 }
 
 // Media availability enum (shared with Overseerr's own screens): 1=unknown, 2=pending,
-// 3=processing, 4=partially available, 5=available.
-function tmdbStatus(info: { releaseDate?: string; firstAirDate?: string; mediaInfo?: { status?: number } }): PosterStatus {
+// 3=processing, 4=partially available, 5=available. `mediaInfo` itself is only present once
+// Overseerr has a Media row for the title (i.e. it's been requested or already exists in
+// Radarr/Sonarr) — a bare discover/trending result with no request at all has no `mediaInfo`
+// key, same as status 1/unknown. Neither of those means "missing"; it means "not tracked", so
+// no dot at all. A real "missing" dot is reserved for what's actually requested/tracked, past
+// its release date, and still not grabbed (status 2/pending) — not "processing" (3, actively
+// grabbing) or "partially available" (4, some of it already is).
+function tmdbStatus(info: { releaseDate?: string; firstAirDate?: string; mediaInfo?: { status?: number } }): PosterStatus | undefined {
+  const s = info.mediaInfo?.status;
+  if (s === undefined || s === 1) return undefined;
+  if (s === 5) return 'downloaded';
   const date = info.releaseDate || info.firstAirDate;
   if (isFutureDate(date)) return 'upcoming';
-  const s = info.mediaInfo?.status;
-  if (s === 5) return 'downloaded';
-  if (s === 2 || s === 3 || s === 4) return 'downloading';
+  if (s === 3 || s === 4) return 'downloading';
   return 'missing';
 }
 
