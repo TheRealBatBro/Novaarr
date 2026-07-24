@@ -1,6 +1,10 @@
-# Remotarr
+<p align="center">
+  <img src="https://raw.githubusercontent.com/TheRealBatBro/Remotarr/main/docs/screenshots/logo.png" width="96" alt="Remotarr logo">
+</p>
 
-A self-hosted, NZB360-style web dashboard for your media and download stack. One
+<h1 align="center">Remotarr</h1>
+
+A self-hosted, all-in-one web dashboard for your media and download stack. One
 container, works from any browser on your phone, tablet, or desktop — no native app
 required.
 
@@ -12,6 +16,21 @@ everything else stays bound to your local network.
 
 Full source, issue tracker, and detailed docs (reverse-proxy setup, backups, etc.):
 **https://github.com/TheRealBatBro/Remotarr**
+
+## Screenshots
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/TheRealBatBro/Remotarr/main/docs/screenshots/dashboard.png" width="100%" alt="Dashboard overview">
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/TheRealBatBro/Remotarr/main/docs/screenshots/detail-page.png" width="49%" alt="Movie detail page">
+  <img src="https://raw.githubusercontent.com/TheRealBatBro/Remotarr/main/docs/screenshots/services.png" width="49%" alt="Services configuration">
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/TheRealBatBro/Remotarr/main/docs/screenshots/mobile.png" width="280" alt="Mobile dashboard">
+</p>
 
 ## Quick start
 

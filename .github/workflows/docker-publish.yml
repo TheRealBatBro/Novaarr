@@ -59,4 +59,4 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           repository: therealbatbro/remotarr
           readme-filepath: ./DOCKERHUB.md
-          short-description: Self-hosted NZB360-style web dashboard for Sonarr, Radarr, Plex, and more
+          short-description: Self-hosted web dashboard for Sonarr, Radarr, Plex, and more

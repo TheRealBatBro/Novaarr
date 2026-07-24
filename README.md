@@ -1,6 +1,6 @@
 # Remotarr
 
-A self-hosted, NZB360-style web dashboard for your media and download stack. One app,
+A self-hosted, all-in-one web dashboard for your media and download stack. One app,
 one Docker container, works from any browser on your phone, tablet, or desktop — no
 native app required.
 

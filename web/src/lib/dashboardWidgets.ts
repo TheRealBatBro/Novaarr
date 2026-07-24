@@ -46,9 +46,9 @@ export function mergeNewWidgetsByCatalogPosition(baseOrder: string[], catalog: W
   return result;
 }
 
-// NZB360's dashboard sources trending/anticipated lists from Trakt and TMDB directly. We don't
-// have a standalone TMDB integration, so Trakt list items (which carry a tmdb id but no artwork)
-// get their poster art via Overseerr's own TMDB-backed movie/tv detail endpoints when available.
+// Trending/anticipated lists come from Trakt directly. We don't have a standalone TMDB
+// integration, so Trakt list items (which carry a tmdb id but no artwork) get their poster art via
+// Overseerr's own TMDB-backed movie/tv detail endpoints when available.
 export const WIDGET_CATALOG: WidgetDef[] = [
   { key: 'sabnzbd-status', title: 'SABnzbd', source: 'sabnzbd', kind: 'status' },
   { key: 'tautulli-status', title: 'Now Playing', source: 'tautulli', kind: 'status' },
@@ -517,12 +517,11 @@ function clampRecRefreshMinutes(minutes: number): number {
 
 type RecSeed = { mediaType: 'movie' | 'tv'; ratingKey: string; title: string };
 
-// "Because you watched X" — the closest equivalent NZB360 offers is sourced from Trakt/TMDB
-// directly; we don't have that, so this pulls a few of the most recent distinct Plex watches
-// from Tautulli, resolves each to a TMDB id, and merges Overseerr's TMDB recommendations for
-// all of them. Needs both Tautulli (for the watch) and Overseerr (for the recommendation)
-// configured — with either missing, or if nothing resolves to a TMDB id, it just yields no
-// items and the widget disappears rather than showing a broken row.
+// "Because you watched X" — we don't have a standalone recommendation source, so this pulls a
+// few of the most recent distinct Plex watches from Tautulli, resolves each to a TMDB id, and
+// merges Overseerr's TMDB recommendations for all of them. Needs both Tautulli (for the watch)
+// and Overseerr (for the recommendation) configured — with either missing, or if nothing resolves
+// to a TMDB id, it just yields no items and the widget disappears rather than showing a broken row.
 export function usePlexRecommendationsCarousel(
   tautulli: ServiceInstance | undefined,
   overseerr: ServiceInstance | undefined,
