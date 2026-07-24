@@ -90,7 +90,7 @@ they live in the volume, not the image.
 - **Indexers**: Prowlarr, NZBHydra2, Jackett
 - **Other**: Plex, Overseerr / Seerr, Tautulli, Tracearr, Trakt, Unraid
 - **Coming soon**: Deluge, Transmission, µTorrent, qBittorrent,
-  rTorrent/ruTorrent, Lidarr, Readarr, Sick Beard, NEWZnab
+  rTorrent/ruTorrent, Lidarr, Readarr, Sick Beard, NEWZnab, Ombi
 
 Every service is optional — add only what you run. Anything left unconfigured is
 simply hidden from the menu.

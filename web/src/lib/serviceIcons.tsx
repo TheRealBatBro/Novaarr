@@ -71,6 +71,7 @@ const REGISTRY: Record<string, Icon> = {
   prowlarr: logo('prowlarr'),
   unraid: logo('unraid'),
   overseerr: logo('overseerr'),
+  ombi: logo('ombi'),
   tautulli: logo('tautulli'),
   tracearr: logo('tracearr'),
   trakt: logo('trakt'),

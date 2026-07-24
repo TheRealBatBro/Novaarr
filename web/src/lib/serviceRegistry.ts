@@ -279,6 +279,16 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     healthCheck: { path: '/api/v1/status' },
   },
   {
+    id: 'ombi',
+    category: 'other',
+    displayName: 'Ombi',
+    brandColor: '#e37200',
+    authType: 'apikey-header',
+    fields: [apiKeyField],
+    comingSoon: true,
+    helpText: 'Media request management, like Overseerr/Seerr — find your API key under Settings → Configuration → Ombi in Ombi’s own UI.',
+  },
+  {
     id: 'tautulli',
     category: 'other',
     displayName: 'Tautulli',

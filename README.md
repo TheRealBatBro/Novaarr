@@ -22,7 +22,7 @@ reverse proxy or VPN and everything else can stay bound to your local network on
 - **Indexers**: Prowlarr, NZBHydra2, Jackett
 - **Other**: Overseerr / Seerr, Tautulli, Tracearr, Trakt, Unraid
 - **Coming soon**: Deluge, Transmission, µTorrent, qBittorrent,
-  rTorrent/ruTorrent, Lidarr, Readarr, Sick Beard, NEWZnab —
+  rTorrent/ruTorrent, Lidarr, Readarr, Sick Beard, NEWZnab, Ombi —
   see Settings > Services for what's live today.
 
 Every service is optional. Add only what you run — anything left unconfigured is
