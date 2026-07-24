@@ -3,6 +3,7 @@ import { useServiceProxy } from './queries';
 import { apiUrl, proxyApi, type ProxyResponse, type ServiceInstance } from './api';
 
 export type WidgetSource = 'sonarr' | 'radarr' | 'overseerr' | 'trakt' | 'sabnzbd' | 'tautulli' | 'tracearr';
+export type RecommendationSeed = { title: string; mediaType: 'movie' | 'tv' } | undefined;
 
 export type WidgetDef = {
   key: string;
@@ -22,6 +23,7 @@ export const WIDGET_CATALOG: WidgetDef[] = [
   { key: 'tautulli-status', title: 'Now Playing', source: 'tautulli', kind: 'status' },
   { key: 'overseerr-search', title: 'Search Seerr', source: 'overseerr', kind: 'search' },
   { key: 'tautulli-recent', title: 'Recently Watched', source: 'tautulli' },
+  { key: 'tautulli-recommendations', title: 'Because You Watched', source: 'tautulli' },
   { key: 'tracearr-status', title: 'Streaming Activity', source: 'tracearr', kind: 'status' },
   { key: 'tracearr-violations', title: 'Rule Violations', source: 'tracearr', kind: 'violations' },
   { key: 'radarr-upcoming', title: 'Downloading Soon', source: 'radarr' },
@@ -72,7 +74,7 @@ export type CarouselItem = {
    * request dialog (fetches full TMDB detail + lets the user request it) instead of navigating. */
   overseerrDetail?: { mediaType: 'movie' | 'tv'; tmdbId: number };
 };
-export type CarouselResult = { items: CarouselItem[]; isLoading: boolean; error?: string };
+export type CarouselResult = { items: CarouselItem[]; isLoading: boolean; error?: string; seed?: RecommendationSeed };
 
 const LIMIT = 15;
 
@@ -288,6 +290,8 @@ type TautulliHistoryEntry = {
   media_index?: number | string;
   parent_media_index?: number | string;
   thumb?: string;
+  rating_key?: number | string;
+  grandparent_rating_key?: number | string;
 };
 type TautulliHistoryResponse = { response?: { result: string; data?: { data?: TautulliHistoryEntry[] } } };
 
@@ -378,5 +382,84 @@ export function useTraktCarousel(
     items,
     isLoading: listQuery.isLoading || (!!overseerr && tmdbIds.length > 0 && postersQuery.isLoading),
     error: proxyError(listQuery.data),
+  };
+}
+
+type TautulliMetadataResponse = { response?: { result: string; data?: { guid?: string; guids?: (string | { id: string })[] } } };
+
+// Tautulli mirrors Plex's own agent GUIDs, which come in two shapes depending on how old the
+// library metadata is: the modern multi-agent `guids` array with entries like "tmdb://12345",
+// or the legacy single `guid` string from the old themoviedb agent,
+// "com.plexapp.agents.themoviedb://12345?lang=en". Neither is verified against a live Tautulli
+// instance in this session — if the shape has changed, this just yields no seed and the widget
+// hides rather than showing something wrong.
+function parseTmdbId(guid?: string): number | undefined {
+  const m = guid?.match(/(?:tmdb|themoviedb):\/\/(\d+)/);
+  return m ? Number(m[1]) : undefined;
+}
+
+function extractTmdbId(meta?: TautulliMetadataResponse['response']): number | undefined {
+  const data = meta?.data;
+  if (!data) return undefined;
+  const fromGuids = (data.guids ?? []).map((g) => parseTmdbId(typeof g === 'string' ? g : g.id)).find((id): id is number => id !== undefined);
+  return fromGuids ?? parseTmdbId(data.guid);
+}
+
+// "Because you watched X" — the closest equivalent NZB360 offers is sourced from Trakt/TMDB
+// directly; we don't have that, so this pulls the single most recent Plex watch from Tautulli,
+// resolves it to a TMDB id, and asks Overseerr for TMDB's own recommendations for that title.
+// Needs both Tautulli (for the watch) and Overseerr (for the recommendation) configured — with
+// either missing, or if the watched title can't be resolved to a TMDB id, it just yields no
+// items and the widget disappears rather than showing a broken row.
+export function usePlexRecommendationsCarousel(tautulli: ServiceInstance | undefined, overseerr: ServiceInstance | undefined): CarouselResult {
+  const historyQuery = useServiceProxy<TautulliHistoryResponse>(tautulli, {
+    path: '/api/v2',
+    query: { cmd: 'get_history', order_column: 'date', order_dir: 'desc', length: '10' },
+    refetchInterval: 5 * 60_000,
+    staleTime: 5 * 60_000,
+    enabled: !!tautulli,
+  });
+  const rawRows = historyQuery.data?.ok ? historyQuery.data.data?.response?.data?.data : undefined;
+  const rows = Array.isArray(rawRows) ? rawRows : [];
+  const seedRow = rows.find((r) => (r.media_type === 'movie' || r.media_type === 'episode') && (r.rating_key || r.grandparent_rating_key));
+  const seedMediaType: 'movie' | 'tv' = seedRow?.media_type === 'episode' ? 'tv' : 'movie';
+  const seedRatingKey = seedRow?.media_type === 'episode' ? seedRow.grandparent_rating_key : seedRow?.rating_key;
+  const seedTitle = seedRow?.media_type === 'episode' ? seedRow.grandparent_title || seedRow.full_title : seedRow?.title || seedRow?.full_title;
+
+  const metadataQuery = useServiceProxy<TautulliMetadataResponse>(tautulli, {
+    path: '/api/v2',
+    query: { cmd: 'get_metadata', rating_key: String(seedRatingKey ?? '') },
+    refetchInterval: false,
+    enabled: !!tautulli && !!seedRatingKey,
+  });
+  const tmdbId = metadataQuery.data?.ok ? extractTmdbId(metadataQuery.data.data?.response) : undefined;
+
+  const recsQuery = useServiceProxy<OverseerrDiscoverResponse>(overseerr, {
+    path: `/api/v1/${seedMediaType}/${tmdbId}/recommendations`,
+    ...refreshSchedule(overseerr),
+    timeoutMs: 15_000,
+    enabled: !!overseerr && !!tmdbId,
+  });
+  const results = recsQuery.data?.ok && Array.isArray(recsQuery.data.data?.results) ? recsQuery.data.data!.results! : [];
+  const items: CarouselItem[] = results.slice(0, LIMIT).map((r) => {
+    const date = r.releaseDate || r.firstAirDate;
+    const mediaType = r.mediaType ?? seedMediaType;
+    return {
+      id: `${mediaType}-${r.id}`,
+      title: r.title ?? r.name ?? 'Untitled',
+      subtitle: date ? date.slice(0, 4) : undefined,
+      imageUrl: r.posterPath ? `${TMDB_IMAGE}${r.posterPath}` : undefined,
+      rating: r.voteAverage ? Math.round(r.voteAverage * 10) / 10 : undefined,
+      status: tmdbStatus(r),
+      overseerrDetail: { mediaType, tmdbId: r.id },
+      to: { serviceId: 'overseerr' },
+    };
+  });
+
+  return {
+    items,
+    isLoading: historyQuery.isLoading || (!!seedRatingKey && metadataQuery.isLoading) || (!!tmdbId && recsQuery.isLoading),
+    error: proxyError(recsQuery.data) || proxyError(historyQuery.data),
+    seed: seedTitle ? { title: seedTitle, mediaType: seedMediaType } : undefined,
   };
 }

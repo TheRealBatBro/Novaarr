@@ -7,6 +7,7 @@ import {
   useOverseerrCarousel,
   useTraktCarousel,
   useTautulliRecentCarousel,
+  usePlexRecommendationsCarousel,
   WIDGET_CATALOG,
   type WidgetSource,
 } from '@/lib/dashboardWidgets';
@@ -79,6 +80,11 @@ function TautulliRecent({ instance, sourceId, title, sourceLabel, sourceColor }:
   const result = useTautulliRecentCarousel(instance);
   return <DashboardCarousel title={title} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} {...result} />;
 }
+function TautulliRecommendations({ instance, overseerr, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
+  const result = usePlexRecommendationsCarousel(instance, overseerr);
+  const heading = result.seed ? `Because you watched ${result.seed.title}` : title;
+  return <DashboardCarousel title={heading} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} overseerrInstance={overseerr} {...result} />;
+}
 
 const WIDGET_COMPONENTS: Record<string, (props: SourceProps) => JSX.Element> = {
   'radarr-upcoming': RadarrUpcoming,
@@ -94,6 +100,7 @@ const WIDGET_COMPONENTS: Record<string, (props: SourceProps) => JSX.Element> = {
   'trakt-anticipated-shows': TraktAnticipatedShows,
   'trakt-trending-shows': TraktTrendingShows,
   'tautulli-recent': TautulliRecent,
+  'tautulli-recommendations': TautulliRecommendations,
 };
 
 export function DashboardWidget({ widgetKey }: { widgetKey: string }) {
