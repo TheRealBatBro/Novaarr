@@ -1,6 +1,6 @@
 {
   "name": "remotarr",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Self-hosted NZB360-style remote dashboard for your download/media stack",
   "main": "server.js",
   "scripts": {

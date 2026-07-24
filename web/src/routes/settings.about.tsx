@@ -9,6 +9,14 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Remotarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.10.0',
+    notes: [
+      'Now Playing (Tautulli) and Streaming Activity (Tracearr) redesigned with a fanart backdrop behind each session, plus episode code, quality/player info, and time remaining',
+      'The same richer session card now appears on the Tautulli and Tracearr service pages, not just the dashboard widgets',
+      'Fixed Tracearr’s live session always showing "Unknown user" instead of the real username and avatar',
+    ],
+  },
+  {
     version: '0.9.0',
     notes: [
       'Direct Plex integration: Recently Added, Collections, and Library Stats widgets, alongside a Recently Added feed sourced from Tautulli',
