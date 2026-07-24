@@ -271,7 +271,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
   {
     id: 'overseerr',
     category: 'other',
-    displayName: 'Overseerr / Seerr',
+    displayName: 'Seerr',
     brandColor: '#6c56e6',
     authType: 'apikey-header',
     fields: [apiKeyField],
@@ -286,7 +286,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     authType: 'apikey-header',
     fields: [apiKeyField],
     comingSoon: true,
-    helpText: 'Media request management, like Overseerr/Seerr — find your API key under Settings → Configuration → Ombi in Ombi’s own UI.',
+    helpText: 'Media request management, like Seerr — find your API key under Settings → Configuration → Ombi in Ombi’s own UI.',
   },
   {
     id: 'tautulli',

@@ -7,7 +7,7 @@ container, works from any browser on your phone, tablet, or desktop — no nativ
 required.
 
 Remotarr talks to the services already running on your network (Sonarr, Radarr,
-SABnzbd, Plex, Overseerr, Tautulli, and more) through a small backend proxy. Your
+SABnzbd, Plex, Seerr, Tautulli, and more) through a small backend proxy. Your
 browser never talks to those services directly — which means **Remotarr can be the
 only thing you expose to the internet.** Put it behind a reverse proxy or VPN and
 everything else stays bound to your local network.
@@ -88,7 +88,7 @@ they live in the volume, not the image.
 - **Download clients**: SABnzbd, NZBGet
 - **_arr suite**: Sonarr, Radarr, Bazarr (subtitles)
 - **Indexers**: Prowlarr, NZBHydra2, Jackett
-- **Other**: Plex, Overseerr / Seerr, Tautulli, Tracearr, Trakt, Unraid
+- **Other**: Plex, Seerr, Tautulli, Tracearr, Trakt, Unraid
 - **Coming soon**: Deluge, Transmission, µTorrent, qBittorrent,
   rTorrent/ruTorrent, Lidarr, Readarr, Sick Beard, NEWZnab, Ombi
 

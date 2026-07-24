@@ -5,7 +5,7 @@ one Docker container, works from any browser on your phone, tablet, or desktop �
 native app required.
 
 Remotarr talks to the services already running on your network (Sonarr, Radarr,
-SABnzbd, Overseerr, Tautulli, and more) through a small backend proxy, so it works
+SABnzbd, Seerr, Tautulli, and more) through a small backend proxy, so it works
 around browser CORS restrictions and can send Wake-on-LAN packets to boot a sleeping
 server before waking up its services.
 
@@ -20,7 +20,7 @@ reverse proxy or VPN and everything else can stay bound to your local network on
 - **Download clients**: SABnzbd, NZBGet
 - **_arr suite**: Sonarr, Radarr, Bazarr (subtitles)
 - **Indexers**: Prowlarr, NZBHydra2, Jackett
-- **Other**: Overseerr / Seerr, Tautulli, Tracearr, Trakt, Unraid
+- **Other**: Seerr, Tautulli, Tracearr, Trakt, Unraid
 - **Coming soon**: Deluge, Transmission, µTorrent, qBittorrent,
   rTorrent/ruTorrent, Lidarr, Readarr, Sick Beard, NEWZnab, Ombi —
   see Settings > Services for what's live today.
@@ -86,7 +86,7 @@ organize your other self-hosted apps.
 
 **Option A — a dedicated subdomain (recommended).** Point `remotarr.yourdomain.com` at
 the container with no path prefix. This is the simpler setup and matches how most
-self-hosted dashboards (Sonarr, Radarr, Overseerr, etc.) are usually run. `BASE_PATH`
+self-hosted dashboards (Sonarr, Radarr, Seerr, etc.) are usually run. `BASE_PATH`
 stays empty.
 
 **Option B — a sub-path on an existing domain.** Mount Remotarr at
