@@ -37,3 +37,12 @@ jobs:
             therealbatbro/remotarr:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Sync Docker Hub overview
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: therealbatbro/remotarr
+          readme-filepath: ./DOCKERHUB.md
+          short-description: Self-hosted NZB360-style web dashboard for Sonarr, Radarr, Plex, and more
