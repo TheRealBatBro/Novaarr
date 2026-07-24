@@ -1,6 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { useServiceProxy } from './queries';
 import { apiUrl, proxyApi, type ProxyResponse, type ServiceInstance } from './api';
+import { mapWithConcurrency } from './concurrency';
+
+// Per-widget cap on simultaneous per-item proxy requests (poster/metadata lookups) — see
+// concurrency.ts for why this exists.
+const POSTER_FETCH_CONCURRENCY = 4;
 
 export type WidgetSource = 'sonarr' | 'radarr' | 'overseerr' | 'trakt' | 'sabnzbd' | 'tautulli' | 'tracearr';
 export type RecommendationSeed = { title: string; mediaType: 'movie' | 'tv'; extraCount: number } | undefined;
@@ -366,22 +371,22 @@ export function useTraktCarousel(
   const postersQuery = useQuery({
     queryKey: ['trakt-posters', overseerr?.id, mediaType, tmdbIds.join(',')],
     queryFn: async () => {
-      const entries = await Promise.all(
-        tmdbIds.map(async (id) => {
-          // Each lookup is isolated — a single flaky/slow request (more likely on a mobile
-          // connection, with 10-15 of these firing in parallel) must not blank out every other
-          // poster in the batch just because Promise.all rejects on the first rejection.
-          try {
-            const res = await proxyApi.call<TmdbPosterInfo>(overseerr!.id, {
-              path: `/api/v1/${mediaType}/${id}`,
-              timeoutMs: 8000,
-            });
-            return [id, res.ok ? res.data : undefined] as const;
-          } catch {
-            return [id, undefined] as const;
-          }
-        }),
-      );
+      // Capped at POSTER_FETCH_CONCURRENCY, not fired all at once — with 4 Trakt widgets each
+      // resolving ~15 posters, an uncapped Promise.all here was 40-60 simultaneous requests on
+      // a single dashboard load, easily enough to make unrelated slower-network requests queue
+      // past their own timeout. Each lookup stays isolated (try/catch) so one flaky request still
+      // can't blank out the rest of the batch.
+      const entries = await mapWithConcurrency(tmdbIds, POSTER_FETCH_CONCURRENCY, async (id) => {
+        try {
+          const res = await proxyApi.call<TmdbPosterInfo>(overseerr!.id, {
+            path: `/api/v1/${mediaType}/${id}`,
+            timeoutMs: 8000,
+          });
+          return [id, res.ok ? res.data : undefined] as const;
+        } catch {
+          return [id, undefined] as const;
+        }
+      });
       return Object.fromEntries(entries) as Record<number, TmdbPosterInfo | undefined>;
     },
     enabled: !!overseerr && tmdbIds.length > 0,
