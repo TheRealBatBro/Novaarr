@@ -85,6 +85,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     authType: 'basic-auth',
     fields: [usernameField, passwordField],
     hasDetailScreen: true,
+    comingSoon: true,
     healthCheck: { path: '/jsonrpc', method: 'POST', body: { method: 'version', params: [], id: 1 } },
   },
   {
@@ -95,6 +96,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     authType: 'deluge-jsonrpc',
     fields: [{ ...passwordField, label: 'Web UI Password' }],
     hasDetailScreen: true,
+    comingSoon: true,
     helpText: 'The daemon-connect handshake is best-effort and unverified against a live Deluge instance.',
     healthCheck: { path: '/json', method: 'POST', body: { method: 'daemon.info', params: [] } },
   },
@@ -109,6 +111,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
       { ...passwordField, required: false, helpText: 'Leave blank if Transmission has no auth enabled' },
     ],
     hasDetailScreen: true,
+    comingSoon: true,
     healthCheck: { path: '/transmission/rpc', method: 'POST', body: { method: 'session-get' } },
   },
   {
@@ -129,6 +132,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     authType: 'qbittorrent-session',
     fields: [usernameField, passwordField],
     hasDetailScreen: true,
+    comingSoon: true,
     healthCheck: { path: '/api/v2/app/version' },
   },
   {
@@ -171,6 +175,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     authType: 'apikey-header',
     fields: [apiKeyField],
     hasDetailScreen: true,
+    comingSoon: true,
     healthCheck: { path: '/api/v1/system/status' },
   },
   {
@@ -181,6 +186,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     authType: 'apikey-header',
     fields: [apiKeyField],
     hasDetailScreen: true,
+    comingSoon: true,
     healthCheck: { path: '/api/v1/system/status' },
   },
   {
@@ -211,6 +217,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     authType: 'torznab',
     fields: [apiKeyField],
     hasDetailScreen: true,
+    comingSoon: true,
     helpText: 'Enter the exact Torznab endpoint URL (including any indexer-specific path) as the Local URL.',
     healthCheck: { path: '', query: { t: 'caps' } },
   },
@@ -222,6 +229,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     authType: 'torznab',
     fields: [apiKeyField],
     hasDetailScreen: true,
+    comingSoon: true,
     helpText: 'Enter one indexer’s Torznab feed URL from Jackett (e.g. .../api/v2.0/indexers/all/results/torznab) as the Local URL.',
     healthCheck: { path: '', query: { t: 'caps' } },
   },
@@ -233,6 +241,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     authType: 'torznab',
     fields: [apiKeyField],
     hasDetailScreen: true,
+    comingSoon: true,
     helpText: 'Enter NZBHydra2’s Torznab endpoint (e.g. .../torznab/api) as the Local URL.',
     healthCheck: { path: '', query: { t: 'caps' } },
   },
@@ -255,6 +264,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     brandColor: '#f15a2c',
     authType: 'none',
     fields: [],
+    comingSoon: true,
     helpText: 'No stable remote API — this is a deep-link tile to your WebGUI. Use Wake-on-LAN below to wake the server.',
   },
   {

@@ -3,7 +3,7 @@ import { useServiceProxy } from './queries';
 import { apiUrl, proxyApi, type ProxyResponse, type ServiceInstance } from './api';
 
 export type WidgetSource = 'sonarr' | 'radarr' | 'overseerr' | 'trakt' | 'sabnzbd' | 'tautulli' | 'tracearr';
-export type RecommendationSeed = { title: string; mediaType: 'movie' | 'tv' } | undefined;
+export type RecommendationSeed = { title: string; mediaType: 'movie' | 'tv'; extraCount: number } | undefined;
 
 export type WidgetDef = {
   key: string;
@@ -405,45 +405,131 @@ function extractTmdbId(meta?: TautulliMetadataResponse['response']): number | un
   return fromGuids ?? parseTmdbId(data.guid);
 }
 
+export type TautulliUser = { user_id: number; username: string; friendly_name?: string; is_active?: number };
+type TautulliUsersResponse = { response?: { result: string; data?: TautulliUser[] } };
+
+/** Plex users on the server, for the "Because you watched" widget's per-user filter. */
+export function useTautulliUsers(tautulli: ServiceInstance | undefined) {
+  const { data } = useServiceProxy<TautulliUsersResponse>(tautulli, {
+    path: '/api/v2',
+    query: { cmd: 'get_users' },
+    refetchInterval: false,
+    enabled: !!tautulli,
+  });
+  const users = data?.ok ? data.data?.response?.data ?? [] : [];
+  return users.filter((u) => u.is_active !== 0);
+}
+
+const REC_SEED_COUNT = 3;
+const REC_LIMIT = 30;
+
+type RecSeed = { mediaType: 'movie' | 'tv'; ratingKey: string; title: string };
+
 // "Because you watched X" — the closest equivalent NZB360 offers is sourced from Trakt/TMDB
-// directly; we don't have that, so this pulls the single most recent Plex watch from Tautulli,
-// resolves it to a TMDB id, and asks Overseerr for TMDB's own recommendations for that title.
-// Needs both Tautulli (for the watch) and Overseerr (for the recommendation) configured — with
-// either missing, or if the watched title can't be resolved to a TMDB id, it just yields no
+// directly; we don't have that, so this pulls a few of the most recent distinct Plex watches
+// from Tautulli, resolves each to a TMDB id, and merges Overseerr's TMDB recommendations for
+// all of them. Needs both Tautulli (for the watch) and Overseerr (for the recommendation)
+// configured — with either missing, or if nothing resolves to a TMDB id, it just yields no
 // items and the widget disappears rather than showing a broken row.
-export function usePlexRecommendationsCarousel(tautulli: ServiceInstance | undefined, overseerr: ServiceInstance | undefined): CarouselResult {
+export function usePlexRecommendationsCarousel(
+  tautulli: ServiceInstance | undefined,
+  overseerr: ServiceInstance | undefined,
+  userId?: string,
+): CarouselResult {
   const historyQuery = useServiceProxy<TautulliHistoryResponse>(tautulli, {
     path: '/api/v2',
-    query: { cmd: 'get_history', order_column: 'date', order_dir: 'desc', length: '10' },
+    query: { cmd: 'get_history', order_column: 'date', order_dir: 'desc', length: '30', ...(userId ? { user_id: userId } : {}) },
     refetchInterval: 5 * 60_000,
     staleTime: 5 * 60_000,
     enabled: !!tautulli,
   });
   const rawRows = historyQuery.data?.ok ? historyQuery.data.data?.response?.data?.data : undefined;
   const rows = Array.isArray(rawRows) ? rawRows : [];
-  const seedRow = rows.find((r) => (r.media_type === 'movie' || r.media_type === 'episode') && (r.rating_key || r.grandparent_rating_key));
-  const seedMediaType: 'movie' | 'tv' = seedRow?.media_type === 'episode' ? 'tv' : 'movie';
-  const seedRatingKey = seedRow?.media_type === 'episode' ? seedRow.grandparent_rating_key : seedRow?.rating_key;
-  const seedTitle = seedRow?.media_type === 'episode' ? seedRow.grandparent_title || seedRow.full_title : seedRow?.title || seedRow?.full_title;
 
-  const metadataQuery = useServiceProxy<TautulliMetadataResponse>(tautulli, {
-    path: '/api/v2',
-    query: { cmd: 'get_metadata', rating_key: String(seedRatingKey ?? '') },
-    refetchInterval: false,
-    enabled: !!tautulli && !!seedRatingKey,
+  const seeds: RecSeed[] = [];
+  const seenKeys = new Set<string>();
+  for (const r of rows) {
+    if (r.media_type !== 'movie' && r.media_type !== 'episode') continue;
+    const ratingKey = r.media_type === 'episode' ? r.grandparent_rating_key : r.rating_key;
+    if (!ratingKey) continue;
+    const key = String(ratingKey);
+    if (seenKeys.has(key)) continue;
+    seenKeys.add(key);
+    seeds.push({
+      mediaType: r.media_type === 'episode' ? 'tv' : 'movie',
+      ratingKey: key,
+      title: (r.media_type === 'episode' ? r.grandparent_title || r.full_title : r.title || r.full_title) ?? 'Untitled',
+    });
+    if (seeds.length >= REC_SEED_COUNT) break;
+  }
+  const seedKey = seeds.map((s) => s.ratingKey).join(',');
+
+  const metadataQuery = useQuery({
+    queryKey: ['plex-rec-metadata', tautulli?.id, seedKey],
+    queryFn: async () => {
+      const entries = await Promise.all(
+        seeds.map(async (s) => {
+          try {
+            const res = await proxyApi.call<TautulliMetadataResponse>(tautulli!.id, {
+              path: '/api/v2',
+              query: { cmd: 'get_metadata', rating_key: s.ratingKey },
+              timeoutMs: 10_000,
+            });
+            return [s.ratingKey, res.ok ? extractTmdbId(res.data?.response) : undefined] as const;
+          } catch {
+            return [s.ratingKey, undefined] as const;
+          }
+        }),
+      );
+      return Object.fromEntries(entries) as Record<string, number | undefined>;
+    },
+    enabled: !!tautulli && seeds.length > 0,
+    staleTime: 10 * 60_000,
+    retry: 1,
   });
-  const tmdbId = metadataQuery.data?.ok ? extractTmdbId(metadataQuery.data.data?.response) : undefined;
 
-  const recsQuery = useServiceProxy<OverseerrDiscoverResponse>(overseerr, {
-    path: `/api/v1/${seedMediaType}/${tmdbId}/recommendations`,
+  const seedsWithTmdb = seeds
+    .map((s) => ({ ...s, tmdbId: metadataQuery.data?.[s.ratingKey] }))
+    .filter((s): s is RecSeed & { tmdbId: number } => s.tmdbId !== undefined);
+  const seedTmdbKey = seedsWithTmdb.map((s) => `${s.mediaType}-${s.tmdbId}`).join(',');
+
+  const recsQuery = useQuery({
+    queryKey: ['plex-recommendations', overseerr?.id, seedTmdbKey],
+    queryFn: async () => {
+      const entries = await Promise.all(
+        seedsWithTmdb.map(async (s) => {
+          try {
+            const res = await proxyApi.call<OverseerrDiscoverResponse>(overseerr!.id, {
+              path: `/api/v1/${s.mediaType}/${s.tmdbId}/recommendations`,
+              timeoutMs: 15_000,
+            });
+            return res.ok ? res.data?.results ?? [] : [];
+          } catch {
+            return [];
+          }
+        }),
+      );
+      return entries.flat();
+    },
+    enabled: !!overseerr && seedsWithTmdb.length > 0,
     ...refreshSchedule(overseerr),
-    timeoutMs: 15_000,
-    enabled: !!overseerr && !!tmdbId,
+    retry: 1,
   });
-  const results = recsQuery.data?.ok && Array.isArray(recsQuery.data.data?.results) ? recsQuery.data.data!.results! : [];
-  const items: CarouselItem[] = results.slice(0, LIMIT).map((r) => {
+
+  const seedResultKeys = new Set(seedsWithTmdb.map((s) => `${s.mediaType}-${s.tmdbId}`));
+  const seen = new Set<string>();
+  const deduped: OverseerrDiscoverItem[] = [];
+  for (const r of recsQuery.data ?? []) {
+    const mediaType = r.mediaType ?? 'movie';
+    const key = `${mediaType}-${r.id}`;
+    if (seedResultKeys.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(r);
+  }
+
+  const items: CarouselItem[] = deduped.slice(0, REC_LIMIT).map((r) => {
     const date = r.releaseDate || r.firstAirDate;
-    const mediaType = r.mediaType ?? seedMediaType;
+    const mediaType = r.mediaType ?? 'movie';
     return {
       id: `${mediaType}-${r.id}`,
       title: r.title ?? r.name ?? 'Untitled',
@@ -458,8 +544,8 @@ export function usePlexRecommendationsCarousel(tautulli: ServiceInstance | undef
 
   return {
     items,
-    isLoading: historyQuery.isLoading || (!!seedRatingKey && metadataQuery.isLoading) || (!!tmdbId && recsQuery.isLoading),
-    error: proxyError(recsQuery.data) || proxyError(historyQuery.data),
-    seed: seedTitle ? { title: seedTitle, mediaType: seedMediaType } : undefined,
+    isLoading: historyQuery.isLoading || (seeds.length > 0 && metadataQuery.isLoading) || (seedsWithTmdb.length > 0 && recsQuery.isLoading),
+    error: proxyError(historyQuery.data),
+    seed: seeds[0] ? { title: seeds[0].title, mediaType: seeds[0].mediaType, extraCount: seeds.length - 1 } : undefined,
   };
 }

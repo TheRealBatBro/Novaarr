@@ -8,9 +8,12 @@ import {
   useTraktCarousel,
   useTautulliRecentCarousel,
   usePlexRecommendationsCarousel,
+  useTautulliUsers,
   WIDGET_CATALOG,
   type WidgetSource,
 } from '@/lib/dashboardWidgets';
+import { useUiStore } from '@/stores/useUiStore';
+import { Select } from '@/components/ui/select';
 import type { ServiceInstance } from '@/lib/api';
 import { DashboardCarousel } from './DashboardCarousel';
 import { SabnzbdStatusWidget } from './SabnzbdStatusWidget';
@@ -81,9 +84,44 @@ function TautulliRecent({ instance, sourceId, title, sourceLabel, sourceColor }:
   return <DashboardCarousel title={title} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} {...result} />;
 }
 function TautulliRecommendations({ instance, overseerr, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
-  const result = usePlexRecommendationsCarousel(instance, overseerr);
-  const heading = result.seed ? `Because you watched ${result.seed.title}` : title;
-  return <DashboardCarousel title={heading} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} overseerrInstance={overseerr} {...result} />;
+  const users = useTautulliUsers(instance);
+  const { plexRecommendationUserId, setPlexRecommendationUserId } = useUiStore();
+  const activeUserId = plexRecommendationUserId && users.some((u) => String(u.user_id) === plexRecommendationUserId) ? plexRecommendationUserId : undefined;
+  const result = usePlexRecommendationsCarousel(instance, overseerr, activeUserId);
+  const heading = result.seed ? `Because you watched ${result.seed.title}${result.seed.extraCount > 0 ? ` & ${result.seed.extraCount} more` : ''}` : title;
+
+  // Mirrors DashboardCarousel's own hide condition — otherwise the user picker above it would
+  // render alone with no carousel beneath once the carousel decides there's nothing to show.
+  if (!result.isLoading && result.items.length === 0 && !result.error) return null;
+
+  return (
+    <div>
+      {users.length > 1 && (
+        <div className="mb-1 flex justify-end">
+          <Select
+            className="h-7 w-40 text-xs"
+            value={plexRecommendationUserId ?? ''}
+            onChange={(e) => setPlexRecommendationUserId(e.target.value || null)}
+          >
+            <option value="">Everyone's history</option>
+            {users.map((u) => (
+              <option key={u.user_id} value={u.user_id}>
+                {u.friendly_name || u.username}
+              </option>
+            ))}
+          </Select>
+        </div>
+      )}
+      <DashboardCarousel
+        title={heading}
+        sourceId={sourceId}
+        sourceLabel={sourceLabel}
+        sourceColor={sourceColor}
+        overseerrInstance={overseerr}
+        {...result}
+      />
+    </div>
+  );
 }
 
 const WIDGET_COMPONENTS: Record<string, (props: SourceProps) => JSX.Element> = {

@@ -12,6 +12,10 @@ type UiState = {
    * state — null defers to the build/env default (see visibility.ts). */
   devShowAllServices: boolean | null;
   setDevShowAllServices: (value: boolean | null) => void;
+  /** Which Plex/Tautulli user's watch history feeds the "Because you watched" dashboard widget
+   * — null means every user's history is considered together (the original behavior). */
+  plexRecommendationUserId: string | null;
+  setPlexRecommendationUserId: (value: string | null) => void;
 };
 
 export const useUiStore = create<UiState>()(
@@ -29,10 +33,16 @@ export const useUiStore = create<UiState>()(
       setDrawerOpen: (drawerOpen) => set({ drawerOpen }),
       devShowAllServices: null,
       setDevShowAllServices: (devShowAllServices) => set({ devShowAllServices }),
+      plexRecommendationUserId: null,
+      setPlexRecommendationUserId: (plexRecommendationUserId) => set({ plexRecommendationUserId }),
     }),
     {
       name: 'remotarr:ui',
-      partialize: (state) => ({ theme: state.theme, devShowAllServices: state.devShowAllServices }),
+      partialize: (state) => ({
+        theme: state.theme,
+        devShowAllServices: state.devShowAllServices,
+        plexRecommendationUserId: state.plexRecommendationUserId,
+      }),
     },
   ),
 );

@@ -5,9 +5,9 @@ one Docker container, works from any browser on your phone, tablet, or desktop �
 native app required.
 
 Remotarr talks to the services already running on your network (Sonarr, Radarr,
-SABnzbd, qBittorrent, Overseerr, Tautulli, and more) through a small backend proxy, so
-it works around browser CORS restrictions and can send Wake-on-LAN packets to boot a
-sleeping server before waking up its services.
+SABnzbd, Overseerr, Tautulli, and more) through a small backend proxy, so it works
+around browser CORS restrictions and can send Wake-on-LAN packets to boot a sleeping
+server before waking up its services.
 
 **Remotarr can be the only thing you expose to the internet.** Every request to a
 configured service — Sonarr, Radarr, SABnzbd, whatever you've added — is relayed
@@ -17,12 +17,13 @@ reverse proxy or VPN and everything else can stay bound to your local network on
 
 ## Supported services
 
-- **Download clients**: SABnzbd, NZBGet, qBittorrent, Transmission, Deluge
-- **_arr suite**: Sonarr, Radarr, Lidarr, Readarr, Bazarr (subtitles)
-- **Indexers**: NEWZnab, Jackett, NZBHydra2
-- **Other**: Overseerr / Seerr, Tautulli, Tracearr, Trakt, Prowlarr, Unraid (deep link)
-- **Coming soon**: µTorrent, rTorrent/ruTorrent, Sick Beard — registered but not yet
-  given a full screen; see Settings > Services for what's live today.
+- **Download clients**: SABnzbd
+- **_arr suite**: Sonarr, Radarr, Bazarr (subtitles)
+- **Indexers**: Prowlarr
+- **Other**: Overseerr / Seerr, Tautulli, Tracearr, Trakt
+- **Coming soon**: NZBGet, Deluge, Transmission, µTorrent, qBittorrent,
+  rTorrent/ruTorrent, Lidarr, Readarr, Sick Beard, NEWZnab, Jackett, NZBHydra2, Unraid —
+  see Settings > Services for what's live today.
 
 Every service is optional. Add only what you run — anything left unconfigured is
 simply hidden from the menu.
