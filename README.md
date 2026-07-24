@@ -206,6 +206,35 @@ services:
 Traefik forwards `X-Forwarded-Proto`/`X-Forwarded-For` by default, no extra config
 needed.
 
+### Security headers (optional)
+
+Remotarr already sends its own security headers (HSTS, `X-Content-Type-Options`,
+`X-Frame-Options`, `Referrer-Policy`, and a `Content-Security-Policy` tuned to what it
+actually loads) — you don't need to configure anything at the proxy for Remotarr
+itself. If you'd like the first four set at the Traefik layer too (handy if you're
+running other services behind the same Traefik instance that don't set their own),
+add a `headers` middleware:
+
+```yaml
+labels:
+  # ...same router/service labels as above...
+  traefik.http.routers.remotarr.middlewares: remotarr-headers
+
+  traefik.http.middlewares.remotarr-headers.headers.stsSeconds: "15552000"
+  traefik.http.middlewares.remotarr-headers.headers.stsIncludeSubdomains: "true"
+  traefik.http.middlewares.remotarr-headers.headers.forceSTSHeader: "true"
+  traefik.http.middlewares.remotarr-headers.headers.contentTypeNosniff: "true"
+  traefik.http.middlewares.remotarr-headers.headers.customFrameOptionsValue: "DENY"
+  traefik.http.middlewares.remotarr-headers.headers.referrerPolicy: "no-referrer"
+```
+
+Don't also set `contentSecurityPolicy` here. The app's own CSP is specifically tuned
+(a per-request nonce for its one inline script, an allowance for the unpredictable
+Sonarr/Radarr/Bazarr art hosts, the YouTube trailer frame, etc.) — a second, more
+generic CSP from Traefik on top would have browsers enforce the *intersection* of
+both policies, and the stricter parts of a generic policy would likely block things
+the app's own policy correctly allows, breaking posters or the trailer modal.
+
 ## Sign-in: PIN or password
 
 Settings > Security lets you change your sign-in credential at any time, and switch
