@@ -9,6 +9,19 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Remotarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.9.0',
+    notes: [
+      'Direct Plex integration: Recently Added, Collections, and Library Stats widgets, alongside a Recently Added feed sourced from Tautulli',
+      '"Because you watched" now seeds recommendations from several recent watches (not just the last one), with a per-Plex-user filter, a configurable cache schedule, and a manual refresh button',
+      'Universal search now also finds titles you don’t have yet, not just your existing library — pick one to add it in a couple of taps',
+      'Fixed trailer playback (was failing due to the app’s own privacy headers)',
+      'Fixed several dashboard bugs: new widgets landing at the very bottom instead of a sensible position, disabled widgets reappearing, scroll position carrying over between tabs and on browser back/forward',
+      'Fixed mobile timeouts caused by too many simultaneous background requests to the same service',
+      'Settings sub-navigation redesigned as a segmented control and wraps properly on narrow screens',
+      'Security: added a Content-Security-Policy, a working robots.txt and security.txt, confirmed HSTS/X-Content-Type-Options',
+    ],
+  },
+  {
     version: '0.8.0',
     notes: [
       'Sonarr show pages: latest season listed first, episode air dates, decluttered episode rows',
