@@ -8,7 +8,14 @@ export function TrailerModal({ youtubeKey, title, onClose }: { youtubeKey: strin
         <div className="relative aspect-video w-full bg-black">
           <iframe
             className="h-full w-full"
-            src={`https://www.youtube.com/embed/${youtubeKey}?autoplay=1`}
+            // YouTube's embed player validates the embedding page's origin via the Referer
+            // header; the app sends `Referrer-Policy: no-referrer` on every response (server.js),
+            // which strips that header entirely and surfaces as YouTube's own "Error 153 — Video
+            // player configuration error" instead of a normal failure. `referrerPolicy` here
+            // overrides that policy for just this iframe's request, without loosening it anywhere
+            // else, and the explicit `origin` param covers players that read it instead of Referer.
+            referrerPolicy="strict-origin-when-cross-origin"
+            src={`https://www.youtube-nocookie.com/embed/${youtubeKey}?autoplay=1&origin=${encodeURIComponent(window.location.origin)}`}
             title={`${title} trailer`}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen

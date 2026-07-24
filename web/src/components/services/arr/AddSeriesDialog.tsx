@@ -11,7 +11,7 @@ import { useServiceProxy } from '@/lib/queries';
 import { proxyApi, type ServiceInstance } from '@/lib/api';
 
 type LookupImage = { coverType: string; remoteUrl?: string; url?: string };
-type SeriesLookupResult = { title: string; year?: number; tvdbId: number; images?: LookupImage[] };
+export type SeriesLookupResult = { title: string; year?: number; tvdbId: number; images?: LookupImage[] };
 type Profile = { id: number; name: string };
 type RootFolder = { id: number; path: string };
 
@@ -25,16 +25,20 @@ export function AddSeriesDialog({
   open,
   onOpenChange,
   onAdded,
+  initialResult,
 }: {
   instance: ServiceInstance;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAdded: () => void;
+  /** Skips straight to the quality-profile/root-folder step, pre-selected — used when the caller
+   * (e.g. universal search) already picked a specific title instead of searching from scratch. */
+  initialResult?: SeriesLookupResult;
 }) {
   const qc = useQueryClient();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SeriesLookupResult[] | null>(null);
-  const [selected, setSelected] = useState<SeriesLookupResult | null>(null);
+  const [selected, setSelected] = useState<SeriesLookupResult | null>(initialResult ?? null);
   const [qualityProfileId, setQualityProfileId] = useState<number | ''>('');
   const [languageProfileId, setLanguageProfileId] = useState<number | ''>('');
   const [rootFolderPath, setRootFolderPath] = useState('');

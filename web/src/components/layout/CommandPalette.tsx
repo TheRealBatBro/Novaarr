@@ -1,19 +1,58 @@
 import { useMemo, useEffect, useState } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { Search, Loader2, Clapperboard, Tv } from 'lucide-react';
+import { Search, Loader2, Clapperboard, Tv, Plus } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { useUiStore } from '@/stores/useUiStore';
 import { useVisibleServices } from '@/lib/visibility';
 import { getServiceIcon } from '@/lib/serviceIcons';
 import { useServiceProxy, useServices } from '@/lib/queries';
-import type { ServiceInstance } from '@/lib/api';
+import { proxyApi, type ServiceInstance } from '@/lib/api';
+import { AddMovieDialog, type MovieLookupResult } from '@/components/services/arr/AddMovieDialog';
+import { AddSeriesDialog, type SeriesLookupResult } from '@/components/services/arr/AddSeriesDialog';
 
 type ContentResult = { kind: 'movie' | 'series'; id: number; title: string; year?: number; posterUrl?: string };
 type LibraryItem = { id: number; title: string; year?: number; images?: { coverType: string; remoteUrl?: string; url?: string }[] };
+type DiscoveryResult = { kind: 'movie'; item: MovieLookupResult } | { kind: 'series'; item: SeriesLookupResult };
 
-function posterFor(item: LibraryItem): string | undefined {
+function posterFor(item: { images?: { coverType: string; remoteUrl?: string; url?: string }[] }): string | undefined {
   const img = item.images?.find((i) => i.coverType === 'poster');
   return img?.remoteUrl || img?.url;
+}
+
+// Radarr/Sonarr's "lookup" endpoints are TMDB/TVDB-backed title search meant for the add-new
+// flow — separate from useContentSearch's library search above, and debounced since (unlike the
+// cached library list) every keystroke here is a live upstream request.
+function useDiscoverySearch(query: string, radarr: ServiceInstance | undefined, sonarr: ServiceInstance | undefined) {
+  const [results, setResults] = useState<DiscoveryResult[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setResults([]);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    const timer = setTimeout(() => {
+      Promise.all([
+        radarr ? proxyApi.call<MovieLookupResult[]>(radarr.id, { path: '/api/v3/movie/lookup', query: { term: q }, timeoutMs: 12_000 }).catch(() => null) : Promise.resolve(null),
+        sonarr ? proxyApi.call<SeriesLookupResult[]>(sonarr.id, { path: '/api/v3/series/lookup', query: { term: q }, timeoutMs: 12_000 }).catch(() => null) : Promise.resolve(null),
+      ]).then(([movieRes, seriesRes]) => {
+        if (cancelled) return;
+        const movies: DiscoveryResult[] = movieRes?.ok ? (movieRes.data ?? []).map((item) => ({ kind: 'movie' as const, item })) : [];
+        const series: DiscoveryResult[] = seriesRes?.ok ? (seriesRes.data ?? []).map((item) => ({ kind: 'series' as const, item })) : [];
+        setResults([...movies, ...series]);
+        setLoading(false);
+      });
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query, radarr, sonarr]);
+
+  return { results, loading };
 }
 
 // Reuses the exact same query (path, no params) that the Radarr/Sonarr library grids already
@@ -52,7 +91,13 @@ export function CommandPalette() {
   const radarr = instances.find((i) => i.serviceId === 'radarr');
   const sonarr = instances.find((i) => i.serviceId === 'sonarr');
   const [query, setQuery] = useState('');
+  const [addMovieCandidate, setAddMovieCandidate] = useState<MovieLookupResult | null>(null);
+  const [addSeriesCandidate, setAddSeriesCandidate] = useState<SeriesLookupResult | null>(null);
   const { results: contentResults, loading: contentLoading } = useContentSearch(paletteOpen ? query : '', radarr, sonarr);
+  const { results: discoveryResults, loading: discoveryLoading } = useDiscoverySearch(paletteOpen ? query : '', radarr, sonarr);
+
+  const libraryTitles = useMemo(() => new Set(contentResults.map((r) => r.title.toLowerCase())), [contentResults]);
+  const newResults = discoveryResults.filter((d) => !libraryTitles.has(d.item.title.toLowerCase())).slice(0, 8);
 
   useEffect(() => {
     function onKeydown(e: KeyboardEvent) {
@@ -88,7 +133,16 @@ export function CommandPalette() {
     navigate({ to: '/service/$serviceId/title/$itemId', params: { serviceId: item.kind === 'movie' ? 'radarr' : 'sonarr', itemId: String(item.id) } });
   }
 
+  function selectDiscovery(d: DiscoveryResult) {
+    setPaletteOpen(false);
+    if (d.kind === 'movie') setAddMovieCandidate(d.item);
+    else setAddSeriesCandidate(d.item);
+  }
+
+  const nothingFound = results.length === 0 && contentResults.length === 0 && newResults.length === 0 && !contentLoading && !discoveryLoading;
+
   return (
+    <>
     <DialogPrimitive.Root open={paletteOpen} onOpenChange={setPaletteOpen}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm duration-150 data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
@@ -106,13 +160,11 @@ export function CommandPalette() {
               placeholder="Jump to a service, or search movies & TV…"
               className="h-12 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
-            {contentLoading && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />}
+            {(contentLoading || discoveryLoading) && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />}
             <kbd className="hidden shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground sm:inline">Esc</kbd>
           </div>
           <div className="max-h-80 overflow-y-auto p-2">
-            {results.length === 0 && contentResults.length === 0 && !contentLoading && (
-              <p className="px-3 py-6 text-center text-sm text-muted-foreground">No matches.</p>
-            )}
+            {nothingFound && <p className="px-3 py-6 text-center text-sm text-muted-foreground">No matches.</p>}
             {results.map(({ def, instance }) => {
               const Icon = getServiceIcon(def.id);
               return (
@@ -159,9 +211,56 @@ export function CommandPalette() {
                 })}
               </>
             )}
+            {newResults.length > 0 && (
+              <>
+                <p className="px-3 pb-1 pt-2 text-xs font-medium uppercase text-muted-foreground">Add new</p>
+                {newResults.map((d, i) => {
+                  const poster = posterFor(d.item);
+                  const Icon = d.kind === 'movie' ? Clapperboard : Tv;
+                  return (
+                    <button
+                      key={`new-${d.kind}-${i}`}
+                      onClick={() => selectDiscovery(d)}
+                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"
+                    >
+                      <div className="flex h-11 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
+                        {poster ? <img src={poster} alt="" className="h-full w-full object-cover" /> : <Icon className="h-4 w-4 text-muted-foreground" />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium">
+                          {d.item.title} {d.item.year ? <span className="text-muted-foreground">({d.item.year})</span> : null}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">Not in your library — tap to add</p>
+                      </div>
+                      <Plus className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    </button>
+                  );
+                })}
+              </>
+            )}
           </div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
+
+    {addMovieCandidate && radarr && (
+      <AddMovieDialog
+        instance={radarr}
+        open
+        onOpenChange={(o) => !o && setAddMovieCandidate(null)}
+        initialResult={addMovieCandidate}
+        onAdded={() => setAddMovieCandidate(null)}
+      />
+    )}
+    {addSeriesCandidate && sonarr && (
+      <AddSeriesDialog
+        instance={sonarr}
+        open
+        onOpenChange={(o) => !o && setAddSeriesCandidate(null)}
+        initialResult={addSeriesCandidate}
+        onAdded={() => setAddSeriesCandidate(null)}
+      />
+    )}
+    </>
   );
 }
