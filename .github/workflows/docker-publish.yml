@@ -1,8 +1,12 @@
 name: Publish Docker image
 
+# Ordinary pushes to main publish to :development only — safe to land continuously
+# without touching what anyone's actually running. :latest (production) only updates
+# when a version tag (v1.2.3) is pushed, so a release is a deliberate, separate step.
 on:
   push:
     branches: [main]
+    tags: ['v*']
   workflow_dispatch: {}
 
 jobs:
@@ -21,6 +25,18 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Compute tags
+        id: tags
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+            TAGS="therealbatbro/remotarr:latest,therealbatbro/remotarr:${VERSION}"
+          else
+            TAGS="therealbatbro/remotarr:development"
+          fi
+          TAGS="${TAGS},therealbatbro/remotarr:${GITHUB_SHA}"
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
@@ -32,9 +48,7 @@ jobs:
           # unknown", even though the tag exists and pulls fine on an up-to-date Docker CLI.
           provenance: false
           sbom: false
-          tags: |
-            therealbatbro/remotarr:latest
-            therealbatbro/remotarr:${{ github.sha }}
+          tags: ${{ steps.tags.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
