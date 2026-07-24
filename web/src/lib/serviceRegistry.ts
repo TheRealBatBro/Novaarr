@@ -230,9 +230,9 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     authType: 'torznab',
     fields: [apiKeyField],
     hasDetailScreen: true,
-    comingSoon: true,
-    helpText: 'Enter one indexer’s Torznab feed URL from Jackett (e.g. .../api/v2.0/indexers/all/results/torznab) as the Local URL.',
-    healthCheck: { path: '', query: { t: 'caps' } },
+    helpText:
+      'Enter Jackett’s server URL (e.g. http://host:9117) as the Local URL, and the API key shown on Jackett’s dashboard. If Jackett has an admin password set, its indexer list won’t load — API-key auth only works for the search endpoints in that case, not the indexer-management ones.',
+    healthCheck: { path: '/api/v2.0/indexers/all/results/torznab/api', query: { t: 'caps' } },
   },
   {
     id: 'nzbhydra2',
