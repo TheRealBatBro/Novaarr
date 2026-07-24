@@ -36,13 +36,16 @@ function buildUrl(base, reqPath, query) {
 const DEFAULT_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
-async function fetchWithTimeout(url, opts, timeoutMs) {
+// `instance` is optional (some internal calls, like qBittorrent's login step, don't need it) —
+// when present, its per-instance custom headers (e.g. a Tailscale/reverse-proxy auth header) are
+// merged in ahead of the adapter's own headers, so a real auth header always wins on collision.
+async function fetchWithTimeout(url, opts, timeoutMs, instance) {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), Math.min(timeoutMs || TIMEOUT_DEFAULT, TIMEOUT_MAX));
   try {
     return await fetch(url, {
       ...opts,
-      headers: { 'User-Agent': DEFAULT_USER_AGENT, ...opts.headers },
+      headers: { 'User-Agent': DEFAULT_USER_AGENT, ...(instance?.custom_headers || {}), ...opts.headers },
       signal: controller.signal,
     });
   } finally {
@@ -71,7 +74,7 @@ const adapters = {
       method,
       headers: body ? { 'Content-Type': 'application/json' } : undefined,
       body: body ? JSON.stringify(body) : undefined,
-    }, timeoutMs);
+    }, timeoutMs, instance);
   },
   'apikey-header': (instance, { path, method = 'GET', query = {}, body }, timeoutMs) => {
     const url = buildUrl(instance.local_url, path, query);
@@ -82,7 +85,7 @@ const adapters = {
         ...(body ? { 'Content-Type': 'application/json' } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
-    }, timeoutMs);
+    }, timeoutMs, instance);
   },
 
   // Bearer-token APIs (e.g. Tracearr's public API key) — confirmed live: its endpoints reject
@@ -96,7 +99,7 @@ const adapters = {
         ...(body ? { 'Content-Type': 'application/json' } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
-    }, timeoutMs);
+    }, timeoutMs, instance);
   },
 
   // Trakt's public discovery lists (trending/anticipated) just need a Client ID, not full OAuth.
@@ -110,7 +113,7 @@ const adapters = {
         'trakt-api-key': instance.credentials.apiKey,
       },
       body: body ? JSON.stringify(body) : undefined,
-    }, timeoutMs);
+    }, timeoutMs, instance);
   },
 
   // Plex's own REST API — token passed as a query param (also valid as a header; query is
@@ -122,13 +125,13 @@ const adapters = {
       method,
       headers: { Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) },
       body: body ? JSON.stringify(body) : undefined,
-    }, timeoutMs);
+    }, timeoutMs, instance);
   },
 
   // Torznab/Newznab manual search — the response is XML, parsed to JSON by the route handler below.
   torznab: (instance, { path = '', method = 'GET', query = {} }, timeoutMs) => {
     const url = buildUrl(instance.local_url, path, { ...query, apikey: instance.credentials.apiKey });
-    return fetchWithTimeout(url, { method }, timeoutMs);
+    return fetchWithTimeout(url, { method }, timeoutMs, instance);
   },
 
   // NZBGet's Basic-Auth JSON-RPC, classic µTorrent WebUI, and ruTorrent's action.php all sit
@@ -143,7 +146,7 @@ const adapters = {
         ...(body ? { 'Content-Type': 'application/json' } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
-    }, timeoutMs);
+    }, timeoutMs, instance);
   },
 
   // Sick Beard's legacy API embeds the key as a URL path segment rather than a header/query param.
@@ -155,7 +158,7 @@ const adapters = {
       method,
       headers: body ? { 'Content-Type': 'application/json' } : undefined,
       body: body ? JSON.stringify(body) : undefined,
-    }, timeoutMs);
+    }, timeoutMs, instance);
   },
 
   // Transmission requires X-Transmission-Session-Id; the first call typically 409s with the id
@@ -173,7 +176,7 @@ const adapters = {
         ...(sessionId ? { 'X-Transmission-Session-Id': sessionId } : {}),
       },
       body: JSON.stringify(body ?? {}),
-    }, timeoutMs);
+    }, timeoutMs, instance);
 
     let res = await doRequest();
     if (res.status === 409) {
@@ -193,7 +196,7 @@ const adapters = {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ username: username || '', password: password || '' }).toString(),
-      }, timeoutMs);
+      }, timeoutMs, instance);
       const cookie = extractSetCookie(res);
       if (cookie) db.setServiceSessionToken(instance.id, cookie);
       return cookie;
@@ -206,7 +209,7 @@ const adapters = {
         method,
         headers: { ...cookieHeader(cookie), ...(body ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}) },
         body: body ? new URLSearchParams(body).toString() : undefined,
-      }, timeoutMs);
+      }, timeoutMs, instance);
     }
 
     let cookie = instance.session_token || (await login());
@@ -230,7 +233,7 @@ const adapters = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...cookieHeader(cookie) },
         body: JSON.stringify({ method, params, id: idCounter++ }),
-      }, timeoutMs);
+      }, timeoutMs, instance);
       return { res, cookie: extractSetCookie(res) || cookie };
     }
 

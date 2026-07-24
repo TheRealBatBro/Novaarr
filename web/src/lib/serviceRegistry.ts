@@ -262,10 +262,12 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     category: 'other',
     displayName: 'Unraid',
     brandColor: '#f15a2c',
-    authType: 'none',
-    fields: [],
-    comingSoon: true,
-    helpText: 'No stable remote API — this is a deep-link tile to your WebGUI. Use Wake-on-LAN below to wake the server.',
+    authType: 'apikey-header',
+    fields: [apiKeyField],
+    hasDetailScreen: true,
+    helpText:
+      'Enable the API under Settings → Management Access → API Keys in Unraid (6.12.15+), create a key there, and enter your server’s base URL (e.g. http://192.168.1.50) as the Local URL — a Tailscale address works too as the Remote URL.',
+    healthCheck: { path: '/graphql', method: 'POST', body: { query: '{ info { os { hostname } } }' } },
   },
   {
     id: 'overseerr',

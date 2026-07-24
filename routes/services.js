@@ -15,6 +15,7 @@ function serialize(instance) {
     remoteUrl: instance.remote_url,
     preferredMode: instance.preferred_mode,
     credentials: instance.credentials,
+    customHeaders: instance.custom_headers,
     wolMac: instance.wol_mac,
     wolBroadcast: instance.wol_broadcast,
     favorite: !!instance.favorite,

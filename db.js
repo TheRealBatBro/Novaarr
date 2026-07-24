@@ -52,6 +52,7 @@ function initDb() {
   ensureColumn('settings', 'failed_attempts', 'failed_attempts INTEGER NOT NULL DEFAULT 0');
   ensureColumn('settings', 'locked_until', 'locked_until INTEGER');
   ensureColumn('service_instances', 'refresh_interval_minutes', 'refresh_interval_minutes INTEGER NOT NULL DEFAULT 5');
+  ensureColumn('service_instances', 'custom_headers', "custom_headers TEXT NOT NULL DEFAULT '{}'");
 
   const row = db.prepare('SELECT id FROM settings WHERE id = 1').get();
   if (!row) {
@@ -191,7 +192,11 @@ function clampRefreshInterval(serviceId, minutes) {
 
 function parseInstance(row) {
   if (!row) return row;
-  return { ...row, credentials: JSON.parse(row.credentials || '{}') };
+  return {
+    ...row,
+    credentials: JSON.parse(row.credentials || '{}'),
+    custom_headers: JSON.parse(row.custom_headers || '{}'),
+  };
 }
 
 function listServiceInstances() {
@@ -205,8 +210,8 @@ function getServiceInstance(id) {
 function createServiceInstance(data) {
   const stmt = getDb().prepare(`
     INSERT INTO service_instances
-      (service_id, display_name, auth_type, local_url, remote_url, preferred_mode, credentials, wol_mac, wol_broadcast, favorite, sort_order, enabled, refresh_interval_minutes)
-    VALUES (@service_id, @display_name, @auth_type, @local_url, @remote_url, @preferred_mode, @credentials, @wol_mac, @wol_broadcast, @favorite, @sort_order, @enabled, @refresh_interval_minutes)
+      (service_id, display_name, auth_type, local_url, remote_url, preferred_mode, credentials, custom_headers, wol_mac, wol_broadcast, favorite, sort_order, enabled, refresh_interval_minutes)
+    VALUES (@service_id, @display_name, @auth_type, @local_url, @remote_url, @preferred_mode, @credentials, @custom_headers, @wol_mac, @wol_broadcast, @favorite, @sort_order, @enabled, @refresh_interval_minutes)
   `);
   const result = stmt.run({
     service_id: data.serviceId,
@@ -216,6 +221,7 @@ function createServiceInstance(data) {
     remote_url: data.remoteUrl || null,
     preferred_mode: data.preferredMode || 'auto',
     credentials: JSON.stringify(data.credentials || {}),
+    custom_headers: JSON.stringify(data.customHeaders || {}),
     wol_mac: data.wolMac || null,
     wol_broadcast: data.wolBroadcast || null,
     favorite: data.favorite ? 1 : 0,
@@ -236,6 +242,7 @@ function updateServiceInstance(id, data) {
     remote_url: data.remoteUrl ?? existing.remote_url,
     preferred_mode: data.preferredMode ?? existing.preferred_mode,
     credentials: JSON.stringify(data.credentials ?? existing.credentials),
+    custom_headers: JSON.stringify(data.customHeaders ?? existing.custom_headers),
     wol_mac: data.wolMac ?? existing.wol_mac,
     wol_broadcast: data.wolBroadcast ?? existing.wol_broadcast,
     favorite: data.favorite !== undefined ? (data.favorite ? 1 : 0) : existing.favorite,
@@ -249,7 +256,7 @@ function updateServiceInstance(id, data) {
   getDb().prepare(`
     UPDATE service_instances SET
       display_name = @display_name, auth_type = @auth_type, local_url = @local_url, remote_url = @remote_url,
-      preferred_mode = @preferred_mode, credentials = @credentials, wol_mac = @wol_mac,
+      preferred_mode = @preferred_mode, credentials = @credentials, custom_headers = @custom_headers, wol_mac = @wol_mac,
       wol_broadcast = @wol_broadcast, favorite = @favorite, sort_order = @sort_order,
       enabled = @enabled, refresh_interval_minutes = @refresh_interval_minutes, updated_at = unixepoch()
     WHERE id = @id

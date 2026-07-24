@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Plus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +25,9 @@ export function ServiceInstanceForm({
   const [credentials, setCredentials] = useState<Record<string, string>>(existing?.credentials ?? {});
   const [wolMac, setWolMac] = useState(existing?.wolMac ?? '');
   const [wolBroadcast, setWolBroadcast] = useState(existing?.wolBroadcast ?? '');
+  const [headerRows, setHeaderRows] = useState<{ key: string; value: string }[]>(
+    existing?.customHeaders ? Object.entries(existing.customHeaders).map(([key, value]) => ({ key, value })) : [],
+  );
 
   const create = useCreateService();
   const update = useUpdateService();
@@ -45,6 +49,9 @@ export function ServiceInstanceForm({
       credentials,
       wolMac: isFixedBaseUrl ? undefined : wolMac || undefined,
       wolBroadcast: isFixedBaseUrl ? undefined : wolBroadcast || undefined,
+      customHeaders: isFixedBaseUrl
+        ? undefined
+        : Object.fromEntries(headerRows.filter((h) => h.key.trim()).map((h) => [h.key.trim(), h.value])),
     };
     try {
       if (existing) {
@@ -130,6 +137,41 @@ export function ServiceInstanceForm({
               onChange={(e) => setWolBroadcast(e.target.value)}
             />
           </div>
+        </div>
+      )}
+
+      {!isFixedBaseUrl && (
+        <div className="grid gap-1.5">
+          <Label>Custom headers (optional)</Label>
+          <p className="text-xs text-muted-foreground">
+            Sent with every request to this service — e.g. a Tailscale Serve/Funnel auth header or a reverse-proxy secret.
+          </p>
+          {headerRows.map((row, i) => (
+            <div className="flex gap-2" key={i}>
+              <Input
+                placeholder="Header-Name"
+                value={row.key}
+                onChange={(e) => setHeaderRows((rows) => rows.map((r, j) => (j === i ? { ...r, key: e.target.value } : r)))}
+              />
+              <Input
+                placeholder="value"
+                value={row.value}
+                onChange={(e) => setHeaderRows((rows) => rows.map((r, j) => (j === i ? { ...r, value: e.target.value } : r)))}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Remove header"
+                onClick={() => setHeaderRows((rows) => rows.filter((_, j) => j !== i))}
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ))}
+          <Button type="button" variant="outline" size="sm" onClick={() => setHeaderRows((rows) => [...rows, { key: '', value: '' }])}>
+            <Plus className="h-3.5 w-3.5" /> Add header
+          </Button>
         </div>
       )}
 

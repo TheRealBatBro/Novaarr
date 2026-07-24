@@ -57,6 +57,9 @@ export type ServiceInstance = {
   remoteUrl: string | null;
   preferredMode: 'auto' | 'local' | 'remote';
   credentials: Record<string, string>;
+  /** Extra HTTP headers sent with every proxied request to this instance — e.g. a reverse-proxy
+   * auth header, or anything a Tailscale Funnel/Serve setup requires beyond the URL itself. */
+  customHeaders: Record<string, string>;
   wolMac: string | null;
   wolBroadcast: string | null;
   favorite: boolean;

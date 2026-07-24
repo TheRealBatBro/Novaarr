@@ -20,9 +20,9 @@ reverse proxy or VPN and everything else can stay bound to your local network on
 - **Download clients**: SABnzbd
 - **_arr suite**: Sonarr, Radarr, Bazarr (subtitles)
 - **Indexers**: Prowlarr, NZBHydra2
-- **Other**: Overseerr / Seerr, Tautulli, Tracearr, Trakt
+- **Other**: Overseerr / Seerr, Tautulli, Tracearr, Trakt, Unraid
 - **Coming soon**: NZBGet, Deluge, Transmission, µTorrent, qBittorrent,
-  rTorrent/ruTorrent, Lidarr, Readarr, Sick Beard, NEWZnab, Jackett, Unraid —
+  rTorrent/ruTorrent, Lidarr, Readarr, Sick Beard, NEWZnab, Jackett —
   see Settings > Services for what's live today.
 
 Every service is optional. Add only what you run — anything left unconfigured is

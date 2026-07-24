@@ -28,6 +28,7 @@ import { TracearrViolationsWidget } from './TracearrViolationsWidget';
 import { PlexLibraryStatsWidget } from './PlexLibraryStatsWidget';
 import { ProwlarrStatusWidget } from './ProwlarrStatusWidget';
 import { NzbHydra2StatusWidget } from './NzbHydra2StatusWidget';
+import { UnraidStatusWidget } from './UnraidStatusWidget';
 
 type SourceProps = {
   instance: ServiceInstance;
@@ -182,6 +183,7 @@ export function DashboardWidget({ widgetKey }: { widgetKey: string }) {
     plex: instances.find((i) => i.serviceId === 'plex'),
     prowlarr: instances.find((i) => i.serviceId === 'prowlarr'),
     nzbhydra2: instances.find((i) => i.serviceId === 'nzbhydra2'),
+    unraid: instances.find((i) => i.serviceId === 'unraid'),
   };
   const instance = bySource[def.source];
   if (!instance || !instance.enabled) return null;
@@ -192,6 +194,7 @@ export function DashboardWidget({ widgetKey }: { widgetKey: string }) {
     if (def.source === 'tracearr') return <TracearrStatusWidget instance={instance} title={def.title} />;
     if (def.source === 'prowlarr') return <ProwlarrStatusWidget instance={instance} title={def.title} />;
     if (def.source === 'nzbhydra2') return <NzbHydra2StatusWidget instance={instance} title={def.title} />;
+    if (def.source === 'unraid') return <UnraidStatusWidget instance={instance} title={def.title} />;
     return null;
   }
 
