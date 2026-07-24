@@ -13,7 +13,7 @@ function ActiveIndicator() {
   return (
     <motion.span
       layoutId="nav-active-indicator"
-      className="absolute inset-y-1 left-0 w-1 rounded-full bg-primary"
+      className="absolute inset-y-2.5 left-1 w-[3px] rounded-full bg-primary"
       transition={{ type: 'spring', bounce: 0.2, duration: 0.4 }}
     />
   );
@@ -35,7 +35,7 @@ function NavRow({
       type="button"
       onClick={onClick}
       className={cn(
-        'relative flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-base font-semibold transition-colors hover:bg-accent',
+        'relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-base font-semibold transition-colors hover:bg-accent/60',
         active ? 'bg-primary/10 text-primary' : 'text-foreground',
       )}
     >
@@ -55,16 +55,16 @@ function ServiceRow({ definition, instance, active, onClick }: VisibleService & 
       type="button"
       onClick={onClick}
       className={cn(
-        'relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[15px] font-medium transition-colors hover:bg-accent',
-        active && 'bg-accent',
+        'relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[15px] font-medium transition-colors hover:bg-accent/60',
+        active && 'bg-accent/80',
       )}
     >
       {active && <ActiveIndicator />}
       <span
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
         style={{ backgroundColor: `${definition.brandColor}22`, color: definition.brandColor }}
       >
-        <Icon className="h-5 w-5" />
+        <Icon className="h-4 w-4" />
       </span>
       <span className="min-w-0 flex-1 truncate">{instance?.displayName ?? definition.displayName}</span>
       <StatusDot status={instance ? health : 'off'} />
@@ -91,10 +91,12 @@ export function NavContent({ onNavigate }: { onNavigate?: () => void }) {
       </button>
 
       <div className="flex-1 overflow-y-auto p-2">
-        <NavRow icon={Home} label="Dashboard" active={pathname === '/'} onClick={() => go('/')} />
-        <NavRow icon={CalendarDays} label="Calendar" active={pathname === '/calendar'} onClick={() => go('/calendar')} />
+        <div className="flex flex-col gap-0.5">
+          <NavRow icon={Home} label="Dashboard" active={pathname === '/'} onClick={() => go('/')} />
+          <NavRow icon={CalendarDays} label="Calendar" active={pathname === '/calendar'} onClick={() => go('/calendar')} />
+        </div>
 
-        <div className="mt-5">
+        <div className="mt-5 flex flex-col gap-0.5">
           {visible.map(({ definition, instance }) => (
             <ServiceRow
               key={definition.id}
