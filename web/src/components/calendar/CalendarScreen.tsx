@@ -151,7 +151,7 @@ export function CalendarScreen() {
       )}
 
       {(sonarr || radarr) && (
-        <>
+        <div className="mx-auto max-w-md">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-1">
               <Button variant="ghost" size="icon" aria-label="Previous month" onClick={() => shiftMonth(-1)}>
@@ -190,7 +190,7 @@ export function CalendarScreen() {
                       type="button"
                       onClick={() => setSelectedDate(iso)}
                       className={cn(
-                        'flex aspect-square flex-col items-center justify-center gap-1 rounded-lg text-sm transition-colors',
+                        'flex aspect-square max-h-14 flex-col items-center justify-center gap-1 rounded-lg text-sm transition-colors',
                         !inMonth && 'text-muted-foreground/40',
                         inMonth && !isToday && !isSelected && 'hover:bg-accent',
                         isToday && 'bg-primary text-primary-foreground font-semibold',
@@ -230,7 +230,7 @@ export function CalendarScreen() {
               </div>
             ))}
           </div>
-        </>
+        </div>
       )}
     </div>
   );
