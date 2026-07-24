@@ -86,9 +86,9 @@ function TautulliRecent({ instance, sourceId, title, sourceLabel, sourceColor }:
 }
 function TautulliRecommendations({ instance, overseerr, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
   const users = useTautulliUsers(instance);
-  const { plexRecommendationUserId, setPlexRecommendationUserId } = useUiStore();
+  const { plexRecommendationUserId, setPlexRecommendationUserId, plexRecommendationRefreshMinutes } = useUiStore();
   const activeUserId = plexRecommendationUserId && users.some((u) => String(u.user_id) === plexRecommendationUserId) ? plexRecommendationUserId : undefined;
-  const result = usePlexRecommendationsCarousel(instance, overseerr, activeUserId);
+  const result = usePlexRecommendationsCarousel(instance, overseerr, activeUserId, plexRecommendationRefreshMinutes);
   const heading = result.seed ? `Because you watched ${result.seed.title}${result.seed.extraCount > 0 ? ` & ${result.seed.extraCount} more` : ''}` : title;
 
   // Mirrors DashboardCarousel's own hide condition — otherwise the user picker above it would

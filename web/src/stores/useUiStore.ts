@@ -16,6 +16,12 @@ type UiState = {
    * — null means every user's history is considered together (the original behavior). */
   plexRecommendationUserId: string | null;
   setPlexRecommendationUserId: (value: string | null) => void;
+  /** How often the "Because you watched" widget re-fetches — separate from Tautulli's own
+   * refreshIntervalMinutes since that also governs the fast-moving Now Playing/Recently Watched
+   * widgets, which shouldn't be slowed down just because recommendations are deliberately cached
+   * longer (each refresh fans out to several Overseerr TMDB recommendation calls). */
+  plexRecommendationRefreshMinutes: number;
+  setPlexRecommendationRefreshMinutes: (value: number) => void;
 };
 
 export const useUiStore = create<UiState>()(
@@ -35,6 +41,8 @@ export const useUiStore = create<UiState>()(
       setDevShowAllServices: (devShowAllServices) => set({ devShowAllServices }),
       plexRecommendationUserId: null,
       setPlexRecommendationUserId: (plexRecommendationUserId) => set({ plexRecommendationUserId }),
+      plexRecommendationRefreshMinutes: 240,
+      setPlexRecommendationRefreshMinutes: (plexRecommendationRefreshMinutes) => set({ plexRecommendationRefreshMinutes }),
     }),
     {
       name: 'remotarr:ui',
@@ -42,6 +50,7 @@ export const useUiStore = create<UiState>()(
         theme: state.theme,
         devShowAllServices: state.devShowAllServices,
         plexRecommendationUserId: state.plexRecommendationUserId,
+        plexRecommendationRefreshMinutes: state.plexRecommendationRefreshMinutes,
       }),
     },
   ),

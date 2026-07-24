@@ -422,6 +422,11 @@ export function useTautulliUsers(tautulli: ServiceInstance | undefined) {
 
 const REC_SEED_COUNT = 3;
 const REC_LIMIT = 30;
+export const REC_REFRESH_LIMITS = { min: 60, max: 1440 };
+
+function clampRecRefreshMinutes(minutes: number): number {
+  return Math.min(REC_REFRESH_LIMITS.max, Math.max(REC_REFRESH_LIMITS.min, minutes));
+}
 
 type RecSeed = { mediaType: 'movie' | 'tv'; ratingKey: string; title: string };
 
@@ -435,12 +440,14 @@ export function usePlexRecommendationsCarousel(
   tautulli: ServiceInstance | undefined,
   overseerr: ServiceInstance | undefined,
   userId?: string,
+  refreshMinutes = 240,
 ): CarouselResult {
+  const ms = clampRecRefreshMinutes(refreshMinutes) * 60_000;
   const historyQuery = useServiceProxy<TautulliHistoryResponse>(tautulli, {
     path: '/api/v2',
     query: { cmd: 'get_history', order_column: 'date', order_dir: 'desc', length: '30', ...(userId ? { user_id: userId } : {}) },
-    refetchInterval: 5 * 60_000,
-    staleTime: 5 * 60_000,
+    refetchInterval: ms,
+    staleTime: ms,
     enabled: !!tautulli,
   });
   const rawRows = historyQuery.data?.ok ? historyQuery.data.data?.response?.data?.data : undefined;
@@ -512,7 +519,8 @@ export function usePlexRecommendationsCarousel(
       return entries.flat();
     },
     enabled: !!overseerr && seedsWithTmdb.length > 0,
-    ...refreshSchedule(overseerr),
+    refetchInterval: ms,
+    staleTime: ms,
     retry: 1,
   });
 

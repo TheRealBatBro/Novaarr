@@ -13,6 +13,7 @@ import { WIDGET_CATALOG } from '@/lib/dashboardWidgets';
 import { getServiceDefinition } from '@/lib/serviceRegistry';
 import { getServiceIcon } from '@/lib/serviceIcons';
 import { useDashboardWidgets, useSetDashboardWidgets, useServices, useUpdateService } from '@/lib/queries';
+import { useUiStore } from '@/stores/useUiStore';
 import { cn } from '@/lib/utils';
 import type { ServiceInstance } from '@/lib/api';
 
@@ -22,8 +23,13 @@ type Row = { key: string; enabled: boolean };
 
 // Live "now playing"/"now downloading" status cards (SABnzbd, Tautulli/Tracearr activity) need
 // to stay fast and aren't part of this — only the catalog-style feeds (recently added, trending,
-// rule violations) that are actually worth caching on a schedule.
-const CONFIGURABLE_SOURCES = [...new Set(WIDGET_CATALOG.filter((w) => w.kind !== 'status' && w.kind !== 'search').map((w) => w.source))];
+// rule violations) that are actually worth caching on a schedule. "Because you watched" gets its
+// own dedicated row below instead of sharing Tautulli's — it needs a slower, distinctly-bounded
+// schedule (each refresh fans out to several Overseerr TMDB calls) without also throttling the
+// fast-moving Recently Watched widget, which shares the same underlying Tautulli instance.
+const CONFIGURABLE_SOURCES = [
+  ...new Set(WIDGET_CATALOG.filter((w) => w.kind !== 'status' && w.kind !== 'search' && w.key !== 'tautulli-recommendations').map((w) => w.source)),
+];
 
 // A slider drags much better across a short list of sensible stops than across every raw minute
 // in the range — mirrors db.js's REFRESH_INTERVAL_LIMITS (5m-12h, Trakt 1h-24h) without landing
@@ -124,6 +130,55 @@ function RefreshIntervalRow({ source, instance }: { source: string; instance?: S
   );
 }
 
+// Separate from RefreshIntervalRow because this schedule lives client-side (useUiStore), not on
+// the Tautulli instance — sharing that field would also slow down the fast-moving Recently
+// Watched widget, which reads the same instance.
+function RecommendationRefreshRow({ available }: { available: boolean }) {
+  const { plexRecommendationRefreshMinutes, setPlexRecommendationRefreshMinutes } = useUiStore();
+  const stops = PRESET_STOPS.trakt; // same 60m-24h bounds this widget needs
+  const [index, setIndex] = useState(() => closestStopIndex(stops, plexRecommendationRefreshMinutes));
+  const sourceDef = getServiceDefinition('tautulli');
+  const Icon = getServiceIcon('tautulli');
+
+  useEffect(() => {
+    setIndex(closestStopIndex(stops, plexRecommendationRefreshMinutes));
+  }, [plexRecommendationRefreshMinutes, stops]);
+
+  function commit(newIndex: number) {
+    setIndex(newIndex);
+    setPlexRecommendationRefreshMinutes(stops[newIndex]);
+  }
+
+  return (
+    <Card className={!available ? 'opacity-50' : undefined}>
+      <CardContent className="flex flex-col gap-3 p-3">
+        <div className="flex items-center gap-3">
+          <span
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+            style={{ backgroundColor: `${sourceDef?.brandColor ?? '#888'}22`, color: sourceDef?.brandColor ?? '#888' }}
+          >
+            <Icon className="h-5 w-5" />
+          </span>
+          <p className="min-w-0 flex-1 truncate text-sm font-medium leading-tight">Because you watched</p>
+          <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold tabular-nums text-primary">
+            Every {formatMinutes(stops[index])}
+          </span>
+        </div>
+        <Slider
+          disabled={!available}
+          min={0}
+          max={stops.length - 1}
+          step={1}
+          value={[index]}
+          onValueChange={([v]) => setIndex(v)}
+          onValueCommit={([v]) => commit(v)}
+          aria-label="Refresh interval for Because you watched"
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
 function SettingsDashboard() {
   const { data: instances = [] } = useServices();
   const { data: config, isLoading } = useDashboardWidgets();
@@ -209,13 +264,14 @@ function SettingsDashboard() {
       <h2 className="mb-1 mt-8 text-lg font-bold tracking-tight">Refresh schedule</h2>
       <p className="mb-4 text-sm text-muted-foreground">
         How often each service's dashboard data is refreshed in the background. Cached data shows instantly while a
-        stale check quietly updates it — Trakt only goes down to 1 hour since it's a shared cloud API; everything
-        else can go as low as 5 minutes, up to 12 hours.
+        stale check quietly updates it — Trakt and Because you watched only go down to 1 hour (up to 24h) since each
+        refresh is a heavier shared/multi-call request; everything else can go as low as 5 minutes, up to 12 hours.
       </p>
       <div className="flex flex-col gap-2">
         {CONFIGURABLE_SOURCES.map((source) => (
           <RefreshIntervalRow key={source} source={source} instance={instanceBySource.get(source)} />
         ))}
+        <RecommendationRefreshRow available={configuredSources.has('tautulli') && configuredSources.has('overseerr')} />
       </div>
     </div>
   );

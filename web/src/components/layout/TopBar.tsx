@@ -1,9 +1,11 @@
 import { Menu, Moon, Search, Sun } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import { useUiStore } from '@/stores/useUiStore';
 
 export function TopBar() {
   const { theme, setTheme, setPaletteOpen, setDrawerOpen } = useUiStore();
+  const navigate = useNavigate();
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b border-border px-3 sm:px-5">
@@ -11,7 +13,9 @@ export function TopBar() {
         <Button variant="ghost" size="icon" onClick={() => setDrawerOpen(true)} aria-label="Open menu" className="lg:hidden">
           <Menu className="h-5 w-5" />
         </Button>
-        <span className="ml-1 text-lg font-bold tracking-tight">Remotarr</span>
+        <button type="button" onClick={() => navigate({ to: '/' })} className="ml-1 text-lg font-bold tracking-tight hover:text-primary">
+          Remotarr
+        </button>
       </div>
       <div className="flex items-center gap-1">
         <Button
