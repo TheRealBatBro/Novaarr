@@ -1,11 +1,30 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Settings2 } from 'lucide-react';
 import { useDashboardWidgets, useServices } from '@/lib/queries';
-import { WIDGET_CATALOG } from '@/lib/dashboardWidgets';
+import { WIDGET_CATALOG, type WidgetDef } from '@/lib/dashboardWidgets';
 import { DashboardWidget } from '@/components/dashboard/DashboardWidget';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export const Route = createFileRoute('/')({ component: Dashboard });
+
+function mergeNewWidgetsByCatalogPosition(savedOrder: string[], catalog: WidgetDef[]): string[] {
+  const result = savedOrder.filter((k) => catalog.some((w) => w.key === k));
+  const placed = new Set(result);
+  catalog.forEach((w, i) => {
+    if (placed.has(w.key)) return;
+    let insertAt = result.length;
+    for (let j = i - 1; j >= 0; j--) {
+      const idx = result.indexOf(catalog[j].key);
+      if (idx !== -1) {
+        insertAt = idx + 1;
+        break;
+      }
+    }
+    result.splice(insertAt, 0, w.key);
+    placed.add(w.key);
+  });
+  return result;
+}
 
 function Dashboard() {
   const { isLoading: instancesLoading } = useServices();
@@ -29,13 +48,16 @@ function Dashboard() {
   }
 
   // No saved config yet — default to every catalog widget enabled, in catalog order. Catalog
-  // entries added after the user last saved (like a new widget type) aren't in their saved
-  // list yet, so append those at the end, enabled by default, instead of hiding them.
+  // entries added after the user last saved (like a new widget type) aren't in their saved list
+  // yet — insert each one right after its nearest catalog neighbor that IS already in the saved
+  // order, rather than always at the very end. A brand new widget can otherwise land dozens of
+  // carousels deep on a long-customized dashboard, which on a short mobile viewport reads as "it
+  // got removed" rather than "it's just at the bottom."
   const savedKeys = new Set((config ?? []).map((w) => w.key));
   const hasSavedConfig = (config?.length ?? 0) > 0;
-  const order = hasSavedConfig ? config!.filter((w) => w.enabled).map((w) => w.key) : WIDGET_CATALOG.map((w) => w.key);
-  const newKeys = hasSavedConfig ? WIDGET_CATALOG.filter((w) => !savedKeys.has(w.key)).map((w) => w.key) : [];
-  const orderedKeys = [...order.filter((k) => WIDGET_CATALOG.some((w) => w.key === k)), ...newKeys];
+  const orderedKeys = hasSavedConfig
+    ? mergeNewWidgetsByCatalogPosition(config!.filter((w) => w.enabled).map((w) => w.key), WIDGET_CATALOG)
+    : WIDGET_CATALOG.map((w) => w.key);
 
   return (
     <div>

@@ -441,7 +441,7 @@ export function usePlexRecommendationsCarousel(
   overseerr: ServiceInstance | undefined,
   userId?: string,
   refreshMinutes = 240,
-): CarouselResult {
+): CarouselResult & { refetch: () => Promise<void> } {
   const ms = clampRecRefreshMinutes(refreshMinutes) * 60_000;
   const historyQuery = useServiceProxy<TautulliHistoryResponse>(tautulli, {
     path: '/api/v2',
@@ -555,5 +555,10 @@ export function usePlexRecommendationsCarousel(
     isLoading: historyQuery.isLoading || (seeds.length > 0 && metadataQuery.isLoading) || (seedsWithTmdb.length > 0 && recsQuery.isLoading),
     error: proxyError(historyQuery.data),
     seed: seeds[0] ? { title: seeds[0].title, mediaType: seeds[0].mediaType, extraCount: seeds.length - 1 } : undefined,
+    refetch: async () => {
+      await historyQuery.refetch();
+      await metadataQuery.refetch();
+      await recsQuery.refetch();
+    },
   };
 }

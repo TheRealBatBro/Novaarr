@@ -1,4 +1,6 @@
-import { User } from 'lucide-react';
+import { useState } from 'react';
+import { User, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
 import { useServices } from '@/lib/queries';
 import { getServiceDefinition } from '@/lib/serviceRegistry';
 import {
@@ -15,6 +17,7 @@ import {
 } from '@/lib/dashboardWidgets';
 import { useUiStore } from '@/stores/useUiStore';
 import { Select } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 import type { ServiceInstance } from '@/lib/api';
 import { DashboardCarousel } from './DashboardCarousel';
 import { SabnzbdStatusWidget } from './SabnzbdStatusWidget';
@@ -85,36 +88,61 @@ function TautulliRecent({ instance, sourceId, title, sourceLabel, sourceColor }:
   return <DashboardCarousel title={title} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} {...result} />;
 }
 function TautulliRecommendations({ instance, overseerr, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
+  const [refreshing, setRefreshing] = useState(false);
   const users = useTautulliUsers(instance);
   const { plexRecommendationUserId, setPlexRecommendationUserId, plexRecommendationRefreshMinutes } = useUiStore();
   const activeUserId = plexRecommendationUserId && users.some((u) => String(u.user_id) === plexRecommendationUserId) ? plexRecommendationUserId : undefined;
-  const result = usePlexRecommendationsCarousel(instance, overseerr, activeUserId, plexRecommendationRefreshMinutes);
+  const { refetch, ...result } = usePlexRecommendationsCarousel(instance, overseerr, activeUserId, plexRecommendationRefreshMinutes);
   const heading = result.seed ? `Because you watched ${result.seed.title}${result.seed.extraCount > 0 ? ` & ${result.seed.extraCount} more` : ''}` : title;
 
-  // Mirrors DashboardCarousel's own hide condition — otherwise the user picker above it would
+  // Mirrors DashboardCarousel's own hide condition — otherwise the header row above it would
   // render alone with no carousel beneath once the carousel decides there's nothing to show.
   if (!result.isLoading && result.items.length === 0 && !result.error) return null;
 
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await refetch();
+      toast.success('Recommendations refreshed');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Refresh failed');
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   return (
     <div>
-      {users.length > 0 && (
-        <div className="mb-2 flex items-center justify-end gap-2">
-          <User className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          <span className="text-xs text-muted-foreground">Recommend for</span>
-          <Select
-            className="h-8 w-44 text-xs"
-            value={plexRecommendationUserId ?? ''}
-            onChange={(e) => setPlexRecommendationUserId(e.target.value || null)}
-          >
-            <option value="">Everyone's history</option>
-            {users.map((u) => (
-              <option key={u.user_id} value={u.user_id}>
-                {u.friendly_name || u.username}
-              </option>
-            ))}
-          </Select>
-        </div>
-      )}
+      <div className="mb-2 flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={handleRefresh}
+          disabled={refreshing}
+          aria-label="Refresh recommendations"
+          title="Refresh recommendations"
+          className="shrink-0 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+        >
+          <RefreshCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
+        </button>
+        {users.length > 0 && (
+          <>
+            <User className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">Recommend for</span>
+            <Select
+              className="h-8 w-44 text-xs"
+              value={plexRecommendationUserId ?? ''}
+              onChange={(e) => setPlexRecommendationUserId(e.target.value || null)}
+            >
+              <option value="">Everyone's history</option>
+              {users.map((u) => (
+                <option key={u.user_id} value={u.user_id}>
+                  {u.friendly_name || u.username}
+                </option>
+              ))}
+            </Select>
+          </>
+        )}
+      </div>
       <DashboardCarousel
         title={heading}
         sourceId={sourceId}
