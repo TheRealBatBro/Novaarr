@@ -1,8 +1,6 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/TheRealBatBro/Remotarr/main/docs/screenshots/logo.png" width="96" alt="Remotarr logo">
-</p>
+![Remotarr logo](https://raw.githubusercontent.com/TheRealBatBro/Remotarr/main/docs/screenshots/logo.png)
 
-<h1 align="center">Remotarr</h1>
+# Remotarr
 
 A self-hosted, all-in-one web dashboard for your media and download stack. One
 container, works from any browser on your phone, tablet, or desktop — no native app
@@ -19,18 +17,13 @@ Full source, issue tracker, and detailed docs (reverse-proxy setup, backups, etc
 
 ## Screenshots
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/TheRealBatBro/Remotarr/main/docs/screenshots/dashboard.png" width="100%" alt="Dashboard overview">
-</p>
+![Dashboard overview](https://raw.githubusercontent.com/TheRealBatBro/Remotarr/main/docs/screenshots/dashboard.png)
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/TheRealBatBro/Remotarr/main/docs/screenshots/detail-page.png" width="49%" alt="Movie detail page">
-  <img src="https://raw.githubusercontent.com/TheRealBatBro/Remotarr/main/docs/screenshots/services.png" width="49%" alt="Services configuration">
-</p>
+![Movie detail page](https://raw.githubusercontent.com/TheRealBatBro/Remotarr/main/docs/screenshots/detail-page.png)
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/TheRealBatBro/Remotarr/main/docs/screenshots/mobile.png" width="280" alt="Mobile dashboard">
-</p>
+![Services configuration](https://raw.githubusercontent.com/TheRealBatBro/Remotarr/main/docs/screenshots/services.png)
+
+![Mobile dashboard](https://raw.githubusercontent.com/TheRealBatBro/Remotarr/main/docs/screenshots/mobile.png)
 
 ## Quick start
 
