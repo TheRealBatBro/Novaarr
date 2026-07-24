@@ -12,7 +12,7 @@ const TABS = [
 
 export function SettingsTabs({ active }: { active: 'services' | 'menu' | 'dashboard' | 'security' | 'backup' | 'about' }) {
   return (
-    <div className="mb-4 flex gap-1.5">
+    <div className="mb-4 flex flex-wrap gap-1.5">
       {TABS.map((t) => (
         <Link
           key={t.key}
