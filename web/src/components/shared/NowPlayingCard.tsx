@@ -5,11 +5,17 @@ import { cn } from '@/lib/utils';
 // Sits behind session content inside any `relative overflow-hidden` container. The gradient runs
 // solid-card → transparent left-to-right so the backdrop image "fades in" as it goes right, while
 // the left side (where title/text sit) stays legible.
-export function SessionBackdrop({ url }: { url?: string }) {
+//
+// `blurred` is for portrait-only sources (Tracearr only ever has a 300x450 poster, no landscape
+// fanart) — object-cover on a wide-short card forces a huge zoom factor and crops to a thin band
+// through the middle of the source image, which reads as an accidental slice through people's
+// torsos rather than a scene. Blurring + scaling it up hides that crop and reads as an intentional
+// soft/atmospheric background instead.
+export function SessionBackdrop({ url, blurred }: { url?: string; blurred?: boolean }) {
   return (
-    <div className="pointer-events-none absolute inset-0">
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
       {url ? (
-        <img src={url} alt="" loading="lazy" className="h-full w-full object-cover" />
+        <img src={url} alt="" loading="lazy" className={cn('h-full w-full object-cover', blurred && 'scale-125 blur-md')} />
       ) : (
         <div className="h-full w-full bg-gradient-to-br from-muted/50 to-card" />
       )}

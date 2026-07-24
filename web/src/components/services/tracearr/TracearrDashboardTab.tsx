@@ -79,7 +79,7 @@ export function TracearrDashboardTab({ instance }: { instance: ServiceInstance }
           const pct = total > 0 ? Math.min(100, (progress / total) * 100) : 0;
           return (
             <div key={s.id} className="relative overflow-hidden rounded-xl border border-border bg-card p-3">
-              <SessionBackdrop url={tracearrImageUrl(instance, s.posterUrl)} />
+              <SessionBackdrop url={tracearrImageUrl(instance, s.posterUrl)} blurred />
               <div className="relative z-10">
                 <SessionDetails
                   posterUrl={tracearrImageUrl(instance, s.posterUrl)}
