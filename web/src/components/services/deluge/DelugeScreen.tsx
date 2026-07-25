@@ -3,26 +3,27 @@ import { Pause, Play, Trash2, Plus } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { StatusDot, type ServiceStatus } from '@/components/dashboard/StatusDot';
 import { TorrentRow } from '@/components/shared/TorrentRow';
+import { AddTorrentDialog } from '@/components/shared/AddTorrentDialog';
 import { WolButton } from '@/components/shared/WolButton';
 import { Sparkline } from '@/components/shared/Sparkline';
 import { useServiceProxy } from '@/lib/queries';
 import { useRollingHistory } from '@/lib/useRollingHistory';
 import { getServiceIcon } from '@/lib/serviceIcons';
+import { fileToBase64 } from '@/lib/utils';
 import { proxyApi, type ServiceInstance } from '@/lib/api';
-import { DELUGE_FIELDS, addTorrentBody, formatSpeed, type DelugeResponse } from './DelugeShared';
+import { DELUGE_FIELDS, addTorrentBody, addTorrentFileBody, formatSpeed, type DelugeResponse } from './DelugeShared';
 
 const Icon = getServiceIcon('deluge');
+
+type DelugeRpcError = { error?: { message?: string } | string };
 
 export function DelugeScreen({ instance }: { instance: ServiceInstance }) {
   const qc = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
-  const [magnet, setMagnet] = useState('');
   const { data, isLoading, dataUpdatedAt } = useServiceProxy<DelugeResponse>(instance, {
     path: '/json',
     body: { method: 'core.get_torrents_status', params: [{}, DELUGE_FIELDS] },
@@ -45,7 +46,7 @@ export function DelugeScreen({ instance }: { instance: ServiceInstance }) {
   // torrent) — the failure shows up as a non-null `error` in the body, not the HTTP status, so
   // that has to be checked explicitly rather than just `res.ok`.
   const addTorrent = useMutation({
-    mutationFn: (uri: string) => proxyApi.call<{ error?: { message?: string } | string }>(instance.id, { path: '/json', body: addTorrentBody(uri) }),
+    mutationFn: (uri: string) => proxyApi.call<DelugeRpcError>(instance.id, { path: '/json', body: addTorrentBody(uri) }),
     onSuccess: (res) => {
       const err = res.data?.error;
       if (!res.ok || err) {
@@ -53,7 +54,24 @@ export function DelugeScreen({ instance }: { instance: ServiceInstance }) {
         return toast.error(message || res.error || 'Failed to add torrent');
       }
       toast.success('Torrent added');
-      setMagnet('');
+      setAddOpen(false);
+      qc.invalidateQueries({ queryKey: ['proxy', instance.id] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : 'Failed to add torrent'),
+  });
+
+  const addTorrentFile = useMutation({
+    mutationFn: async (file: File) => {
+      const base64 = await fileToBase64(file);
+      return proxyApi.call<DelugeRpcError>(instance.id, { path: '/json', body: addTorrentFileBody(file.name, base64) });
+    },
+    onSuccess: (res) => {
+      const err = res.data?.error;
+      if (!res.ok || err) {
+        const message = typeof err === 'string' ? err : err?.message;
+        return toast.error(message || res.error || 'Failed to add torrent');
+      }
+      toast.success('Torrent added');
       setAddOpen(false);
       qc.invalidateQueries({ queryKey: ['proxy', instance.id] });
     },
@@ -122,19 +140,14 @@ export function DelugeScreen({ instance }: { instance: ServiceInstance }) {
         </CardContent>
       </Card>
 
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add torrent</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col gap-3">
-            <Input value={magnet} onChange={(e) => setMagnet(e.target.value)} placeholder="Magnet link or .torrent URL" autoFocus />
-            <Button disabled={addTorrent.isPending || !magnet.trim()} onClick={() => addTorrent.mutate(magnet.trim())}>
-              {addTorrent.isPending ? 'Adding…' : 'Add'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <AddTorrentDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        onAddUrl={(url) => addTorrent.mutate(url)}
+        onAddFile={(file) => addTorrentFile.mutate(file)}
+        urlPending={addTorrent.isPending}
+        filePending={addTorrentFile.isPending}
+      />
     </div>
   );
 }

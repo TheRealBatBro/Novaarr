@@ -2,8 +2,8 @@
 // (plugins/httprpc/action.php) — confirmed via ruTorrent's real source (Novik/ruTorrent) to
 // forward genuine XML-RPC over SCGI to the rTorrent daemon when the POST body isn't ruTorrent's
 // own private urlencoded UI protocol. Only the subset actually needed here is supported: string,
-// int/i4, boolean, and array param/return values — rTorrent's d.*/load.*/system.* calls never
-// need structs, so that XML-RPC type is intentionally not implemented.
+// int/i4, boolean, base64, and array param/return values — rTorrent's d.*/load.*/system.* calls
+// never need structs, so that XML-RPC type is intentionally not implemented.
 const { XMLParser } = require('fast-xml-parser');
 
 // parseTagValue: false is load-bearing, not stylistic — an all-digit torrent hash inside
@@ -16,7 +16,15 @@ function xmlEscape(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+// Base64 content (e.g. a .torrent file's raw bytes for load.raw_start) needs the XML-RPC
+// <base64> type, not <string> — the base64 alphabet itself never contains XML metacharacters,
+// so it's safe to embed directly with no escaping.
+function base64Value(base64) {
+  return { __xmlrpcBase64: base64 };
+}
+
 function buildValue(v) {
+  if (v != null && typeof v === 'object' && '__xmlrpcBase64' in v) return `<value><base64>${v.__xmlrpcBase64}</base64></value>`;
   if (typeof v === 'number') return `<value><i4>${Math.trunc(v)}</i4></value>`;
   if (typeof v === 'boolean') return `<value><boolean>${v ? 1 : 0}</boolean></value>`;
   return `<value><string>${xmlEscape(v)}</string></value>`;
@@ -42,6 +50,7 @@ function parseValue(node) {
   if ('i8' in v) return Number(v.i8);
   if ('boolean' in v) return v.boolean === 1 || v.boolean === '1' || v.boolean === true;
   if ('double' in v) return Number(v.double);
+  if ('base64' in v) return v.base64 === true ? '' : String(v.base64);
   if ('array' in v) {
     const items = v.array?.data?.value;
     if (items === undefined) return [];
@@ -64,4 +73,4 @@ function parseMethodResponse(xmlText) {
   return { value: parseValue(resp.params?.param?.value) };
 }
 
-module.exports = { buildMethodCall, parseMethodResponse };
+module.exports = { buildMethodCall, parseMethodResponse, base64Value };

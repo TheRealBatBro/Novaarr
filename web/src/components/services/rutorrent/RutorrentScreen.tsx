@@ -4,25 +4,24 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { StatusDot, type ServiceStatus } from '@/components/dashboard/StatusDot';
 import { TorrentRow } from '@/components/shared/TorrentRow';
+import { AddTorrentDialog } from '@/components/shared/AddTorrentDialog';
 import { WolButton } from '@/components/shared/WolButton';
 import { Sparkline } from '@/components/shared/Sparkline';
 import { useServiceProxy } from '@/lib/queries';
 import { useRollingHistory } from '@/lib/useRollingHistory';
 import { getServiceIcon } from '@/lib/serviceIcons';
+import { fileToBase64 } from '@/lib/utils';
 import { proxyApi, type ServiceInstance } from '@/lib/api';
-import { formatBytes, formatSpeed, isPaused, multicallBody, parseTorrent, progressPct, statusLabel } from './RutorrentShared';
+import { addTorrentFileBody, formatBytes, formatSpeed, isPaused, multicallBody, parseTorrent, progressPct, statusLabel } from './RutorrentShared';
 
 const Icon = getServiceIcon('rutorrent');
 
 export function RutorrentScreen({ instance }: { instance: ServiceInstance }) {
   const qc = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
-  const [magnet, setMagnet] = useState('');
 
   const { data, isLoading, dataUpdatedAt } = useServiceProxy<unknown[][]>(instance, {
     path: '',
@@ -46,7 +45,22 @@ export function RutorrentScreen({ instance }: { instance: ServiceInstance }) {
     onSuccess: (res) => {
       if (!res.ok) return toast.error(res.error || 'Failed to add torrent');
       toast.success('Torrent added');
-      setMagnet('');
+      setAddOpen(false);
+      qc.invalidateQueries({ queryKey: ['proxy', instance.id] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : 'Failed to add torrent'),
+  });
+
+  // load.raw_start takes the .torrent file's raw bytes directly (XML-RPC <base64>), unlike
+  // load.start's URL/magnet string — rTorrent loads it immediately rather than fetching anything.
+  const addTorrentFile = useMutation({
+    mutationFn: async (file: File) => {
+      const base64 = await fileToBase64(file);
+      return proxyApi.call(instance.id, { path: '', body: addTorrentFileBody(base64) });
+    },
+    onSuccess: (res) => {
+      if (!res.ok) return toast.error(res.error || 'Failed to add torrent');
+      toast.success('Torrent added');
       setAddOpen(false);
       qc.invalidateQueries({ queryKey: ['proxy', instance.id] });
     },

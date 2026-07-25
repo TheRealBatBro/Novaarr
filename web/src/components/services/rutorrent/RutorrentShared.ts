@@ -34,6 +34,12 @@ export function multicallBody() {
   return { method: 'd.multicall2', params: ['', '', ...FIELDS] };
 }
 
+// Mirrors rtorrentXmlRpc.js's base64Value() marker shape — crosses a JSON boundary (this body is
+// serialized to the backend proxy call), so it's a plain tagged object, not a shared import.
+export function addTorrentFileBody(base64: string) {
+  return { method: 'load.raw_start', params: ['', { __xmlrpcBase64: base64 }] };
+}
+
 export function parseTorrent(row: unknown[]): RutorrentTorrent {
   const [name, hash, sizeBytes, leftBytes, downRate, upRate, ratio, isOpen, isActive, complete, label] = row;
   return {

@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { proxyApi, type ServiceInstance } from '@/lib/api';
-import { appendBody, fileToBase64 } from './NzbgetShared';
+import { appendBody } from './NzbgetShared';
+import { fileToBase64 } from '@/lib/utils';
 
 export function NzbgetAddDialog({ instance, open, onOpenChange }: { instance: ServiceInstance; open: boolean; onOpenChange: (open: boolean) => void }) {
   const qc = useQueryClient();

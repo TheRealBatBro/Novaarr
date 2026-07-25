@@ -130,6 +130,18 @@ export const sabnzbdApi = {
   },
 };
 
+export const torrentUploadApi = {
+  uploadTorrent: (instanceId: number, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return fetch(apiUrl(`/api/torrent-upload/${instanceId}`), {
+      method: 'POST',
+      credentials: 'same-origin',
+      body: form,
+    }).then((r) => json<ProxyResponse>(r));
+  },
+};
+
 export type DashboardWidgetConfig = { key: string; enabled: boolean };
 
 export const dashboardApi = {

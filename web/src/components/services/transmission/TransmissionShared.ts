@@ -25,3 +25,9 @@ export function rpc(method: string, ids?: number[], extraArgs?: Record<string, u
 export function addTorrentBody(url: string) {
   return { method: 'torrent-add', arguments: { filename: url } };
 }
+
+// Same RPC method, `metainfo` instead of `filename` — base64-encoded raw .torrent file contents,
+// for uploading a local file rather than pointing at a URL/magnet.
+export function addTorrentFileBody(base64: string) {
+  return { method: 'torrent-add', arguments: { metainfo: base64 } };
+}

@@ -3,18 +3,17 @@ import { Pause, Play, Trash2, Plus } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { StatusDot, type ServiceStatus } from '@/components/dashboard/StatusDot';
 import { TorrentRow } from '@/components/shared/TorrentRow';
+import { AddTorrentDialog } from '@/components/shared/AddTorrentDialog';
 import { WolButton } from '@/components/shared/WolButton';
 import { Sparkline } from '@/components/shared/Sparkline';
 import { useServiceProxy } from '@/lib/queries';
 import { useRollingHistory } from '@/lib/useRollingHistory';
 import { getServiceIcon } from '@/lib/serviceIcons';
-import { proxyApi, type ServiceInstance } from '@/lib/api';
+import { proxyApi, torrentUploadApi, type ServiceInstance } from '@/lib/api';
 import { PAUSED_STATES, formatSpeed, type QbTorrent } from './QBittorrentShared';
 
 const Icon = getServiceIcon('qbittorrent');
@@ -22,7 +21,6 @@ const Icon = getServiceIcon('qbittorrent');
 export function QBittorrentScreen({ instance }: { instance: ServiceInstance }) {
   const qc = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
-  const [magnet, setMagnet] = useState('');
   const { data, isLoading, dataUpdatedAt } = useServiceProxy<QbTorrent[]>(instance, {
     path: '/api/v2/torrents/info',
     refetchInterval: 5000,
@@ -41,14 +39,25 @@ export function QBittorrentScreen({ instance }: { instance: ServiceInstance }) {
   });
 
   // qBittorrent's /torrents/add accepts a plain form-urlencoded `urls` field (newline-separated)
-  // for magnet links/.torrent URLs — multipart is only required for uploading a local .torrent
-  // file's raw bytes, which this dialog doesn't support.
+  // for magnet links/.torrent URLs. Uploading an actual .torrent file needs real multipart, which
+  // doesn't fit the generic JSON proxy — that goes through its own backend route instead (see
+  // routes/torrentUpload.js), same pattern as SABnzbd's .nzb upload.
   const addTorrent = useMutation({
     mutationFn: (url: string) => proxyApi.call(instance.id, { path: '/api/v2/torrents/add', method: 'POST', body: { urls: url } }),
     onSuccess: (res) => {
       if (!res.ok) return toast.error(res.error || 'Failed to add torrent');
       toast.success('Torrent added');
-      setMagnet('');
+      setAddOpen(false);
+      qc.invalidateQueries({ queryKey: ['proxy', instance.id] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : 'Failed to add torrent'),
+  });
+
+  const addTorrentFile = useMutation({
+    mutationFn: (file: File) => torrentUploadApi.uploadTorrent(instance.id, file),
+    onSuccess: (res) => {
+      if (!res.ok) return toast.error(res.error || 'Failed to add torrent');
+      toast.success('Torrent added');
       setAddOpen(false);
       qc.invalidateQueries({ queryKey: ['proxy', instance.id] });
     },
@@ -122,19 +131,14 @@ export function QBittorrentScreen({ instance }: { instance: ServiceInstance }) {
         </CardContent>
       </Card>
 
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add torrent</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col gap-3">
-            <Input value={magnet} onChange={(e) => setMagnet(e.target.value)} placeholder="Magnet link or .torrent URL" autoFocus />
-            <Button disabled={addTorrent.isPending || !magnet.trim()} onClick={() => addTorrent.mutate(magnet.trim())}>
-              {addTorrent.isPending ? 'Adding…' : 'Add'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <AddTorrentDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        onAddUrl={(url) => addTorrent.mutate(url)}
+        onAddFile={(file) => addTorrentFile.mutate(file)}
+        urlPending={addTorrent.isPending}
+        filePending={addTorrentFile.isPending}
+      />
     </div>
   );
 }

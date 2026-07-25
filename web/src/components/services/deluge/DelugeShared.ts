@@ -15,3 +15,11 @@ export function addTorrentBody(uri: string) {
   const method = uri.trim().toLowerCase().startsWith('magnet:') ? 'core.add_torrent_magnet' : 'core.add_torrent_url';
   return { method, params: [uri, {}] };
 }
+
+// add_torrent_file_async (not the plain add_torrent_file) is what Deluge's own WebUI calls for
+// uploads — the plain version blocks the daemon on session.add_torrent() while the file is
+// registered; the _async variant returns immediately and was restored specifically for
+// single-file, backward-compatible third-party use after the manager moved to async-by-default.
+export function addTorrentFileBody(filename: string, base64: string) {
+  return { method: 'core.add_torrent_file_async', params: [filename, base64, {}] };
+}

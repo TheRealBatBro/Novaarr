@@ -4,17 +4,16 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { StatusDot, type ServiceStatus } from '@/components/dashboard/StatusDot';
 import { TorrentRow } from '@/components/shared/TorrentRow';
+import { AddTorrentDialog } from '@/components/shared/AddTorrentDialog';
 import { WolButton } from '@/components/shared/WolButton';
 import { Sparkline } from '@/components/shared/Sparkline';
 import { useServiceProxy } from '@/lib/queries';
 import { useRollingHistory } from '@/lib/useRollingHistory';
 import { getServiceIcon } from '@/lib/serviceIcons';
-import { proxyApi, type ServiceInstance } from '@/lib/api';
+import { proxyApi, torrentUploadApi, type ServiceInstance } from '@/lib/api';
 import { formatBytes, formatSpeed, isPaused, parseTorrent, statusLabel, type UtorrentListResponse } from './UtorrentShared';
 
 const Icon = getServiceIcon('utorrent');
@@ -22,7 +21,6 @@ const Icon = getServiceIcon('utorrent');
 export function UtorrentScreen({ instance }: { instance: ServiceInstance }) {
   const qc = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
-  const [magnet, setMagnet] = useState('');
 
   const { data, isLoading, dataUpdatedAt } = useServiceProxy<UtorrentListResponse>(instance, {
     path: '/gui/',
@@ -47,7 +45,19 @@ export function UtorrentScreen({ instance }: { instance: ServiceInstance }) {
     onSuccess: (res) => {
       if (!res.ok) return toast.error(res.error || 'Failed to add torrent');
       toast.success('Torrent added');
-      setMagnet('');
+      setAddOpen(false);
+      qc.invalidateQueries({ queryKey: ['proxy', instance.id] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : 'Failed to add torrent'),
+  });
+
+  // action=add-file needs real multipart/form-data (field name torrent_file), a poor fit for the
+  // generic JSON proxy — routed through its own backend route instead (routes/torrentUpload.js).
+  const addTorrentFile = useMutation({
+    mutationFn: (file: File) => torrentUploadApi.uploadTorrent(instance.id, file),
+    onSuccess: (res) => {
+      if (!res.ok) return toast.error(res.error || 'Failed to add torrent');
+      toast.success('Torrent added');
       setAddOpen(false);
       qc.invalidateQueries({ queryKey: ['proxy', instance.id] });
     },
@@ -121,24 +131,14 @@ export function UtorrentScreen({ instance }: { instance: ServiceInstance }) {
         </CardContent>
       </Card>
 
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add torrent</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col gap-3">
-            <Input
-              value={magnet}
-              onChange={(e) => setMagnet(e.target.value)}
-              placeholder="Magnet link or .torrent URL"
-              autoFocus
-            />
-            <Button disabled={addTorrent.isPending || !magnet.trim()} onClick={() => addTorrent.mutate(magnet.trim())}>
-              {addTorrent.isPending ? 'Adding…' : 'Add'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <AddTorrentDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        onAddUrl={(url) => addTorrent.mutate(url)}
+        onAddFile={(file) => addTorrentFile.mutate(file)}
+        urlPending={addTorrent.isPending}
+        filePending={addTorrentFile.isPending}
+      />
     </div>
   );
 }

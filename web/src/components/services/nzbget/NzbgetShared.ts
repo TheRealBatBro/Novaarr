@@ -52,15 +52,6 @@ export function statusLabel(status?: string): string {
     .join(' ');
 }
 
-export function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(((reader.result as string) ?? '').split(',')[1] ?? '');
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
-
 /** append(Filename, Content, Category, Priority, AddToTop, AddPaused, DupeKey, DupeScore,
  * DupeMode, AutoCategory, PPParameters) — positional per NZBGet's API, defaults matching
  * NZBGet's own normal-priority, auto-categorized, unpaused add. */
