@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { Star } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,15 +10,32 @@ import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useServiceProxy } from '@/lib/queries';
 import { proxyApi, type ServiceInstance } from '@/lib/api';
+import { PosterRatingBadges } from './ArrPosterBadges';
 
 type LookupImage = { coverType: string; remoteUrl?: string; url?: string };
-export type SeriesLookupResult = { title: string; year?: number; tvdbId: number; images?: LookupImage[] };
+export type SeriesLookupResult = {
+  title: string;
+  year?: number;
+  tvdbId: number;
+  images?: LookupImage[];
+  network?: string;
+  runtime?: number;
+  status?: string;
+  genres?: string[];
+  overview?: string;
+  /** Sonarr's lookup only exposes one aggregate score (sourced from IMDb) — no per-source breakdown like Radarr's. */
+  ratings?: { votes: number; value: number };
+};
 type Profile = { id: number; name: string };
 type RootFolder = { id: number; path: string };
 
 function posterUrl(item: { images?: LookupImage[] }): string | undefined {
   const img = item.images?.find((i) => i.coverType === 'poster');
   return img?.remoteUrl || img?.url;
+}
+
+function subtitle(r: SeriesLookupResult): string {
+  return [r.year, r.network, r.runtime ? `${r.runtime}m` : undefined].filter(Boolean).join(' · ');
 }
 
 export function AddSeriesDialog({
@@ -140,12 +158,14 @@ export function AddSeriesDialog({
                     onClick={() => setSelected(r)}
                     className="overflow-hidden rounded-lg border border-border text-left transition-colors hover:border-primary"
                   >
-                    <div className="aspect-[2/3] w-full bg-muted">
+                    <div className="relative aspect-[2/3] w-full bg-muted">
                       {posterUrl(r) && <img src={posterUrl(r)} alt={r.title} className="h-full w-full object-cover" />}
+                      <PosterRatingBadges imdb={r.ratings?.value} />
                     </div>
-                    <p className="truncate p-1 text-xs font-medium">
-                      {r.title} {r.year ? `(${r.year})` : ''}
-                    </p>
+                    <div className="p-1.5">
+                      <p className="line-clamp-2 text-xs font-medium leading-snug">{r.title}</p>
+                      {subtitle(r) && <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{subtitle(r)}</p>}
+                    </div>
                   </button>
                 ))}
               {!search.isPending && results?.length === 0 && <p className="col-span-full text-sm text-muted-foreground">No results.</p>}
@@ -153,15 +173,23 @@ export function AddSeriesDialog({
           </>
         ) : (
           <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-3">
-              <div className="h-20 w-14 shrink-0 overflow-hidden rounded bg-muted">
+            <div className="flex gap-3">
+              <div className="h-28 w-20 shrink-0 overflow-hidden rounded bg-muted">
                 {posterUrl(selected) && <img src={posterUrl(selected)} alt={selected.title} className="h-full w-full object-cover" />}
               </div>
-              <div>
-                <p className="font-medium">
-                  {selected.title} {selected.year ? `(${selected.year})` : ''}
-                </p>
-                <button type="button" onClick={() => setSelected(null)} className="text-xs text-primary hover:underline">
+              <div className="min-w-0">
+                <p className="font-medium leading-snug">{selected.title}</p>
+                {subtitle(selected) && <p className="mt-0.5 text-xs text-muted-foreground">{subtitle(selected)}</p>}
+                {selected.ratings?.value !== undefined && (
+                  <p className="mt-1 flex items-center gap-1 text-xs">
+                    <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                    {selected.ratings.value.toFixed(1)} IMDb
+                    {selected.ratings.votes ? ` (${selected.ratings.votes.toLocaleString()} votes)` : ''}
+                  </p>
+                )}
+                {!!selected.genres?.length && <p className="mt-1 text-xs text-muted-foreground">{selected.genres.slice(0, 3).join(', ')}</p>}
+                {selected.overview && <p className="mt-1 line-clamp-3 text-xs text-muted-foreground">{selected.overview}</p>}
+                <button type="button" onClick={() => setSelected(null)} className="mt-1 text-xs text-primary hover:underline">
                   Choose a different show
                 </button>
               </div>
