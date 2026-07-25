@@ -17,12 +17,12 @@ reverse proxy or VPN and everything else can stay bound to your local network on
 
 ## Supported services
 
-- **Download clients**: SABnzbd, NZBGet, µTorrent
+- **Download clients**: SABnzbd, NZBGet, µTorrent, Deluge, Transmission
 - **_arr suite**: Sonarr, Radarr, Bazarr (subtitles), Sick Beard
 - **Indexers**: Prowlarr, NZBHydra2, Jackett
 - **Other**: Seerr, Ombi, Tautulli, Tracearr, Trakt, Unraid
-- **Coming soon**: Deluge, Transmission, qBittorrent, rTorrent/ruTorrent,
-  Lidarr, Readarr, NEWZnab — see Settings > Services for what's live today.
+- **Coming soon**: qBittorrent, rTorrent/ruTorrent, Lidarr, Readarr,
+  NEWZnab — see Settings > Services for what's live today.
 
 Every service is optional. Add only what you run — anything left unconfigured is
 simply hidden from the menu.

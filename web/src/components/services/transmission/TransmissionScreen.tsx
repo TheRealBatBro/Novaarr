@@ -11,30 +11,9 @@ import { useServiceProxy } from '@/lib/queries';
 import { useRollingHistory } from '@/lib/useRollingHistory';
 import { getServiceIcon } from '@/lib/serviceIcons';
 import { proxyApi, type ServiceInstance } from '@/lib/api';
+import { formatSpeed, rpc, type TrResponse } from './TransmissionShared';
 
 const Icon = getServiceIcon('transmission');
-
-type TrTorrent = {
-  id: number;
-  name: string;
-  percentDone: number;
-  status: number; // 0=stopped, 4=downloading, 6=seeding, others=waiting/checking
-  rateDownload: number;
-};
-
-type TrResponse = { arguments?: { torrents?: TrTorrent[] } };
-
-const FIELDS = ['id', 'name', 'percentDone', 'status', 'rateDownload'];
-
-function formatSpeed(bytesPerSec: number): string {
-  if (bytesPerSec <= 0) return '';
-  const kb = bytesPerSec / 1024;
-  return kb > 1024 ? `${(kb / 1024).toFixed(1)} MB/s` : `${kb.toFixed(0)} KB/s`;
-}
-
-function rpc(method: string, ids?: number[], extraArgs?: Record<string, unknown>) {
-  return { method, arguments: { fields: FIELDS, ids, ...extraArgs } };
-}
 
 export function TransmissionScreen({ instance }: { instance: ServiceInstance }) {
   const qc = useQueryClient();

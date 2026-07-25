@@ -11,25 +11,15 @@ import { useServiceProxy } from '@/lib/queries';
 import { useRollingHistory } from '@/lib/useRollingHistory';
 import { getServiceIcon } from '@/lib/serviceIcons';
 import { proxyApi, type ServiceInstance } from '@/lib/api';
+import { DELUGE_FIELDS, formatSpeed, type DelugeResponse } from './DelugeShared';
 
 const Icon = getServiceIcon('deluge');
-
-type DelugeTorrent = { name: string; progress: number; state: string; download_payload_rate: number };
-type DelugeResponse = { result?: Record<string, DelugeTorrent> };
-
-const FIELDS = ['name', 'progress', 'state', 'download_payload_rate'];
-
-function formatSpeed(bytesPerSec: number): string {
-  if (bytesPerSec <= 0) return '';
-  const kb = bytesPerSec / 1024;
-  return kb > 1024 ? `${(kb / 1024).toFixed(1)} MB/s` : `${kb.toFixed(0)} KB/s`;
-}
 
 export function DelugeScreen({ instance }: { instance: ServiceInstance }) {
   const qc = useQueryClient();
   const { data, isLoading, dataUpdatedAt } = useServiceProxy<DelugeResponse>(instance, {
     path: '/json',
-    body: { method: 'core.get_torrents_status', params: [{}, FIELDS] },
+    body: { method: 'core.get_torrents_status', params: [{}, DELUGE_FIELDS] },
     refetchInterval: 5000,
   });
 

@@ -7,7 +7,7 @@ import { mapWithConcurrency } from './concurrency';
 // concurrency.ts for why this exists.
 const POSTER_FETCH_CONCURRENCY = 4;
 
-export type WidgetSource = 'sonarr' | 'radarr' | 'overseerr' | 'trakt' | 'sabnzbd' | 'tautulli' | 'tracearr' | 'plex' | 'prowlarr' | 'nzbhydra2' | 'unraid' | 'jackett' | 'nzbget' | 'sickbeard' | 'ombi' | 'utorrent';
+export type WidgetSource = 'sonarr' | 'radarr' | 'overseerr' | 'trakt' | 'sabnzbd' | 'tautulli' | 'tracearr' | 'plex' | 'prowlarr' | 'nzbhydra2' | 'unraid' | 'jackett' | 'nzbget' | 'sickbeard' | 'ombi' | 'utorrent' | 'deluge' | 'transmission';
 export type RecommendationSeed = { title: string; mediaType: 'movie' | 'tv'; extraCount: number } | undefined;
 
 export type WidgetDef = {
@@ -59,6 +59,8 @@ export const WIDGET_CATALOG: WidgetDef[] = [
   { key: 'sickbeard-status', title: 'Sick Beard', source: 'sickbeard', kind: 'status' },
   { key: 'ombi-status', title: 'Ombi', source: 'ombi', kind: 'status' },
   { key: 'utorrent-status', title: 'µTorrent', source: 'utorrent', kind: 'status' },
+  { key: 'deluge-status', title: 'Deluge', source: 'deluge', kind: 'status' },
+  { key: 'transmission-status', title: 'Transmission', source: 'transmission', kind: 'status' },
   { key: 'tautulli-status', title: 'Now Playing', source: 'tautulli', kind: 'status' },
   { key: 'overseerr-search', title: 'Search Seerr', source: 'overseerr', kind: 'search' },
   { key: 'tautulli-recent', title: 'Recently Watched', source: 'tautulli' },

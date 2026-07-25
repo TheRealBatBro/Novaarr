@@ -98,7 +98,6 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     authType: 'deluge-jsonrpc',
     fields: [{ ...passwordField, label: 'Web UI Password' }],
     hasDetailScreen: true,
-    comingSoon: true,
     helpText: 'The daemon-connect handshake is best-effort and unverified against a live Deluge instance.',
     healthCheck: { path: '/json', method: 'POST', body: { method: 'daemon.info', params: [] } },
   },
@@ -113,7 +112,6 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
       { ...passwordField, required: false, helpText: 'Leave blank if Transmission has no auth enabled' },
     ],
     hasDetailScreen: true,
-    comingSoon: true,
     healthCheck: { path: '/transmission/rpc', method: 'POST', body: { method: 'session-get' } },
   },
   {
