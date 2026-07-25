@@ -3,8 +3,10 @@ export type ServiceCategory = 'download-client' | 'arr' | 'indexer' | 'other';
 export type AuthType =
   | 'apikey-query'
   | 'apikey-header'
+  | 'ombi-apikey'
   | 'apikey-url-segment'
   | 'basic-auth'
+  | 'utorrent-token'
   | 'qbittorrent-session'
   | 'deluge-jsonrpc'
   | 'transmission-rpc'
@@ -119,10 +121,11 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     category: 'download-client',
     displayName: 'µTorrent',
     brandColor: '#6dbe49',
-    authType: 'basic-auth',
+    authType: 'utorrent-token',
     fields: [usernameField, passwordField],
-    helpText: 'Newer µTorrent WebUI builds add a CSRF token dance on top of Basic Auth — unverified here, works best with older/classic WebUI configs.',
-    comingSoon: true,
+    hasDetailScreen: true,
+    helpText: 'Uses the classic µTorrent WebUI (Settings → Advanced → Web UI). Enable it and use those credentials here.',
+    healthCheck: { path: '/gui/', query: { list: '1' } },
   },
   {
     id: 'qbittorrent',
@@ -205,7 +208,9 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     brandColor: '#6fbe44',
     authType: 'apikey-url-segment',
     fields: [apiKeyField],
-    comingSoon: true,
+    hasDetailScreen: true,
+    helpText: 'Requires "Use API" to be enabled under Config → General in Sick Beard, alongside the API key shown there.',
+    healthCheck: { path: '', query: { cmd: 'sb.ping' } },
   },
 
   // ── Indexers (manual search) ─────────────────────────────────────────
@@ -283,10 +288,11 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     category: 'other',
     displayName: 'Ombi',
     brandColor: '#e37200',
-    authType: 'apikey-header',
+    authType: 'ombi-apikey',
     fields: [apiKeyField],
-    comingSoon: true,
+    hasDetailScreen: true,
     helpText: 'Media request management, like Seerr — find your API key under Settings → Configuration → Ombi in Ombi’s own UI.',
+    healthCheck: { path: '/api/v1/Status' },
   },
   {
     id: 'tautulli',

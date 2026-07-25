@@ -88,6 +88,17 @@ const adapters = {
     }, timeoutMs, instance);
   },
 
+  // Ombi's auth middleware looks for a literal `ApiKey` header — confirmed in its own source
+  // (RequestController.cs's GetApiAlias()) — not the X-Api-Key most other services use.
+  'ombi-apikey': (instance, { path, method = 'GET', query = {}, body }, timeoutMs) => {
+    const url = buildUrl(instance.local_url, path, query);
+    return fetchWithTimeout(url, {
+      method,
+      headers: { ApiKey: instance.credentials.apiKey, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    }, timeoutMs, instance);
+  },
+
   // Bearer-token APIs (e.g. Tracearr's public API key) — confirmed live: its endpoints reject
   // X-Api-Key with "Missing or invalid Authorization header" and expect `Authorization: Bearer`.
   'bearer-token': (instance, { path, method = 'GET', query = {}, body }, timeoutMs) => {
@@ -217,6 +228,47 @@ const adapters = {
     if (res.status === 403) {
       cookie = await login();
       res = await call(cookie);
+    }
+    return res;
+  },
+
+  // µTorrent's classic WebUI: GET /gui/token.html (Basic Auth) returns an HTML snippet with a
+  // token that must ride along as `?token=` on every /gui/ call afterward. A stale/invalid token
+  // comes back as an unusual HTTP 300 with body "invalid request" (the doc author's own wording,
+  // github.com/bittorrent/webui/wiki/TokenSystem) rather than a normal 401/403 — treated here as
+  // the refresh signal, one retry, same shape as qBittorrent's 403-triggers-relogin above. Some
+  // builds also set a GUID cookie alongside the token; it isn't part of the documented contract,
+  // but is captured and replayed defensively since at least one real build appears to expect it
+  // back. Cached token+cookie are packed as JSON into the existing session_token column. No
+  // request-body support here — the WebUI API is pure query-params (add-url/pause/etc.); the one
+  // action that needs a real multipart body (add-file, uploading a .torrent) isn't wired up.
+  'utorrent-token': async (instance, { path = '/gui/', method = 'GET', query = {} }, timeoutMs) => {
+    const { username, password } = instance.credentials || {};
+    const authHeader = { Authorization: 'Basic ' + Buffer.from(`${username || ''}:${password || ''}`).toString('base64') };
+
+    async function fetchToken() {
+      const url = buildUrl(instance.local_url, '/gui/token.html', {});
+      const res = await fetchWithTimeout(url, { method: 'GET', headers: authHeader }, timeoutMs, instance);
+      const text = await res.text();
+      const match = text.match(/id=['"]token['"][^>]*>([^<]+)</);
+      const token = match ? match[1] : null;
+      const cookie = extractSetCookie(res);
+      if (token) db.setServiceSessionToken(instance.id, JSON.stringify({ token, cookie }));
+      return { token, cookie };
+    }
+
+    function call(token, cookie) {
+      const url = buildUrl(instance.local_url, path, { ...query, token: token || '' });
+      return fetchWithTimeout(url, { method, headers: { ...authHeader, ...cookieHeader(cookie) } }, timeoutMs, instance);
+    }
+
+    let cached = null;
+    try { cached = instance.session_token ? JSON.parse(instance.session_token) : null; } catch { cached = null; }
+    let { token, cookie } = cached || (await fetchToken());
+    let res = await call(token, cookie);
+    if (res.status === 300 || res.status === 401) {
+      ({ token, cookie } = await fetchToken());
+      res = await call(token, cookie);
     }
     return res;
   },

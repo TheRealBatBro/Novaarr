@@ -31,6 +31,9 @@ import { NzbHydra2StatusWidget } from './NzbHydra2StatusWidget';
 import { UnraidStatusWidget } from './UnraidStatusWidget';
 import { JackettStatusWidget } from './JackettStatusWidget';
 import { NzbgetStatusWidget } from './NzbgetStatusWidget';
+import { SickbeardStatusWidget } from './SickbeardStatusWidget';
+import { OmbiStatusWidget } from './OmbiStatusWidget';
+import { UtorrentStatusWidget } from './UtorrentStatusWidget';
 
 type SourceProps = {
   instance: ServiceInstance;
@@ -188,6 +191,9 @@ export function DashboardWidget({ widgetKey }: { widgetKey: string }) {
     unraid: instances.find((i) => i.serviceId === 'unraid'),
     jackett: instances.find((i) => i.serviceId === 'jackett'),
     nzbget: instances.find((i) => i.serviceId === 'nzbget'),
+    sickbeard: instances.find((i) => i.serviceId === 'sickbeard'),
+    ombi: instances.find((i) => i.serviceId === 'ombi'),
+    utorrent: instances.find((i) => i.serviceId === 'utorrent'),
   };
   const instance = bySource[def.source];
   if (!instance || !instance.enabled) return null;
@@ -201,6 +207,9 @@ export function DashboardWidget({ widgetKey }: { widgetKey: string }) {
     if (def.source === 'jackett') return <JackettStatusWidget instance={instance} title={def.title} />;
     if (def.source === 'nzbget') return <NzbgetStatusWidget instance={instance} title={def.title} />;
     if (def.source === 'unraid') return <UnraidStatusWidget instance={instance} title={def.title} />;
+    if (def.source === 'sickbeard') return <SickbeardStatusWidget instance={instance} title={def.title} />;
+    if (def.source === 'ombi') return <OmbiStatusWidget instance={instance} title={def.title} />;
+    if (def.source === 'utorrent') return <UtorrentStatusWidget instance={instance} title={def.title} />;
     return null;
   }
 
