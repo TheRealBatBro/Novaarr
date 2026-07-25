@@ -133,7 +133,6 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     authType: 'qbittorrent-session',
     fields: [usernameField, passwordField],
     hasDetailScreen: true,
-    comingSoon: true,
     healthCheck: { path: '/api/v2/app/version' },
   },
   {
@@ -176,7 +175,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     authType: 'apikey-header',
     fields: [apiKeyField],
     hasDetailScreen: true,
-    comingSoon: true,
+    helpText: 'Shows the download queue and history. Its artist/album library shape differs enough from Sonarr/Radarr that it doesn’t get its own library browser yet.',
     healthCheck: { path: '/api/v1/system/status' },
   },
   {
@@ -187,7 +186,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     authType: 'apikey-header',
     fields: [apiKeyField],
     hasDetailScreen: true,
-    comingSoon: true,
+    helpText: 'Shows the download queue and history. Its author/book library shape differs enough from Sonarr/Radarr that it doesn’t get its own library browser yet.',
     healthCheck: { path: '/api/v1/system/status' },
   },
   {

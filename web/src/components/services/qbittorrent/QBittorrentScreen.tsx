@@ -11,25 +11,9 @@ import { useServiceProxy } from '@/lib/queries';
 import { useRollingHistory } from '@/lib/useRollingHistory';
 import { getServiceIcon } from '@/lib/serviceIcons';
 import { proxyApi, type ServiceInstance } from '@/lib/api';
+import { PAUSED_STATES, formatSpeed, type QbTorrent } from './QBittorrentShared';
 
 const Icon = getServiceIcon('qbittorrent');
-
-type QbTorrent = {
-  hash: string;
-  name: string;
-  progress: number;
-  state: string;
-  dlspeed: number;
-  upspeed: number;
-};
-
-const PAUSED_STATES = new Set(['pausedDL', 'pausedUP', 'stoppedDL', 'stoppedUP']);
-
-function formatSpeed(bytesPerSec: number): string {
-  if (bytesPerSec <= 0) return '';
-  const kb = bytesPerSec / 1024;
-  return kb > 1024 ? `${(kb / 1024).toFixed(1)} MB/s` : `${kb.toFixed(0)} KB/s`;
-}
 
 export function QBittorrentScreen({ instance }: { instance: ServiceInstance }) {
   const qc = useQueryClient();
