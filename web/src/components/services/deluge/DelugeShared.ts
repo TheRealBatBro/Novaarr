@@ -8,3 +8,10 @@ export function formatSpeed(bytesPerSec: number): string {
   const kb = bytesPerSec / 1024;
   return kb > 1024 ? `${(kb / 1024).toFixed(1)} MB/s` : `${kb.toFixed(0)} KB/s`;
 }
+
+// core.add_torrent_url fetches the .torrent file server-side itself — the client only ever sends
+// the URL/magnet string, never file bytes. `{}` for options means "use Deluge's own defaults."
+export function addTorrentBody(uri: string) {
+  const method = uri.trim().toLowerCase().startsWith('magnet:') ? 'core.add_torrent_magnet' : 'core.add_torrent_url';
+  return { method, params: [uri, {}] };
+}

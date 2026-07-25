@@ -19,3 +19,9 @@ export function formatSpeed(bytesPerSec: number): string {
 export function rpc(method: string, ids?: number[], extraArgs?: Record<string, unknown>) {
   return { method, arguments: { fields: TR_FIELDS, ids, ...extraArgs } };
 }
+
+// Transmission RPC spec section 3.4 ("Adding a Torrent") — `filename` accepts either a URL to a
+// .torrent file or a magnet link directly; no separate magnet-specific method is needed.
+export function addTorrentBody(url: string) {
+  return { method: 'torrent-add', arguments: { filename: url } };
+}

@@ -1,8 +1,12 @@
-import { Pause, Play, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { Pause, Play, Trash2, Plus } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { StatusDot, type ServiceStatus } from '@/components/dashboard/StatusDot';
 import { TorrentRow } from '@/components/shared/TorrentRow';
 import { WolButton } from '@/components/shared/WolButton';
@@ -17,6 +21,8 @@ const Icon = getServiceIcon('qbittorrent');
 
 export function QBittorrentScreen({ instance }: { instance: ServiceInstance }) {
   const qc = useQueryClient();
+  const [addOpen, setAddOpen] = useState(false);
+  const [magnet, setMagnet] = useState('');
   const { data, isLoading, dataUpdatedAt } = useServiceProxy<QbTorrent[]>(instance, {
     path: '/api/v2/torrents/info',
     refetchInterval: 5000,
@@ -34,6 +40,21 @@ export function QBittorrentScreen({ instance }: { instance: ServiceInstance }) {
     onError: (e) => toast.error(e instanceof Error ? e.message : 'Action failed'),
   });
 
+  // qBittorrent's /torrents/add accepts a plain form-urlencoded `urls` field (newline-separated)
+  // for magnet links/.torrent URLs — multipart is only required for uploading a local .torrent
+  // file's raw bytes, which this dialog doesn't support.
+  const addTorrent = useMutation({
+    mutationFn: (url: string) => proxyApi.call(instance.id, { path: '/api/v2/torrents/add', method: 'POST', body: { urls: url } }),
+    onSuccess: (res) => {
+      if (!res.ok) return toast.error(res.error || 'Failed to add torrent');
+      toast.success('Torrent added');
+      setMagnet('');
+      setAddOpen(false);
+      qc.invalidateQueries({ queryKey: ['proxy', instance.id] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : 'Failed to add torrent'),
+  });
+
   return (
     <div>
       <div className="mb-6 flex items-center gap-4">
@@ -48,6 +69,9 @@ export function QBittorrentScreen({ instance }: { instance: ServiceInstance }) {
           <p className="text-sm text-muted-foreground">{status === 'offline' ? 'Unreachable' : 'Torrents'}</p>
         </div>
         <WolButton wolMac={instance.wolMac} wolBroadcast={instance.wolBroadcast} className="ml-auto" />
+        <Button size="sm" onClick={() => setAddOpen(true)}>
+          <Plus className="h-3.5 w-3.5" /> Add
+        </Button>
       </div>
 
       {status === 'online' && (
@@ -97,6 +121,20 @@ export function QBittorrentScreen({ instance }: { instance: ServiceInstance }) {
           })}
         </CardContent>
       </Card>
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add torrent</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <Input value={magnet} onChange={(e) => setMagnet(e.target.value)} placeholder="Magnet link or .torrent URL" autoFocus />
+            <Button disabled={addTorrent.isPending || !magnet.trim()} onClick={() => addTorrent.mutate(magnet.trim())}>
+              {addTorrent.isPending ? 'Adding…' : 'Add'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

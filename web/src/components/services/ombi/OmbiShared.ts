@@ -31,6 +31,9 @@ export type OmbiRequest = {
   available: boolean;
   denied?: boolean | null;
   deniedReason?: string | null;
+  /** Which list this row came from (movie vs tv) — not an Ombi API field, tagged on the client
+   * so request actions know which of the two parallel V1 endpoint families to call. */
+  mediaType: 'movie' | 'tv';
 };
 
 export type OmbiRequestList = { collection?: OmbiRequest[]; total?: number };

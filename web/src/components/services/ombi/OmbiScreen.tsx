@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -10,11 +11,14 @@ import { useServiceProxy } from '@/lib/queries';
 import { getServiceIcon } from '@/lib/serviceIcons';
 import { cn } from '@/lib/utils';
 import { useResetScrollOnChange } from '@/lib/useResetScrollOnChange';
-import type { ServiceInstance } from '@/lib/api';
+import { proxyApi, type ServiceInstance } from '@/lib/api';
 import { OmbiRequestRow } from './OmbiRequestRow';
 import { OmbiRequestDialog } from './OmbiRequestDialog';
 import { useOmbiSearch, OmbiSearchResultRow, type OmbiCombinedResult } from './OmbiSearch';
 import type { OmbiRequest, OmbiRequestCount } from './OmbiShared';
+
+type RawOmbiRequest = Omit<OmbiRequest, 'mediaType'>;
+type RequestAction = 'approve' | 'deny' | 'delete';
 
 const Icon = getServiceIcon('ombi');
 
@@ -23,6 +27,7 @@ type Filter = (typeof FILTERS)[number];
 const FILTER_LABEL: Record<Filter, string> = { pending: 'Pending', approved: 'Approved', available: 'Available', denied: 'Denied' };
 
 export function OmbiScreen({ instance }: { instance: ServiceInstance }) {
+  const qc = useQueryClient();
   const [tab, setTab] = useState<'search' | 'requests'>('requests');
   useResetScrollOnChange(tab);
   const [query, setQuery] = useState('');
@@ -39,12 +44,12 @@ export function OmbiScreen({ instance }: { instance: ServiceInstance }) {
   // (pending/approved/available/denied/...) — confirmed from RequestsController (V2) source.
   // The trailing count/position/sort/sortOrder segments are real params, but their exact
   // value domain wasn't verified against a live instance — best-effort defaults.
-  const { data: movieResp, isLoading: moviesLoading } = useServiceProxy<OmbiRequest[]>(instance, {
+  const { data: movieResp, isLoading: moviesLoading } = useServiceProxy<RawOmbiRequest[]>(instance, {
     path: `/api/v2/Requests/movie/${filter}/50/0/Requested/Desc`,
     refetchInterval: 15000,
     enabled: tab === 'requests',
   });
-  const { data: tvResp, isLoading: tvLoading } = useServiceProxy<OmbiRequest[]>(instance, {
+  const { data: tvResp, isLoading: tvLoading } = useServiceProxy<RawOmbiRequest[]>(instance, {
     path: `/api/v2/Requests/tv/${filter}/50/0/Requested/Desc`,
     refetchInterval: 15000,
     enabled: tab === 'requests',
@@ -53,9 +58,44 @@ export function OmbiScreen({ instance }: { instance: ServiceInstance }) {
   const status: ServiceStatus = countLoading ? 'unknown' : countResp?.ok ? 'online' : 'offline';
   const count = countResp?.data;
   const requestsLoading = moviesLoading || tvLoading;
-  const requests = [...(Array.isArray(movieResp?.data) ? movieResp!.data : []), ...(Array.isArray(tvResp?.data) ? tvResp!.data : [])].sort(
-    (a, b) => new Date(b.requestedDate).getTime() - new Date(a.requestedDate).getTime(),
-  );
+  const requests: OmbiRequest[] = [
+    ...(Array.isArray(movieResp?.data) ? movieResp!.data.map((r) => ({ ...r, mediaType: 'movie' as const })) : []),
+    ...(Array.isArray(tvResp?.data) ? tvResp!.data.map((r) => ({ ...r, mediaType: 'tv' as const })) : []),
+  ].sort((a, b) => new Date(b.requestedDate).getTime() - new Date(a.requestedDate).getTime());
+
+  // Movie and TV requests live under two parallel V1 endpoint families. The V2 tv/{filter} list
+  // (used above) returns ChildRequests (season-level), not the parent TvRequests — so deletes
+  // target the child-specific route; approve/deny take the same `id` either way per Ombi's
+  // RequestController source. Best-effort past that: not verified against a live instance.
+  const requestAction = useMutation({
+    mutationFn: ({ req, action }: { req: OmbiRequest; action: RequestAction }) => {
+      const isMovie = req.mediaType === 'movie';
+      if (action === 'approve') {
+        return proxyApi.call(instance.id, {
+          path: isMovie ? '/api/v1/Request/movie/approve' : '/api/v1/Request/tv/approve',
+          method: 'POST',
+          body: isMovie ? { id: req.id, is4K: false } : { id: req.id },
+        });
+      }
+      if (action === 'deny') {
+        return proxyApi.call(instance.id, {
+          path: isMovie ? '/api/v1/Request/movie/deny' : '/api/v1/Request/tv/deny',
+          method: 'PUT',
+          body: isMovie ? { id: req.id, is4K: false, reason: 'Denied via Remotarr' } : { id: req.id, reason: 'Denied via Remotarr' },
+        });
+      }
+      return proxyApi.call(instance.id, {
+        path: isMovie ? `/api/v1/Request/movie/${req.id}` : `/api/v1/Request/tv/child/${req.id}`,
+        method: 'DELETE',
+      });
+    },
+    onSuccess: (res, { action }) => {
+      if (!res.ok) return toast.error(res.error || 'Action failed');
+      toast.success(action === 'approve' ? 'Request approved' : action === 'deny' ? 'Request denied' : 'Request removed');
+      qc.invalidateQueries({ queryKey: ['proxy', instance.id] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : 'Action failed'),
+  });
 
   const search = useOmbiSearch(instance);
 
@@ -153,7 +193,14 @@ export function OmbiScreen({ instance }: { instance: ServiceInstance }) {
             {requestsLoading && Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
             {!requestsLoading && requests.length === 0 && <p className="text-sm text-muted-foreground">No requests.</p>}
             {requests.map((req) => (
-              <OmbiRequestRow key={req.id} request={req} />
+              <OmbiRequestRow
+                key={`${req.mediaType}-${req.id}`}
+                request={req}
+                busy={requestAction.isPending && requestAction.variables?.req.id === req.id && requestAction.variables?.req.mediaType === req.mediaType}
+                onApprove={() => requestAction.mutate({ req, action: 'approve' })}
+                onDeny={() => requestAction.mutate({ req, action: 'deny' })}
+                onDelete={() => requestAction.mutate({ req, action: 'delete' })}
+              />
             ))}
           </div>
         </>

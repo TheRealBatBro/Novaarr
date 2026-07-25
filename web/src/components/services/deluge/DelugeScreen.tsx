@@ -1,8 +1,12 @@
-import { Pause, Play, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { Pause, Play, Trash2, Plus } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { StatusDot, type ServiceStatus } from '@/components/dashboard/StatusDot';
 import { TorrentRow } from '@/components/shared/TorrentRow';
 import { WolButton } from '@/components/shared/WolButton';
@@ -11,12 +15,14 @@ import { useServiceProxy } from '@/lib/queries';
 import { useRollingHistory } from '@/lib/useRollingHistory';
 import { getServiceIcon } from '@/lib/serviceIcons';
 import { proxyApi, type ServiceInstance } from '@/lib/api';
-import { DELUGE_FIELDS, formatSpeed, type DelugeResponse } from './DelugeShared';
+import { DELUGE_FIELDS, addTorrentBody, formatSpeed, type DelugeResponse } from './DelugeShared';
 
 const Icon = getServiceIcon('deluge');
 
 export function DelugeScreen({ instance }: { instance: ServiceInstance }) {
   const qc = useQueryClient();
+  const [addOpen, setAddOpen] = useState(false);
+  const [magnet, setMagnet] = useState('');
   const { data, isLoading, dataUpdatedAt } = useServiceProxy<DelugeResponse>(instance, {
     path: '/json',
     body: { method: 'core.get_torrents_status', params: [{}, DELUGE_FIELDS] },
@@ -35,6 +41,25 @@ export function DelugeScreen({ instance }: { instance: ServiceInstance }) {
     onError: (e) => toast.error(e instanceof Error ? e.message : 'Action failed'),
   });
 
+  // Deluge's JSON-RPC bridge returns HTTP 200 even when the call itself fails (e.g. a duplicate
+  // torrent) — the failure shows up as a non-null `error` in the body, not the HTTP status, so
+  // that has to be checked explicitly rather than just `res.ok`.
+  const addTorrent = useMutation({
+    mutationFn: (uri: string) => proxyApi.call<{ error?: { message?: string } | string }>(instance.id, { path: '/json', body: addTorrentBody(uri) }),
+    onSuccess: (res) => {
+      const err = res.data?.error;
+      if (!res.ok || err) {
+        const message = typeof err === 'string' ? err : err?.message;
+        return toast.error(message || res.error || 'Failed to add torrent');
+      }
+      toast.success('Torrent added');
+      setMagnet('');
+      setAddOpen(false);
+      qc.invalidateQueries({ queryKey: ['proxy', instance.id] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : 'Failed to add torrent'),
+  });
+
   return (
     <div>
       <div className="mb-6 flex items-center gap-4">
@@ -49,6 +74,9 @@ export function DelugeScreen({ instance }: { instance: ServiceInstance }) {
           <p className="text-sm text-muted-foreground">{status === 'offline' ? 'Unreachable' : 'Torrents'}</p>
         </div>
         <WolButton wolMac={instance.wolMac} wolBroadcast={instance.wolBroadcast} className="ml-auto" />
+        <Button size="sm" onClick={() => setAddOpen(true)}>
+          <Plus className="h-3.5 w-3.5" /> Add
+        </Button>
       </div>
 
       {status === 'online' && (
@@ -93,6 +121,20 @@ export function DelugeScreen({ instance }: { instance: ServiceInstance }) {
           })}
         </CardContent>
       </Card>
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add torrent</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <Input value={magnet} onChange={(e) => setMagnet(e.target.value)} placeholder="Magnet link or .torrent URL" autoFocus />
+            <Button disabled={addTorrent.isPending || !magnet.trim()} onClick={() => addTorrent.mutate(magnet.trim())}>
+              {addTorrent.isPending ? 'Adding…' : 'Add'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
