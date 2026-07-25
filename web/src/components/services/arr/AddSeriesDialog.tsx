@@ -113,7 +113,7 @@ export function AddSeriesDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(true) : close())}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-xl sm:max-w-2xl lg:max-w-4xl">
         <DialogHeader>
           <DialogTitle>Add series</DialogTitle>
           <DialogDescription>Search for a show and add it to Sonarr.</DialogDescription>
@@ -130,8 +130,8 @@ export function AddSeriesDialog({
             {/* auto-rows-max: with the default `grid-auto-rows: auto`, Chrome sizes each row from
                 the aspect-ratio poster's min-content contribution instead of its rendered height,
                 collapsing every row to ~text-height and stacking posters on top of each other. */}
-            <div className="grid max-h-80 grid-cols-3 auto-rows-max gap-2 overflow-y-auto">
-              {search.isPending && Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="aspect-[2/3] w-full rounded-lg" />)}
+            <div className="grid max-h-80 grid-cols-3 auto-rows-max gap-2 overflow-y-auto sm:max-h-[28rem] sm:grid-cols-4 lg:max-h-[36rem] lg:grid-cols-5">
+              {search.isPending && Array.from({ length: 10 }).map((_, i) => <Skeleton key={i} className="aspect-[2/3] w-full rounded-lg" />)}
               {!search.isPending &&
                 results?.map((r) => (
                   <button
