@@ -19,6 +19,7 @@ import { JackettScreen } from '@/components/services/jackett/JackettScreen';
 import { SickbeardScreen } from '@/components/services/sickbeard/SickbeardScreen';
 import { OmbiScreen } from '@/components/services/ombi/OmbiScreen';
 import { UtorrentScreen } from '@/components/services/utorrent/UtorrentScreen';
+import { RutorrentScreen } from '@/components/services/rutorrent/RutorrentScreen';
 
 export const Route = createFileRoute('/service/$serviceId')({ component: ServiceDetail });
 
@@ -67,6 +68,7 @@ function ServiceDetail() {
     if (definition.id === 'sickbeard') return <SickbeardScreen instance={instance} />;
     if (definition.id === 'ombi') return <OmbiScreen instance={instance} />;
     if (definition.id === 'utorrent') return <UtorrentScreen instance={instance} />;
+    if (definition.id === 'rutorrent') return <RutorrentScreen instance={instance} />;
     if (ARR_V3.has(definition.id)) return <ArrQueueScreen definition={definition} instance={instance} apiVersion="v3" />;
     if (ARR_V1.has(definition.id)) return <ArrQueueScreen definition={definition} instance={instance} apiVersion="v1" />;
     if (TORZNAB.has(definition.id)) return <IndexerSearchScreen definition={definition} instance={instance} />;

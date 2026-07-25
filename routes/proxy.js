@@ -2,6 +2,7 @@ const express = require('express');
 const { XMLParser } = require('fast-xml-parser');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
+const { buildMethodCall, parseMethodResponse } = require('../rtorrentXmlRpc');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -170,6 +171,50 @@ const adapters = {
       headers: body ? { 'Content-Type': 'application/json' } : undefined,
       body: body ? JSON.stringify(body) : undefined,
     }, timeoutMs, instance);
+  },
+
+  // ruTorrent's httprpc plugin (plugins/httprpc/action.php) forwards a genuine XML-RPC POST body
+  // straight to the rTorrent daemon over SCGI when it isn't ruTorrent's own private urlencoded UI
+  // protocol — confirmed directly in ruTorrent's source (Novik/ruTorrent). ruTorrent has no login
+  // system of its own; auth is plain HTTP Basic Auth at the webserver/directory level, same as its
+  // documented .htaccess example. The frontend sends `{ method, params }`; "start" is special-cased
+  // into 3 sequential rTorrent calls (d.open/d.start/d.resume, mirroring ruTorrent's own UI) since
+  // this adapter doesn't implement XML-RPC structs — no other rTorrent call here needs them, so
+  // system.multicall batching isn't used.
+  'rutorrent-xmlrpc': async (instance, { body }, timeoutMs) => {
+    const { username, password } = instance.credentials || {};
+    const authHeader = { Authorization: 'Basic ' + Buffer.from(`${username || ''}:${password || ''}`).toString('base64') };
+    const url = buildUrl(instance.local_url, 'plugins/httprpc/action.php', {});
+
+    async function call(methodName, params) {
+      const res = await fetchWithTimeout(url, {
+        method: 'POST',
+        headers: { ...authHeader, 'Content-Type': 'text/xml' },
+        body: buildMethodCall(methodName, params),
+      }, timeoutMs, instance);
+      const text = await res.text();
+      if (!res.ok) return { ok: false, status: res.status, value: null, faultMessage: null };
+      const parsed = parseMethodResponse(text);
+      return { ok: !parsed.fault, status: res.status, value: parsed.value, faultMessage: parsed.fault?.message };
+    }
+
+    const { method, params = [] } = body || {};
+    let result;
+    if (method === '__start__') {
+      const [hash] = params;
+      for (const m of ['d.open', 'd.start', 'd.resume']) {
+        result = await call(m, [hash]);
+        if (!result.ok) break;
+      }
+    } else {
+      result = await call(method, params);
+    }
+
+    return {
+      ok: result.ok,
+      status: result.status,
+      text: async () => JSON.stringify(result.ok ? result.value : { error: result.faultMessage || 'Request failed' }),
+    };
   },
 
   // Transmission requires X-Transmission-Session-Id; the first call typically 409s with the id

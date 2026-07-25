@@ -85,11 +85,12 @@ they live in the volume, not the image.
 
 ## Supported services
 
-- **Download clients**: SABnzbd, NZBGet, µTorrent, Deluge, Transmission, qBittorrent
+- **Download clients**: SABnzbd, NZBGet, µTorrent, Deluge, Transmission,
+  qBittorrent, rTorrent/ruTorrent
 - **_arr suite**: Sonarr, Radarr, Lidarr, Readarr, Bazarr (subtitles), Sick Beard
 - **Indexers**: Prowlarr, NZBHydra2, Jackett
 - **Other**: Plex, Seerr, Ombi, Tautulli, Tracearr, Trakt, Unraid
-- **Coming soon**: rTorrent/ruTorrent, NEWZnab
+- **Coming soon**: NEWZnab
 
 Every service is optional — add only what you run. Anything left unconfigured is
 simply hidden from the menu.

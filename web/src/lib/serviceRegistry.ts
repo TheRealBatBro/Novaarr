@@ -7,6 +7,7 @@ export type AuthType =
   | 'apikey-url-segment'
   | 'basic-auth'
   | 'utorrent-token'
+  | 'rutorrent-xmlrpc'
   | 'qbittorrent-session'
   | 'deluge-jsonrpc'
   | 'transmission-rpc'
@@ -140,10 +141,11 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     category: 'download-client',
     displayName: 'rTorrent / ruTorrent',
     brandColor: '#7c5cd6',
-    authType: 'basic-auth',
+    authType: 'rutorrent-xmlrpc',
     fields: [usernameField, passwordField],
-    helpText: 'Connects via ruTorrent’s HTTP API.',
-    comingSoon: true,
+    hasDetailScreen: true,
+    helpText: 'This is the HTTP Basic Auth that gates your ruTorrent directory (its .htaccess/reverse-proxy credentials) — ruTorrent has no separate login of its own.',
+    healthCheck: { path: '', body: { method: 'system.client_version', params: [] } },
   },
 
   // ── *arr suite / search clients ──────────────────────────────────────

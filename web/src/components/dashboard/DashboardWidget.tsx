@@ -37,6 +37,7 @@ import { UtorrentStatusWidget } from './UtorrentStatusWidget';
 import { DelugeStatusWidget } from './DelugeStatusWidget';
 import { TransmissionStatusWidget } from './TransmissionStatusWidget';
 import { QBittorrentStatusWidget } from './QBittorrentStatusWidget';
+import { RutorrentStatusWidget } from './RutorrentStatusWidget';
 
 type SourceProps = {
   instance: ServiceInstance;
@@ -200,6 +201,7 @@ export function DashboardWidget({ widgetKey }: { widgetKey: string }) {
     deluge: instances.find((i) => i.serviceId === 'deluge'),
     transmission: instances.find((i) => i.serviceId === 'transmission'),
     qbittorrent: instances.find((i) => i.serviceId === 'qbittorrent'),
+    rutorrent: instances.find((i) => i.serviceId === 'rutorrent'),
   };
   const instance = bySource[def.source];
   if (!instance || !instance.enabled) return null;
@@ -219,6 +221,7 @@ export function DashboardWidget({ widgetKey }: { widgetKey: string }) {
     if (def.source === 'deluge') return <DelugeStatusWidget instance={instance} title={def.title} />;
     if (def.source === 'transmission') return <TransmissionStatusWidget instance={instance} title={def.title} />;
     if (def.source === 'qbittorrent') return <QBittorrentStatusWidget instance={instance} title={def.title} />;
+    if (def.source === 'rutorrent') return <RutorrentStatusWidget instance={instance} title={def.title} />;
     return null;
   }
 
