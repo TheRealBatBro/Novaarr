@@ -124,7 +124,10 @@ export function AddMovieDialog({
                 Search
               </Button>
             </form>
-            <div className="grid max-h-80 grid-cols-3 gap-2 overflow-y-auto">
+            {/* auto-rows-max: with the default `grid-auto-rows: auto`, Chrome sizes each row from
+                the aspect-ratio poster's min-content contribution instead of its rendered height,
+                collapsing every row to ~text-height and stacking posters on top of each other. */}
+            <div className="grid max-h-80 grid-cols-3 auto-rows-max gap-2 overflow-y-auto">
               {search.isPending && Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="aspect-[2/3] w-full rounded-lg" />)}
               {!search.isPending &&
                 results?.map((r) => (
