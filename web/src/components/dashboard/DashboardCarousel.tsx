@@ -88,9 +88,11 @@ export function DashboardCarousel({
     } else if (item.to.itemId && sourceInstance && (sourceId === 'radarr' || sourceId === 'sonarr')) {
       setTitleDetail({ serviceId: sourceId, itemId: Number(item.to.itemId) });
     } else if (item.to.itemId) {
-      navigate({ to: '/service/$serviceId/title/$itemId', params: { serviceId: item.to.serviceId, itemId: item.to.itemId } });
+      const targetInstance = item.to.serviceId === sourceId ? sourceInstance : item.to.serviceId === 'overseerr' ? overseerrInstance : undefined;
+      navigate({ to: '/service/$serviceId/title/$itemId', params: { serviceId: targetInstance ? String(targetInstance.id) : item.to.serviceId, itemId: item.to.itemId } });
     } else {
-      navigate({ to: '/service/$serviceId', params: { serviceId: item.to.serviceId } });
+      const targetInstance = item.to.serviceId === sourceId ? sourceInstance : item.to.serviceId === 'overseerr' ? overseerrInstance : undefined;
+      navigate({ to: '/service/$serviceId', params: { serviceId: targetInstance ? String(targetInstance.id) : item.to.serviceId } });
     }
   }
 

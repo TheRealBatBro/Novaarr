@@ -48,21 +48,33 @@ function sortVisible(list: VisibleService[]): VisibleService[] {
  */
 export function useVisibleServices(): VisibleService[] {
   const { data: instances = [] } = useServices();
-  const byServiceId = new Map(instances.map((i) => [i.serviceId, i]));
+  const byServiceId = new Map<string, ServiceInstance[]>();
+  for (const i of instances) {
+    const list = byServiceId.get(i.serviceId);
+    if (list) list.push(i);
+    else byServiceId.set(i.serviceId, [i]);
+  }
   const isDevEnvironment = useIsDevEnvironment();
   const override = useUiStore((s) => s.devShowAllServices);
   const showAll = override ?? isDevEnvironment;
 
   const navigable = SERVICE_REGISTRY.filter((definition) => !definition.hideFromNav);
 
+  // Every definition can now resolve to 0, 1, or more instances (multiple instances of one
+  // service) — flatMap so each configured instance gets its own row instead of collapsing
+  // to whichever one happened to be last in `instances`.
   if (showAll) {
-    return sortVisible(navigable.map((definition) => ({ definition, instance: byServiceId.get(definition.id) })));
+    return sortVisible(
+      navigable.flatMap((definition) => {
+        const list = byServiceId.get(definition.id) ?? [];
+        return list.length ? list.map((instance) => ({ definition, instance })) : [{ definition, instance: undefined }];
+      }),
+    );
   }
 
   return sortVisible(
-    navigable.filter((definition) => byServiceId.get(definition.id)?.enabled).map((definition) => ({
-      definition,
-      instance: byServiceId.get(definition.id),
-    })),
+    navigable.flatMap((definition) =>
+      (byServiceId.get(definition.id) ?? []).filter((i) => i.enabled).map((instance) => ({ definition, instance })),
+    ),
   );
 }

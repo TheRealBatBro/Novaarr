@@ -97,15 +97,21 @@ export function NavContent({ onNavigate }: { onNavigate?: () => void }) {
         </div>
 
         <div className="mt-5 flex flex-col gap-0.5">
-          {visible.map(({ definition, instance }) => (
-            <ServiceRow
-              key={definition.id}
-              definition={definition}
-              instance={instance}
-              active={pathname === `/service/${definition.id}`}
-              onClick={() => go(`/service/${definition.id}`)}
-            />
-          ))}
+          {visible.map(({ definition, instance }) => {
+            // Multiple instances of one service share a definition.id, so the route/key has to
+            // key off the specific instance's row id once one exists — definition.id only for
+            // the "not configured yet" placeholder row (dev-preview mode).
+            const routeId = instance ? String(instance.id) : definition.id;
+            return (
+              <ServiceRow
+                key={routeId}
+                definition={definition}
+                instance={instance}
+                active={pathname === `/service/${routeId}`}
+                onClick={() => go(`/service/${routeId}`)}
+              />
+            );
+          })}
         </div>
       </div>
 

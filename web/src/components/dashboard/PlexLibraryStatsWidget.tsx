@@ -34,7 +34,7 @@ export function PlexLibraryStatsWidget({ instance, title }: { instance: ServiceI
   return (
     <div className="mb-8 rounded-2xl border border-border bg-card p-4 shadow-sm">
       <div className="mb-3 flex items-center gap-3">
-        <button type="button" onClick={() => navigate({ to: '/service/$serviceId', params: { serviceId: 'plex' } })} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+        <button type="button" onClick={() => navigate({ to: '/service/$serviceId', params: { serviceId: String(instance.id) } })} className="flex min-w-0 flex-1 items-center gap-3 text-left">
           <span
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
             style={{ backgroundColor: `${definition?.brandColor}22`, color: definition?.brandColor }}

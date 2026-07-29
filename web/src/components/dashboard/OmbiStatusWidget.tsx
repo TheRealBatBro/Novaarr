@@ -22,7 +22,7 @@ export function OmbiStatusWidget({ instance, title }: { instance: ServiceInstanc
   return (
     <motion.button
       type="button"
-      onClick={() => navigate({ to: '/service/$serviceId', params: { serviceId: 'ombi' } })}
+      onClick={() => navigate({ to: '/service/$serviceId', params: { serviceId: String(instance.id) } })}
       className="mb-8 flex w-full flex-col gap-3 rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition-shadow hover:shadow-md"
       whileHover={{ scale: 1.005 }}
       whileTap={{ scale: 0.995 }}

@@ -115,7 +115,7 @@ export function MovieDetailPage({
 
   function goBack() {
     if (onBack) return onBack();
-    navigate({ to: '/service/$serviceId', params: { serviceId: instance.serviceId } });
+    navigate({ to: '/service/$serviceId', params: { serviceId: String(instance.id) } });
   }
 
   function invalidate() {

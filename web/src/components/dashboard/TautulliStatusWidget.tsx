@@ -33,7 +33,7 @@ export function TautulliStatusWidget({ instance, title }: { instance: ServiceIns
   return (
     <motion.button
       type="button"
-      onClick={() => navigate({ to: '/service/$serviceId', params: { serviceId: 'tautulli' } })}
+      onClick={() => navigate({ to: '/service/$serviceId', params: { serviceId: String(instance.id) } })}
       className="relative mb-8 flex w-full flex-col gap-3 overflow-hidden rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition-shadow hover:shadow-md"
       whileHover={{ scale: 1.005 }}
       whileTap={{ scale: 0.995 }}

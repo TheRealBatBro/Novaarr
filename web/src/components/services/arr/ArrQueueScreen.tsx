@@ -93,7 +93,7 @@ export function ArrQueueScreen({
   const canManage = definition.id === 'sonarr' || definition.id === 'radarr';
 
   function openDetail(id: number) {
-    navigate({ to: '/service/$serviceId/title/$itemId', params: { serviceId: definition.id, itemId: String(id) } });
+    navigate({ to: '/service/$serviceId/title/$itemId', params: { serviceId: String(instance.id), itemId: String(id) } });
   }
   const { data, isLoading } = useServiceProxy<ArrQueue>(instance, {
     path: `/api/${apiVersion}/queue`,

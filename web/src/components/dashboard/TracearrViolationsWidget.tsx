@@ -33,7 +33,7 @@ export function TracearrViolationsWidget({ instance, title }: { instance: Servic
     <div className="mb-8 rounded-2xl border border-border bg-card p-4 shadow-sm">
       <button
         type="button"
-        onClick={() => navigate({ to: '/service/$serviceId', params: { serviceId: 'tracearr' } })}
+        onClick={() => navigate({ to: '/service/$serviceId', params: { serviceId: String(instance.id) } })}
         className="mb-3 flex w-full items-center gap-3 text-left"
       >
         <span

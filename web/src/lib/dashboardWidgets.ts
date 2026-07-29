@@ -21,6 +21,35 @@ export type WidgetDef = {
   kind?: 'carousel' | 'status' | 'search' | 'violations' | 'stats';
 };
 
+/** Every catalog entry above targets "the" (first/default) instance of its source — exactly what
+ * every existing single-instance save already means, so it stays untouched. When a source has
+ * *more* than one configured instance, this generates one extra `key@instanceId`-suffixed entry
+ * per additional instance, titled with that instance's own displayName, so a second Sonarr (say)
+ * gets its own selectable "Upcoming Episodes" widget instead of only ever reading the first one.
+ * DashboardWidget.tsx parses the optional `@id` suffix back off when resolving which instance a
+ * saved widget key actually points at. */
+export function instanceWidgetCatalog(instances: ServiceInstance[]): WidgetDef[] {
+  const bySource = new Map<string, ServiceInstance[]>();
+  for (const i of instances) {
+    const list = bySource.get(i.serviceId);
+    if (list) list.push(i);
+    else bySource.set(i.serviceId, [i]);
+  }
+  return WIDGET_CATALOG.flatMap((def) => {
+    const extra = (bySource.get(def.source) ?? []).slice(1);
+    return extra.map((instance): WidgetDef => ({ ...def, key: `${def.key}@${instance.id}`, title: `${def.title} — ${instance.displayName}` }));
+  });
+}
+
+/** Splits a saved/catalog widget key into its base catalog key and an optional target instance id
+ * (present only for the `key@instanceId` entries instanceWidgetCatalog generates). */
+export function parseWidgetKey(widgetKey: string): { baseKey: string; instanceId?: number } {
+  const at = widgetKey.indexOf('@');
+  if (at === -1) return { baseKey: widgetKey };
+  const instanceId = Number(widgetKey.slice(at + 1));
+  return { baseKey: widgetKey.slice(0, at), instanceId: Number.isNaN(instanceId) ? undefined : instanceId };
+}
+
 // Inserts only genuinely-new catalog widgets (keys in `newKeys`, meaning no saved row exists for
 // them at all yet — not merely disabled) into baseOrder, right after their nearest catalog
 // neighbor that's already in baseOrder. Both the dashboard page and Settings > Dashboard need

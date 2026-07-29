@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import { WIDGET_CATALOG, mergeNewWidgetsByCatalogPosition, type WidgetDef } from '@/lib/dashboardWidgets';
+import { WIDGET_CATALOG, instanceWidgetCatalog, mergeNewWidgetsByCatalogPosition, parseWidgetKey, type WidgetDef } from '@/lib/dashboardWidgets';
 import { getServiceDefinition } from '@/lib/serviceRegistry';
 import { getServiceIcon } from '@/lib/serviceIcons';
 import { useDashboardWidgets, useSetDashboardWidgets, useServices, useUpdateService } from '@/lib/queries';
@@ -233,6 +233,7 @@ function SettingsDashboard() {
   const { data: config, isLoading } = useDashboardWidgets();
   const setWidgets = useSetDashboardWidgets();
   const [rows, setRows] = useState<Row[] | null>(null);
+  const fullCatalog = [...WIDGET_CATALOG, ...instanceWidgetCatalog(instances)];
 
   useEffect(() => {
     if (isLoading || rows) return;
@@ -241,17 +242,22 @@ function SettingsDashboard() {
       // re-saves whatever position this effect picked, and if that position was "brand new
       // widget appended at the very end," it cements it there permanently.
       const byEnabled = new Map(config.map((c) => [c.key, c.enabled]));
-      const known = config.filter((c) => WIDGET_CATALOG.some((w) => w.key === c.key)).map((c) => c.key);
-      const newKeys = new Set(WIDGET_CATALOG.filter((w) => !byEnabled.has(w.key)).map((w) => w.key));
-      const mergedKeys = mergeNewWidgetsByCatalogPosition(known, WIDGET_CATALOG, newKeys);
+      const known = config.filter((c) => fullCatalog.some((w) => w.key === c.key)).map((c) => c.key);
+      const newKeys = new Set(fullCatalog.filter((w) => !byEnabled.has(w.key)).map((w) => w.key));
+      const mergedKeys = mergeNewWidgetsByCatalogPosition(known, fullCatalog, newKeys);
       setRows(mergedKeys.map((key) => ({ key, enabled: byEnabled.get(key) ?? true })));
     } else {
-      setRows(WIDGET_CATALOG.map((w) => ({ key: w.key, enabled: true })));
+      setRows(fullCatalog.map((w) => ({ key: w.key, enabled: true })));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config, isLoading, rows]);
 
   const configuredSources = new Set(instances.filter((i) => i.enabled).map((i) => i.serviceId));
-  const instanceBySource = new Map(instances.map((i) => [i.serviceId, i]));
+  const instanceBySource = new Map<string, ServiceInstance>();
+  for (const i of instances) {
+    if (!instanceBySource.has(i.serviceId)) instanceBySource.set(i.serviceId, i);
+  }
+  const instanceById = new Map(instances.map((i) => [i.id, i]));
 
   async function save(next: Row[]) {
     setRows(next);
@@ -278,16 +284,20 @@ function SettingsDashboard() {
       {rows && (
         <Reorder.Group axis="y" values={rows} onReorder={save} className="flex flex-col gap-2">
           {rows.map((row) => {
-            const def = WIDGET_CATALOG.find((w) => w.key === row.key);
+            const { baseKey, instanceId } = parseWidgetKey(row.key);
+            const def = fullCatalog.find((w) => w.key === row.key) ?? WIDGET_CATALOG.find((w) => w.key === baseKey);
             if (!def) return null;
-            const available = configuredSources.has(def.source);
+            // An @instanceId-suffixed row targets that specific instance; a plain key targets
+            // the first/default instance of the source, same as before multi-instance existed.
+            const targetInstance = instanceId !== undefined ? instanceById.get(instanceId) : instanceBySource.get(def.source);
+            const available = !!targetInstance?.enabled;
             return (
               <WidgetRow
                 key={row.key}
                 row={row}
                 def={def}
                 available={available}
-                instanceLabel={instanceBySource.get(def.source)?.displayName ?? getServiceDefinition(def.source)?.displayName ?? def.source}
+                instanceLabel={targetInstance?.displayName ?? getServiceDefinition(def.source)?.displayName ?? def.source}
                 onToggle={() => toggle(row.key)}
               />
             );
@@ -295,7 +305,7 @@ function SettingsDashboard() {
         </Reorder.Group>
       )}
 
-      <Button variant="outline" className="mt-6" onClick={() => save(WIDGET_CATALOG.map((w) => ({ key: w.key, enabled: true })))}>
+      <Button variant="outline" className="mt-6" onClick={() => save(fullCatalog.map((w) => ({ key: w.key, enabled: true })))}>
         Reset to defaults
       </Button>
 
@@ -307,9 +317,14 @@ function SettingsDashboard() {
         hours.
       </p>
       <div className="flex flex-col gap-2">
-        {CONFIGURABLE_SOURCES.map((source) => (
-          <RefreshIntervalRow key={source} source={source} instance={instanceBySource.get(source)} />
-        ))}
+        {CONFIGURABLE_SOURCES.flatMap((source) => {
+          const matching = instances.filter((i) => i.serviceId === source);
+          // Zero configured instances: keep today's single disabled "not configured" placeholder
+          // row; one row per instance once any exist, so a second instance gets its own slider.
+          return matching.length > 0
+            ? matching.map((instance) => <RefreshIntervalRow key={instance.id} source={source} instance={instance} />)
+            : [<RefreshIntervalRow key={source} source={source} instance={undefined} />];
+        })}
         <RecommendationRefreshRow available={configuredSources.has('tautulli') && configuredSources.has('overseerr')} />
       </div>
     </div>

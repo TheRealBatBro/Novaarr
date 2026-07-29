@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { getServiceDefinition } from '@/lib/serviceRegistry';
-import { useServices } from '@/lib/queries';
+import { useServices, resolveServiceParam } from '@/lib/queries';
 import { GenericServiceScreen } from '@/components/services/generic/GenericServiceScreen';
 import { SabnzbdScreen } from '@/components/services/sabnzbd/SabnzbdScreen';
 import { ArrQueueScreen } from '@/components/services/arr/ArrQueueScreen';
@@ -29,9 +29,11 @@ const TORZNAB = new Set(['newznab']);
 
 function ServiceDetail() {
   const { serviceId } = Route.useParams();
-  const definition = getServiceDefinition(serviceId);
   const { data: instances = [] } = useServices();
-  const instance = instances.find((i) => i.serviceId === serviceId);
+  // `serviceId` is dual-mode: a numeric instance row id (multiple instances of one service) or
+  // the plain serviceId string (old links, and the common still-only-one-instance case).
+  const instance = resolveServiceParam(instances, serviceId);
+  const definition = getServiceDefinition(instance?.serviceId ?? serviceId);
 
   if (!definition) {
     return <p className="text-muted-foreground">Unknown service “{serviceId}”.</p>;

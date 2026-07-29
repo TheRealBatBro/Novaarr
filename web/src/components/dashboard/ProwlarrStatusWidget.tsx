@@ -24,7 +24,7 @@ export function ProwlarrStatusWidget({ instance, title }: { instance: ServiceIns
   return (
     <motion.button
       type="button"
-      onClick={() => navigate({ to: '/service/$serviceId', params: { serviceId: 'prowlarr' } })}
+      onClick={() => navigate({ to: '/service/$serviceId', params: { serviceId: String(instance.id) } })}
       className="mb-8 flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition-shadow hover:shadow-md"
       whileHover={{ scale: 1.005 }}
       whileTap={{ scale: 0.995 }}

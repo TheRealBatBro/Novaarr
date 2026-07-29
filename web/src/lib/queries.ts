@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authApi, servicesApi, proxyApi, dashboardApi, type ServiceInstance, type ServiceInstanceInput, type DashboardWidgetConfig } from './api';
 
 export function useAuthStatus() {
@@ -12,6 +12,19 @@ export function useServices() {
 export function useServiceInstance(id: number | undefined) {
   const { data } = useServices();
   return data?.find((s) => s.id === id);
+}
+
+/** Route params for /service/$serviceId (and its /title/$itemId child) are dual-mode: a numeric
+ * string resolves by instance row id — needed once more than one instance of a service can exist
+ * — anything else falls back to matching serviceId (old links/bookmarks, and the common
+ * still-only-one-instance case, unaffected either way). */
+export function resolveServiceParam(instances: ServiceInstance[], param: string): ServiceInstance | undefined {
+  const asId = Number(param);
+  if (!Number.isNaN(asId)) {
+    const byId = instances.find((i) => i.id === asId);
+    if (byId) return byId;
+  }
+  return instances.find((i) => i.serviceId === param);
 }
 
 export function useCreateService() {
@@ -74,5 +87,26 @@ export function useServiceProxy<T = unknown>(
     refetchInterval: opts.refetchInterval ?? 10_000,
     staleTime: opts.staleTime,
     retry: 1,
+  });
+}
+
+/** Same query (and cache key shape, so it rides the same cache as useServiceProxy) as above, but
+ * for a dynamic list of instances of one service type — e.g. searching across every configured
+ * Sonarr instance once multi-instance is in play. Can't just call useServiceProxy in a loop
+ * (React hook-count rules don't allow a variable number of hook calls), so this uses useQueries,
+ * the react-query primitive built for exactly that. Returns one query result per instance, same
+ * order as `instances`. */
+export function useServiceProxyQueries<T = unknown>(
+  instances: ServiceInstance[],
+  opts: { path: string; method?: string; query?: Record<string, string>; body?: unknown; refetchInterval?: number | false; enabled?: boolean },
+) {
+  return useQueries({
+    queries: instances.map((instance) => ({
+      queryKey: ['proxy', instance.id, opts.path, opts.query, opts.body],
+      queryFn: () => proxyApi.call<T>(instance.id, { path: opts.path, method: opts.method, query: opts.query, body: opts.body }),
+      enabled: opts.enabled ?? true,
+      refetchInterval: opts.refetchInterval ?? 10_000,
+      retry: 1,
+    })),
   });
 }

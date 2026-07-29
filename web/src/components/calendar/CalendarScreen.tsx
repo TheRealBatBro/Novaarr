@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useServiceProxy, useServices } from '@/lib/queries';
+import { useServiceProxyQueries, useServices } from '@/lib/queries';
 
 type SonarrCalItem = {
   id: number;
@@ -61,8 +61,10 @@ function monthGrid(viewMonth: Date): Date[] {
 
 export function CalendarScreen() {
   const { data: instances = [], isLoading: instancesLoading } = useServices();
-  const sonarr = instances.find((i) => i.serviceId === 'sonarr');
-  const radarr = instances.find((i) => i.serviceId === 'radarr');
+  const sonarrInstances = instances.filter((i) => i.serviceId === 'sonarr');
+  const radarrInstances = instances.filter((i) => i.serviceId === 'radarr');
+  const sonarr = sonarrInstances.length > 0;
+  const radarr = radarrInstances.length > 0;
 
   const today = useMemo(() => new Date(), []);
   const [viewMonth, setViewMonth] = useState(() => startOfMonth(today));
@@ -72,41 +74,48 @@ export function CalendarScreen() {
   const rangeStart = isoDate(grid[0]);
   const rangeEnd = isoDate(grid[grid.length - 1]);
 
-  const sonarrQuery = useServiceProxy<SonarrCalItem[]>(sonarr, {
+  // useQueries (via useServiceProxyQueries), not useServiceProxy per instance — the instance
+  // list is dynamic (0, 1, or more Sonarr/Radarr instances), and React doesn't allow a variable
+  // number of hook calls in a loop. Multiple instances' entries just merge into one calendar.
+  const sonarrQueries = useServiceProxyQueries<SonarrCalItem[]>(sonarrInstances, {
     path: '/api/v3/calendar',
     query: { start: rangeStart, end: rangeEnd, includeSeries: 'true' },
     refetchInterval: 60_000,
   });
-  const radarrQuery = useServiceProxy<RadarrCalItem[]>(radarr, {
+  const radarrQueries = useServiceProxyQueries<RadarrCalItem[]>(radarrInstances, {
     path: '/api/v3/calendar',
     query: { start: rangeStart, end: rangeEnd },
     refetchInterval: 60_000,
   });
 
-  const isLoading = instancesLoading || (!!sonarr && sonarrQuery.isLoading) || (!!radarr && radarrQuery.isLoading);
+  const isLoading = instancesLoading || sonarrQueries.some((q) => q.isLoading) || radarrQueries.some((q) => q.isLoading);
 
   const entries: CalEntry[] = [];
-  for (const ep of sonarrQuery.data?.data ?? []) {
-    entries.push({
-      key: `s-${ep.id}`,
-      date: (ep.airDateUtc ?? '').slice(0, 10),
-      title: ep.series?.title ?? 'Unknown series',
-      subtitle: `S${ep.seasonNumber}E${ep.episodeNumber} · ${ep.title}`,
-      hasFile: ep.hasFile,
-      color: SONARR_COLOR,
-    });
+  for (const q of sonarrQueries) {
+    for (const ep of q.data?.data ?? []) {
+      entries.push({
+        key: `s-${ep.id}`,
+        date: (ep.airDateUtc ?? '').slice(0, 10),
+        title: ep.series?.title ?? 'Unknown series',
+        subtitle: `S${ep.seasonNumber}E${ep.episodeNumber} · ${ep.title}`,
+        hasFile: ep.hasFile,
+        color: SONARR_COLOR,
+      });
+    }
   }
-  for (const movie of radarrQuery.data?.data ?? []) {
-    const date = movie.digitalRelease ?? movie.physicalRelease ?? movie.inCinemas;
-    if (!date) continue;
-    entries.push({
-      key: `r-${movie.id}`,
-      date: date.slice(0, 10),
-      title: movie.title,
-      subtitle: movie.digitalRelease ? 'Digital release' : movie.physicalRelease ? 'Physical release' : 'In cinemas',
-      hasFile: movie.hasFile,
-      color: RADARR_COLOR,
-    });
+  for (const q of radarrQueries) {
+    for (const movie of q.data?.data ?? []) {
+      const date = movie.digitalRelease ?? movie.physicalRelease ?? movie.inCinemas;
+      if (!date) continue;
+      entries.push({
+        key: `r-${movie.id}`,
+        date: date.slice(0, 10),
+        title: movie.title,
+        subtitle: movie.digitalRelease ? 'Digital release' : movie.physicalRelease ? 'Physical release' : 'In cinemas',
+        hasFile: movie.hasFile,
+        color: RADARR_COLOR,
+      });
+    }
   }
   entries.sort((a, b) => a.date.localeCompare(b.date));
 

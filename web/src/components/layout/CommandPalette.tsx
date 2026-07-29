@@ -5,12 +5,12 @@ import { useNavigate } from '@tanstack/react-router';
 import { useUiStore } from '@/stores/useUiStore';
 import { useVisibleServices } from '@/lib/visibility';
 import { getServiceIcon } from '@/lib/serviceIcons';
-import { useServiceProxy, useServices } from '@/lib/queries';
+import { useServiceProxyQueries, useServices } from '@/lib/queries';
 import { proxyApi, type ServiceInstance } from '@/lib/api';
 import { AddMovieDialog, type MovieLookupResult } from '@/components/services/arr/AddMovieDialog';
 import { AddSeriesDialog, type SeriesLookupResult } from '@/components/services/arr/AddSeriesDialog';
 
-type ContentResult = { kind: 'movie' | 'series'; id: number; title: string; year?: number; posterUrl?: string };
+type ContentResult = { kind: 'movie' | 'series'; id: number; instanceId: number; title: string; year?: number; posterUrl?: string };
 type LibraryItem = { id: number; title: string; year?: number; images?: { coverType: string; remoteUrl?: string; url?: string }[] };
 type DiscoveryResult = { kind: 'movie'; item: MovieLookupResult } | { kind: 'series'; item: SeriesLookupResult };
 
@@ -60,23 +60,33 @@ function useDiscoverySearch(query: string, radarr: ServiceInstance | undefined, 
 // and searches the titles you actually have rather than Radarr/Sonarr's own TMDB/TVDB "lookup"
 // endpoint (meant for adding new titles, and unreliable at telling an already-added match apart
 // from an unrelated same-titled result).
-function useContentSearch(query: string, radarr: ServiceInstance | undefined, sonarr: ServiceInstance | undefined) {
+function useContentSearch(query: string, radarrInstances: ServiceInstance[], sonarrInstances: ServiceInstance[]) {
   const q = query.trim().toLowerCase();
   const active = q.length >= 2;
-  const { data: moviesResp, isLoading: moviesLoading } = useServiceProxy<LibraryItem[]>(radarr, { path: '/api/v3/movie', refetchInterval: 60_000, enabled: !!radarr && active });
-  const { data: seriesResp, isLoading: seriesLoading } = useServiceProxy<LibraryItem[]>(sonarr, { path: '/api/v3/series', refetchInterval: 60_000, enabled: !!sonarr && active });
+  // useQueries (via useServiceProxyQueries), not useServiceProxy per instance — the instance list
+  // is dynamic (0, 1, or more Radarr/Sonarr instances), and React doesn't allow a variable number
+  // of hook calls in a loop.
+  const movieQueries = useServiceProxyQueries<LibraryItem[]>(radarrInstances, { path: '/api/v3/movie', refetchInterval: 60_000, enabled: active });
+  const seriesQueries = useServiceProxyQueries<LibraryItem[]>(sonarrInstances, { path: '/api/v3/series', refetchInterval: 60_000, enabled: active });
 
   const results = useMemo<ContentResult[]>(() => {
     if (!active) return [];
-    const movies = (moviesResp?.ok ? moviesResp.data ?? [] : []).filter((m) => m.title.toLowerCase().includes(q));
-    const series = (seriesResp?.ok ? seriesResp.data ?? [] : []).filter((s) => s.title.toLowerCase().includes(q));
-    return [
-      ...movies.map((m): ContentResult => ({ kind: 'movie', id: m.id, title: m.title, year: m.year, posterUrl: posterFor(m) })),
-      ...series.map((s): ContentResult => ({ kind: 'series', id: s.id, title: s.title, year: s.year, posterUrl: posterFor(s) })),
-    ].slice(0, 20);
-  }, [active, q, moviesResp, seriesResp]);
+    const movies = movieQueries.flatMap((res, i) =>
+      (res.data?.ok ? res.data.data ?? [] : [])
+        .filter((m) => m.title.toLowerCase().includes(q))
+        .map((m): ContentResult => ({ kind: 'movie', id: m.id, instanceId: radarrInstances[i].id, title: m.title, year: m.year, posterUrl: posterFor(m) })),
+    );
+    const series = seriesQueries.flatMap((res, i) =>
+      (res.data?.ok ? res.data.data ?? [] : [])
+        .filter((s) => s.title.toLowerCase().includes(q))
+        .map((s): ContentResult => ({ kind: 'series', id: s.id, instanceId: sonarrInstances[i].id, title: s.title, year: s.year, posterUrl: posterFor(s) })),
+    );
+    return [...movies, ...series].slice(0, 20);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, q, movieQueries, seriesQueries]);
 
-  return { results, loading: active && ((!!radarr && moviesLoading) || (!!sonarr && seriesLoading)) };
+  const loading = active && (movieQueries.some((r) => r.isLoading) || seriesQueries.some((r) => r.isLoading));
+  return { results, loading };
 }
 
 /** Uses Radix's own data-state-driven CSS animation, not framer-motion's AnimatePresence +
@@ -88,12 +98,17 @@ export function CommandPalette() {
   const navigate = useNavigate();
   const visible = useVisibleServices();
   const { data: instances = [] } = useServices();
-  const radarr = instances.find((i) => i.serviceId === 'radarr');
-  const sonarr = instances.find((i) => i.serviceId === 'sonarr');
+  const radarrInstances = instances.filter((i) => i.serviceId === 'radarr');
+  const sonarrInstances = instances.filter((i) => i.serviceId === 'sonarr');
+  // "Add new" always targets the first configured instance of each — picking which of several
+  // Radarr/Sonarr instances to add a brand-new title to isn't exposed here, same as it wasn't
+  // before multi-instance existed at all.
+  const radarr = radarrInstances[0];
+  const sonarr = sonarrInstances[0];
   const [query, setQuery] = useState('');
   const [addMovieCandidate, setAddMovieCandidate] = useState<MovieLookupResult | null>(null);
   const [addSeriesCandidate, setAddSeriesCandidate] = useState<SeriesLookupResult | null>(null);
-  const { results: contentResults, loading: contentLoading } = useContentSearch(paletteOpen ? query : '', radarr, sonarr);
+  const { results: contentResults, loading: contentLoading } = useContentSearch(paletteOpen ? query : '', radarrInstances, sonarrInstances);
   const { results: discoveryResults, loading: discoveryLoading } = useDiscoverySearch(paletteOpen ? query : '', radarr, sonarr);
 
   const libraryTitles = useMemo(() => new Set(contentResults.map((r) => r.title.toLowerCase())), [contentResults]);
@@ -130,7 +145,7 @@ export function CommandPalette() {
 
   function selectContent(item: ContentResult) {
     setPaletteOpen(false);
-    navigate({ to: '/service/$serviceId/title/$itemId', params: { serviceId: item.kind === 'movie' ? 'radarr' : 'sonarr', itemId: String(item.id) } });
+    navigate({ to: '/service/$serviceId/title/$itemId', params: { serviceId: String(item.instanceId), itemId: String(item.id) } });
   }
 
   function selectDiscovery(d: DiscoveryResult) {
@@ -169,8 +184,8 @@ export function CommandPalette() {
               const Icon = getServiceIcon(def.id);
               return (
                 <button
-                  key={def.id}
-                  onClick={() => select(def.id)}
+                  key={instance?.id ?? def.id}
+                  onClick={() => select(instance ? String(instance.id) : def.id)}
                   className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"
                 >
                   <div

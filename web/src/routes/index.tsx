@@ -1,15 +1,16 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Settings2 } from 'lucide-react';
 import { useDashboardWidgets, useServices } from '@/lib/queries';
-import { WIDGET_CATALOG, mergeNewWidgetsByCatalogPosition } from '@/lib/dashboardWidgets';
+import { WIDGET_CATALOG, instanceWidgetCatalog, mergeNewWidgetsByCatalogPosition } from '@/lib/dashboardWidgets';
 import { DashboardWidget } from '@/components/dashboard/DashboardWidget';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export const Route = createFileRoute('/')({ component: Dashboard });
 
 function Dashboard() {
-  const { isLoading: instancesLoading } = useServices();
+  const { data: instances = [], isLoading: instancesLoading } = useServices();
   const { data: config, isLoading: configLoading } = useDashboardWidgets();
+  const fullCatalog = [...WIDGET_CATALOG, ...instanceWidgetCatalog(instances)];
 
   if (instancesLoading || configLoading) {
     return (
@@ -36,10 +37,10 @@ function Dashboard() {
   // got removed" rather than "it's just at the bottom."
   const savedKeys = new Set((config ?? []).map((w) => w.key));
   const hasSavedConfig = (config?.length ?? 0) > 0;
-  const newKeys = new Set(hasSavedConfig ? WIDGET_CATALOG.filter((w) => !savedKeys.has(w.key)).map((w) => w.key) : []);
+  const newKeys = new Set(hasSavedConfig ? fullCatalog.filter((w) => !savedKeys.has(w.key)).map((w) => w.key) : []);
   const orderedKeys = hasSavedConfig
-    ? mergeNewWidgetsByCatalogPosition(config!.filter((w) => w.enabled).map((w) => w.key), WIDGET_CATALOG, newKeys)
-    : WIDGET_CATALOG.map((w) => w.key);
+    ? mergeNewWidgetsByCatalogPosition(config!.filter((w) => w.enabled).map((w) => w.key), fullCatalog, newKeys)
+    : fullCatalog.map((w) => w.key);
 
   return (
     <div>

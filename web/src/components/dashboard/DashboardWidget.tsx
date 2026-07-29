@@ -14,6 +14,7 @@ import {
   usePlexCollectionsCarousel,
   useTautulliUsers,
   WIDGET_CATALOG,
+  parseWidgetKey,
   type WidgetSource,
 } from '@/lib/dashboardWidgets';
 import { useUiStore } from '@/stores/useUiStore';
@@ -176,34 +177,23 @@ const WIDGET_COMPONENTS: Record<string, (props: SourceProps) => JSX.Element> = {
 };
 
 export function DashboardWidget({ widgetKey }: { widgetKey: string }) {
-  const def = WIDGET_CATALOG.find((w) => w.key === widgetKey);
+  const { baseKey, instanceId } = parseWidgetKey(widgetKey);
+  const def = WIDGET_CATALOG.find((w) => w.key === baseKey);
   const { data: instances = [] } = useServices();
 
   if (!def) return null;
 
-  const bySource: Record<WidgetSource, ServiceInstance | undefined> = {
-    radarr: instances.find((i) => i.serviceId === 'radarr'),
-    sonarr: instances.find((i) => i.serviceId === 'sonarr'),
-    overseerr: instances.find((i) => i.serviceId === 'overseerr'),
-    trakt: instances.find((i) => i.serviceId === 'trakt'),
-    sabnzbd: instances.find((i) => i.serviceId === 'sabnzbd'),
-    tautulli: instances.find((i) => i.serviceId === 'tautulli'),
-    tracearr: instances.find((i) => i.serviceId === 'tracearr'),
-    plex: instances.find((i) => i.serviceId === 'plex'),
-    prowlarr: instances.find((i) => i.serviceId === 'prowlarr'),
-    nzbhydra2: instances.find((i) => i.serviceId === 'nzbhydra2'),
-    unraid: instances.find((i) => i.serviceId === 'unraid'),
-    jackett: instances.find((i) => i.serviceId === 'jackett'),
-    nzbget: instances.find((i) => i.serviceId === 'nzbget'),
-    sickbeard: instances.find((i) => i.serviceId === 'sickbeard'),
-    ombi: instances.find((i) => i.serviceId === 'ombi'),
-    utorrent: instances.find((i) => i.serviceId === 'utorrent'),
-    deluge: instances.find((i) => i.serviceId === 'deluge'),
-    transmission: instances.find((i) => i.serviceId === 'transmission'),
-    qbittorrent: instances.find((i) => i.serviceId === 'qbittorrent'),
-    rutorrent: instances.find((i) => i.serviceId === 'rutorrent'),
+  const bySource: Record<WidgetSource, ServiceInstance[]> = {
+    radarr: [], sonarr: [], overseerr: [], trakt: [], sabnzbd: [], tautulli: [], tracearr: [], plex: [],
+    prowlarr: [], nzbhydra2: [], unraid: [], jackett: [], nzbget: [], sickbeard: [], ombi: [], utorrent: [],
+    deluge: [], transmission: [], qbittorrent: [], rutorrent: [],
   };
-  const instance = bySource[def.source];
+  for (const i of instances) {
+    if (i.serviceId in bySource) bySource[i.serviceId as WidgetSource].push(i);
+  }
+  // An `@instanceId`-suffixed key (see instanceWidgetCatalog) targets that specific instance;
+  // a plain key keeps today's exact behavior — the first/default instance of the source.
+  const instance = instanceId !== undefined ? instances.find((i) => i.id === instanceId) : bySource[def.source][0];
   if (!instance || !instance.enabled) return null;
 
   if (def.kind === 'status') {
@@ -240,14 +230,14 @@ export function DashboardWidget({ widgetKey }: { widgetKey: string }) {
     return null;
   }
 
-  const Component = WIDGET_COMPONENTS[widgetKey];
+  const Component = WIDGET_COMPONENTS[baseKey];
   if (!Component) return null;
 
   const sourceDef = getServiceDefinition(def.source);
   return (
     <Component
       instance={instance}
-      overseerr={bySource.overseerr}
+      overseerr={bySource.overseerr[0]}
       sourceId={def.source}
       title={def.title}
       sourceLabel={`From ${instance.displayName}`}

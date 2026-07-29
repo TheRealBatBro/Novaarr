@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { getServiceDefinition } from '@/lib/serviceRegistry';
-import { useServices } from '@/lib/queries';
+import { useServices, resolveServiceParam } from '@/lib/queries';
 import { SeriesDetailPage } from '@/components/services/arr/SeriesDetailPage';
 import { MovieDetailPage } from '@/components/services/arr/MovieDetailPage';
 
@@ -8,9 +8,9 @@ export const Route = createFileRoute('/service/$serviceId/title/$itemId')({ comp
 
 function TitleDetail() {
   const { serviceId, itemId } = Route.useParams();
-  const definition = getServiceDefinition(serviceId);
   const { data: instances = [] } = useServices();
-  const instance = instances.find((i) => i.serviceId === serviceId);
+  const instance = resolveServiceParam(instances, serviceId);
+  const definition = getServiceDefinition(instance?.serviceId ?? serviceId);
   const id = Number(itemId);
 
   if (!definition || !instance) {

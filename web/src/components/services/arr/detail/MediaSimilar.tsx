@@ -40,7 +40,7 @@ export function MediaSimilar({
           <button
             key={item.id}
             type="button"
-            onClick={() => navigate({ to: '/service/$serviceId', params: { serviceId: 'overseerr' } })}
+            onClick={() => navigate({ to: '/service/$serviceId', params: { serviceId: overseerr ? String(overseerr.id) : 'overseerr' } })}
             className="w-28 shrink-0 text-left"
           >
             <div className="aspect-[2/3] w-full overflow-hidden rounded-xl bg-muted shadow-sm">
