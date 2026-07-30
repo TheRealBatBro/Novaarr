@@ -33,6 +33,11 @@ router.delete('/:id/links/:instanceId', (req, res) => {
   res.json({ ok: true });
 });
 
+function serializeUserOut(u) {
+  if (!u) return u;
+  return { id: u.id, username: u.username, role: u.role, accessRoleId: u.access_role_id ?? null, createdAt: u.created_at };
+}
+
 function validateUsername(username, excludeId) {
   if (!username || typeof username !== 'string' || username.length < 2 || username.length > 64) {
     return 'Username must be 2-64 characters';
@@ -48,7 +53,7 @@ function validatePassword(password) {
 }
 
 router.get('/', (_req, res) => {
-  res.json(db.listUsers());
+  res.json(db.listUsers().map(serializeUserOut));
 });
 
 router.post('/', async (req, res) => {
@@ -60,7 +65,7 @@ router.post('/', async (req, res) => {
   if (role && role !== 'admin' && role !== 'member') return res.status(400).json({ error: 'role must be "admin" or "member"' });
   const passwordHash = await bcrypt.hash(password, 12);
   const user = db.createUser({ username, passwordHash, role: role || 'member' });
-  res.status(201).json(user);
+  res.status(201).json(serializeUserOut(user));
 });
 
 router.put('/:id', async (req, res) => {
@@ -68,7 +73,7 @@ router.put('/:id', async (req, res) => {
   const existing = db.getUserById(id);
   if (!existing) return res.status(404).json({ error: 'Not found' });
 
-  const { username, password, role } = req.body || {};
+  const { username, password, role, accessRoleId } = req.body || {};
   if (username !== undefined) {
     const usernameError = validateUsername(username, id);
     if (usernameError) return res.status(400).json({ error: usernameError });
@@ -82,13 +87,16 @@ router.put('/:id', async (req, res) => {
   if (role !== undefined && role !== 'admin' && role !== 'member') {
     return res.status(400).json({ error: 'role must be "admin" or "member"' });
   }
+  if (accessRoleId !== undefined && accessRoleId !== null && !db.getAccessRoleById(accessRoleId)) {
+    return res.status(400).json({ error: 'Access role not found' });
+  }
   // A deployment with zero admins would lock everyone out of user management for good — refuse
   // to demote the last one, same protection deleteUser below applies to removal.
   if (existing.role === 'admin' && role === 'member' && db.countAdmins() <= 1) {
     return res.status(409).json({ error: 'Cannot demote the last remaining admin' });
   }
-  const updated = db.updateUser(id, { username, passwordHash, role });
-  res.json(updated);
+  const updated = db.updateUser(id, { username, passwordHash, role, accessRoleId });
+  res.json(serializeUserOut(updated));
 });
 
 router.delete('/:id', (req, res) => {

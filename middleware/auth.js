@@ -57,4 +57,20 @@ function requireAdmin(req, res, next) {
   res.status(403).json({ error: 'Admin access required' });
 }
 
-module.exports = { setAuthCookie, clearAuthCookie, requireAuth, requireAdmin, signToken, COOKIE };
+// Gates a route whose path starts with an `:instanceId` segment (proxy.js, sabnzbd.js,
+// tautulli.js, tracearr.js, plex.js, embyfin.js, torrentUpload.js) against the signed-in
+// member's assigned access role, if any. No-ops for admins, in simple mode, and for a member
+// with no access role assigned — that last case means "full access", the default every existing
+// member effectively already had before access roles existed, so assigning nobody a role changes
+// nothing. See db.js's access_roles/access_role_services tables.
+function requireServiceAccess(req, res, next) {
+  if (DEV_BYPASS || !db.isMultiUser() || !req.user?.userId) return next();
+  const user = db.getUserById(req.user.userId);
+  if (!user || user.role === 'admin' || !user.access_role_id) return next();
+  const instanceId = Number(req.params.instanceId);
+  const allowed = db.getAccessRoleServiceIds(user.access_role_id);
+  if (allowed.has(instanceId)) return next();
+  res.status(403).json({ error: 'Not permitted to access this service' });
+}
+
+module.exports = { setAuthCookie, clearAuthCookie, requireAuth, requireAdmin, requireServiceAccess, signToken, COOKIE };

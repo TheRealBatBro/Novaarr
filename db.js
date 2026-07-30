@@ -40,6 +40,18 @@ function initDb() {
       widgets TEXT NOT NULL DEFAULT '[]'
     );
 
+    CREATE TABLE IF NOT EXISTS access_roles (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      name       TEXT    NOT NULL UNIQUE,
+      created_at INTEGER DEFAULT (unixepoch())
+    );
+
+    CREATE TABLE IF NOT EXISTS access_role_services (
+      role_id     INTEGER NOT NULL,
+      instance_id INTEGER NOT NULL,
+      PRIMARY KEY (role_id, instance_id)
+    );
+
     CREATE TABLE IF NOT EXISTS user_service_links (
       user_id       INTEGER NOT NULL,
       instance_id   INTEGER NOT NULL,
@@ -74,6 +86,7 @@ function initDb() {
   ensureColumn('settings', 'failed_attempts', 'failed_attempts INTEGER NOT NULL DEFAULT 0');
   ensureColumn('settings', 'locked_until', 'locked_until INTEGER');
   ensureColumn('settings', 'multi_user', 'multi_user INTEGER NOT NULL DEFAULT 0');
+  ensureColumn('users', 'access_role_id', 'access_role_id INTEGER');
   ensureColumn('service_instances', 'refresh_interval_minutes', 'refresh_interval_minutes INTEGER NOT NULL DEFAULT 5');
   ensureColumn('service_instances', 'custom_headers', "custom_headers TEXT NOT NULL DEFAULT '{}'");
 
@@ -366,12 +379,18 @@ function createUser({ username, passwordHash, role }) {
   return serializeUser(getUserById(result.lastInsertRowid));
 }
 
-function updateUser(id, { username, passwordHash, role }) {
+function updateUser(id, { username, passwordHash, role, accessRoleId }) {
   const existing = getUserById(id);
   if (!existing) return null;
   getDb()
-    .prepare('UPDATE users SET username = ?, password_hash = ?, role = ? WHERE id = ?')
-    .run(username ?? existing.username, passwordHash ?? existing.password_hash, role ?? existing.role, id);
+    .prepare('UPDATE users SET username = ?, password_hash = ?, role = ?, access_role_id = ? WHERE id = ?')
+    .run(
+      username ?? existing.username,
+      passwordHash ?? existing.password_hash,
+      role ?? existing.role,
+      accessRoleId !== undefined ? accessRoleId : existing.access_role_id,
+      id,
+    );
   return serializeUser(getUserById(id));
 }
 
@@ -405,6 +424,51 @@ function deleteUserLink(userId, instanceId) {
   getDb().prepare('DELETE FROM user_service_links WHERE user_id = ? AND instance_id = ?').run(userId, instanceId);
 }
 
+// Access roles let an admin restrict a member to a subset of configured services — both which
+// pages/widgets show up (routes/services.js's GET filters the list per requester) and which
+// service instances that member's requests may actually reach (middleware/auth.js's
+// requireServiceAccess). A member with no access role assigned has full access, same as every
+// member did before this existed — access roles are opt-in restriction, not opt-in permission.
+function getAccessRoleServiceIds(roleId) {
+  return new Set(getDb().prepare('SELECT instance_id FROM access_role_services WHERE role_id = ?').all(roleId).map((r) => r.instance_id));
+}
+
+function setAccessRoleServices(roleId, instanceIds) {
+  const conn = getDb();
+  conn.prepare('DELETE FROM access_role_services WHERE role_id = ?').run(roleId);
+  const insert = conn.prepare('INSERT INTO access_role_services (role_id, instance_id) VALUES (?, ?)');
+  for (const id of instanceIds || []) insert.run(roleId, id);
+}
+
+function getAccessRoleById(id) {
+  const row = getDb().prepare('SELECT * FROM access_roles WHERE id = ?').get(id);
+  if (!row) return null;
+  return { id: row.id, name: row.name, serviceInstanceIds: [...getAccessRoleServiceIds(id)] };
+}
+
+function listAccessRoles() {
+  return getDb().prepare('SELECT id FROM access_roles ORDER BY id').all().map((r) => getAccessRoleById(r.id));
+}
+
+function createAccessRole(name, instanceIds) {
+  const result = getDb().prepare('INSERT INTO access_roles (name) VALUES (?)').run(name);
+  setAccessRoleServices(result.lastInsertRowid, instanceIds);
+  return getAccessRoleById(result.lastInsertRowid);
+}
+
+function updateAccessRole(id, { name, instanceIds }) {
+  if (!getAccessRoleById(id)) return null;
+  if (name !== undefined) getDb().prepare('UPDATE access_roles SET name = ? WHERE id = ?').run(name, id);
+  if (instanceIds !== undefined) setAccessRoleServices(id, instanceIds);
+  return getAccessRoleById(id);
+}
+
+function deleteAccessRole(id) {
+  getDb().prepare('DELETE FROM access_roles WHERE id = ?').run(id);
+  getDb().prepare('DELETE FROM access_role_services WHERE role_id = ?').run(id);
+  getDb().prepare('UPDATE users SET access_role_id = NULL WHERE access_role_id = ?').run(id);
+}
+
 module.exports = {
   initDb, getDb, getSettings, setCredential, getJwtSecret,
   recordFailedLogin, resetFailedLogins, getLockoutSeconds,
@@ -413,4 +477,5 @@ module.exports = {
   setServiceSessionToken, getDashboardWidgets, setDashboardWidgets,
   isMultiUser, setMultiUser, listUsers, getUserById, getUserByUsername, countAdmins, createUser, updateUser, deleteUser,
   listUserLinks, upsertUserLink, deleteUserLink,
+  getAccessRoleServiceIds, listAccessRoles, getAccessRoleById, createAccessRole, updateAccessRole, deleteAccessRole,
 };

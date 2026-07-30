@@ -1,11 +1,12 @@
 const express = require('express');
 const { XMLParser } = require('fast-xml-parser');
 const db = require('../db');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireServiceAccess } = require('../middleware/auth');
 const { buildMethodCall, parseMethodResponse } = require('../rtorrentXmlRpc');
 
 const router = express.Router();
 router.use(requireAuth);
+router.use('/:instanceId', requireServiceAccess);
 
 const xmlParser = new XMLParser({
   ignoreAttributes: false,

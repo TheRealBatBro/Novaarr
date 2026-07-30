@@ -25,8 +25,29 @@ function serialize(instance) {
   };
 }
 
-router.get('/', (_req, res) => {
-  res.json(db.listServiceInstances().map(serialize));
+// A member restricted to an access role only sees/reaches the services that role includes —
+// every screen that lists services (nav, dashboard widgets, menu, calendar, command palette)
+// derives entirely from this one response, so filtering here is what actually hides them.
+// requireServiceAccess (middleware/auth.js) is the matching enforcement on the per-instance
+// proxy/image routes, so a restricted member can't just call one of those directly either.
+function isRestrictedMember(req) {
+  if (!db.isMultiUser() || !req.user?.userId) return null;
+  const user = db.getUserById(req.user.userId);
+  if (!user || user.role === 'admin' || !user.access_role_id) return null;
+  return user;
+}
+
+router.get('/', (req, res) => {
+  let instances = db.listServiceInstances();
+  const restricted = isRestrictedMember(req);
+  if (restricted) {
+    const allowed = db.getAccessRoleServiceIds(restricted.access_role_id);
+    instances = instances.filter((i) => allowed.has(i.id));
+  }
+  const serialized = instances.map(serialize);
+  // Credentials/API keys are only needed by the admin-only edit form — stripped for everyone else.
+  if (restricted) serialized.forEach((s) => (s.credentials = {}));
+  res.json(serialized);
 });
 
 router.post('/', requireAdmin, (req, res) => {

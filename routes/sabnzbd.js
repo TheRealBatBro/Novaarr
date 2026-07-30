@@ -1,11 +1,12 @@
 const express = require('express');
 const multer = require('multer');
 const db = require('../db');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireServiceAccess } = require('../middleware/auth');
 const { isBlockedTarget } = require('./proxy');
 
 const router = express.Router();
 router.use(requireAuth);
+router.use('/:instanceId', requireServiceAccess);
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 

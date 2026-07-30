@@ -13,7 +13,8 @@ export function apiUrl(path: string): string {
 
 export type AuthMode = 'pin' | 'password';
 export type UserLink = { instanceId: number; externalId: string; externalName?: string | null; auto: boolean };
-export type AppUser = { id: number; username: string; role: 'admin' | 'member'; links?: UserLink[] };
+export type AppUser = { id: number; username: string; role: 'admin' | 'member'; accessRoleId?: number | null; links?: UserLink[] };
+export type AccessRole = { id: number; name: string; serviceInstanceIds: number[] };
 export type AuthStatus = {
   hasCredential: boolean;
   authMode: AuthMode | null;
@@ -79,7 +80,7 @@ export const usersApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password, role }),
     }).then((r) => json<AppUser>(r)),
-  update: (id: number, data: { username?: string; password?: string; role?: 'admin' | 'member' }) =>
+  update: (id: number, data: { username?: string; password?: string; role?: 'admin' | 'member'; accessRoleId?: number | null }) =>
     fetch(apiUrl(`/api/users/${id}`), {
       method: 'PUT',
       credentials: 'same-origin',
@@ -98,6 +99,26 @@ export const usersApi = {
     }).then((r) => json<UserLink[]>(r)),
   removeLink: (userId: number, instanceId: number) =>
     fetch(apiUrl(`/api/users/${userId}/links/${instanceId}`), { method: 'DELETE', credentials: 'same-origin' }).then((r) => json<{ ok: true }>(r)),
+};
+
+export const accessRolesApi = {
+  list: () => fetch(apiUrl('/api/access-roles'), { credentials: 'same-origin' }).then((r) => json<AccessRole[]>(r)),
+  create: (name: string, instanceIds: number[]) =>
+    fetch(apiUrl('/api/access-roles'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, instanceIds }),
+    }).then((r) => json<AccessRole>(r)),
+  update: (id: number, data: { name?: string; instanceIds?: number[] }) =>
+    fetch(apiUrl(`/api/access-roles/${id}`), {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).then((r) => json<AccessRole>(r)),
+  remove: (id: number) =>
+    fetch(apiUrl(`/api/access-roles/${id}`), { method: 'DELETE', credentials: 'same-origin' }).then((r) => json<{ ok: true }>(r)),
 };
 
 export type ServiceInstance = {

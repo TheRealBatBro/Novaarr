@@ -1,10 +1,11 @@
 const express = require('express');
 const db = require('../db');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireServiceAccess } = require('../middleware/auth');
 const { isBlockedTarget } = require('./proxy');
 
 const router = express.Router();
 router.use(requireAuth);
+router.use('/:instanceId', requireServiceAccess);
 
 const TIMEOUT_MS = 10_000;
 
