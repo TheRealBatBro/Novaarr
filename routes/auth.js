@@ -38,7 +38,19 @@ router.get('/status', (req, res) => {
       authenticated = true;
       if (multiUser && payload.userId) {
         const u = db.getUserById(payload.userId);
-        if (u) user = { id: u.id, username: u.username, role: u.role, links: db.listUserLinks(u.id) };
+        if (u) {
+          // Non-null only when the assigned role actually curated a widget list — an empty/no
+          // list means "no widget-level restriction," so the dashboard falls back to whatever
+          // service-level access already allows (unchanged from before this existed).
+          const widgets = u.role !== 'admin' && u.access_role_id ? db.getAccessRoleWidgets(u.access_role_id) : [];
+          user = {
+            id: u.id,
+            username: u.username,
+            role: u.role,
+            links: db.listUserLinks(u.id),
+            widgetKeys: widgets.length > 0 ? widgets.map((w) => w.widgetKey) : null,
+          };
+        }
       }
     } catch {}
   }

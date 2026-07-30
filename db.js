@@ -52,6 +52,18 @@ function initDb() {
       PRIMARY KEY (role_id, instance_id)
     );
 
+    -- instance_id is the specific instance a widget key resolves to at the time an admin picks
+    -- it (the frontend, which owns the widget catalog, resolves this — see
+    -- web/src/lib/dashboardWidgets.ts's resolveWidgetInstanceId) — stored alongside the key so
+    -- granting a widget can also unlock proxy access to its backing instance without the
+    -- backend needing to know anything about the widget catalog itself.
+    CREATE TABLE IF NOT EXISTS access_role_widgets (
+      role_id     INTEGER NOT NULL,
+      widget_key  TEXT    NOT NULL,
+      instance_id INTEGER NOT NULL,
+      PRIMARY KEY (role_id, widget_key)
+    );
+
     CREATE TABLE IF NOT EXISTS user_service_links (
       user_id       INTEGER NOT NULL,
       instance_id   INTEGER NOT NULL,
@@ -424,11 +436,17 @@ function deleteUserLink(userId, instanceId) {
   getDb().prepare('DELETE FROM user_service_links WHERE user_id = ? AND instance_id = ?').run(userId, instanceId);
 }
 
-// Access roles let an admin restrict a member to a subset of configured services — both which
-// pages/widgets show up (routes/services.js's GET filters the list per requester) and which
-// service instances that member's requests may actually reach (middleware/auth.js's
-// requireServiceAccess). A member with no access role assigned has full access, same as every
-// member did before this existed — access roles are opt-in restriction, not opt-in permission.
+// Access roles let an admin restrict a member to a subset of configured services (which
+// pages show up in nav, and which service instances that member's requests may actually reach —
+// middleware/auth.js's requireServiceAccess) and/or a subset of dashboard widgets. The two are
+// independent but overlapping: granting a widget also unlocks proxy access to its backing
+// instance (getAccessRoleAllowedInstanceIds below) — there's no narrower "widget data but no
+// other access to that instance" distinction possible once a role, i.e. any request, can reach
+// an instance's proxy endpoint, it can make any call that endpoint supports, not just the one
+// call a given widget happens to make. An empty widgets list means "no widget-level
+// restriction" — exactly what every role had before this existed, so a role that only ever
+// configured services keeps behaving exactly as before. A member with no access role assigned
+// at all has full access, same as every member did before access roles existed.
 function getAccessRoleServiceIds(roleId) {
   return new Set(getDb().prepare('SELECT instance_id FROM access_role_services WHERE role_id = ?').all(roleId).map((r) => r.instance_id));
 }
@@ -440,32 +458,54 @@ function setAccessRoleServices(roleId, instanceIds) {
   for (const id of instanceIds || []) insert.run(roleId, id);
 }
 
+function getAccessRoleWidgets(roleId) {
+  return getDb().prepare('SELECT widget_key AS widgetKey, instance_id AS instanceId FROM access_role_widgets WHERE role_id = ?').all(roleId);
+}
+
+function setAccessRoleWidgets(roleId, widgets) {
+  const conn = getDb();
+  conn.prepare('DELETE FROM access_role_widgets WHERE role_id = ?').run(roleId);
+  const insert = conn.prepare('INSERT INTO access_role_widgets (role_id, widget_key, instance_id) VALUES (?, ?, ?)');
+  for (const w of widgets || []) insert.run(roleId, w.widgetKey, w.instanceId);
+}
+
+// Union of both grant paths — everything requireServiceAccess and routes/services.js's list
+// filter need to allow through so a granted widget's data can actually load.
+function getAccessRoleAllowedInstanceIds(roleId) {
+  const ids = getAccessRoleServiceIds(roleId);
+  for (const w of getAccessRoleWidgets(roleId)) ids.add(w.instanceId);
+  return ids;
+}
+
 function getAccessRoleById(id) {
   const row = getDb().prepare('SELECT * FROM access_roles WHERE id = ?').get(id);
   if (!row) return null;
-  return { id: row.id, name: row.name, serviceInstanceIds: [...getAccessRoleServiceIds(id)] };
+  return { id: row.id, name: row.name, serviceInstanceIds: [...getAccessRoleServiceIds(id)], widgets: getAccessRoleWidgets(id) };
 }
 
 function listAccessRoles() {
   return getDb().prepare('SELECT id FROM access_roles ORDER BY id').all().map((r) => getAccessRoleById(r.id));
 }
 
-function createAccessRole(name, instanceIds) {
+function createAccessRole(name, instanceIds, widgets) {
   const result = getDb().prepare('INSERT INTO access_roles (name) VALUES (?)').run(name);
   setAccessRoleServices(result.lastInsertRowid, instanceIds);
+  setAccessRoleWidgets(result.lastInsertRowid, widgets);
   return getAccessRoleById(result.lastInsertRowid);
 }
 
-function updateAccessRole(id, { name, instanceIds }) {
+function updateAccessRole(id, { name, instanceIds, widgets }) {
   if (!getAccessRoleById(id)) return null;
   if (name !== undefined) getDb().prepare('UPDATE access_roles SET name = ? WHERE id = ?').run(name, id);
   if (instanceIds !== undefined) setAccessRoleServices(id, instanceIds);
+  if (widgets !== undefined) setAccessRoleWidgets(id, widgets);
   return getAccessRoleById(id);
 }
 
 function deleteAccessRole(id) {
   getDb().prepare('DELETE FROM access_roles WHERE id = ?').run(id);
   getDb().prepare('DELETE FROM access_role_services WHERE role_id = ?').run(id);
+  getDb().prepare('DELETE FROM access_role_widgets WHERE role_id = ?').run(id);
   getDb().prepare('UPDATE users SET access_role_id = NULL WHERE access_role_id = ?').run(id);
 }
 
@@ -477,5 +517,6 @@ module.exports = {
   setServiceSessionToken, getDashboardWidgets, setDashboardWidgets,
   isMultiUser, setMultiUser, listUsers, getUserById, getUserByUsername, countAdmins, createUser, updateUser, deleteUser,
   listUserLinks, upsertUserLink, deleteUserLink,
-  getAccessRoleServiceIds, listAccessRoles, getAccessRoleById, createAccessRole, updateAccessRole, deleteAccessRole,
+  getAccessRoleServiceIds, getAccessRoleWidgets, getAccessRoleAllowedInstanceIds,
+  listAccessRoles, getAccessRoleById, createAccessRole, updateAccessRole, deleteAccessRole,
 };

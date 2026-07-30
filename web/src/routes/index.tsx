@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Settings2 } from 'lucide-react';
-import { useDashboardWidgets, useServices } from '@/lib/queries';
+import { useDashboardWidgets, useServices, useAuthStatus } from '@/lib/queries';
 import { WIDGET_CATALOG, instanceWidgetCatalog, mergeNewWidgetsByCatalogPosition } from '@/lib/dashboardWidgets';
 import { DashboardWidget } from '@/components/dashboard/DashboardWidget';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -10,7 +10,11 @@ export const Route = createFileRoute('/')({ component: Dashboard });
 function Dashboard() {
   const { data: instances = [], isLoading: instancesLoading } = useServices();
   const { data: config, isLoading: configLoading } = useDashboardWidgets();
-  const fullCatalog = [...WIDGET_CATALOG, ...instanceWidgetCatalog(instances)];
+  const { data: authStatus } = useAuthStatus();
+  const widgetKeys = authStatus?.user?.widgetKeys;
+  // A restricted role's curated widget list (if any) trims the catalog before anything else
+  // touches it — same treatment for every source of catalog widgets on this page.
+  const fullCatalog = [...WIDGET_CATALOG, ...instanceWidgetCatalog(instances)].filter((w) => !widgetKeys || widgetKeys.includes(w.key));
 
   if (instancesLoading || configLoading) {
     return (

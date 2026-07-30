@@ -68,7 +68,7 @@ function requireServiceAccess(req, res, next) {
   const user = db.getUserById(req.user.userId);
   if (!user || user.role === 'admin' || !user.access_role_id) return next();
   const instanceId = Number(req.params.instanceId);
-  const allowed = db.getAccessRoleServiceIds(user.access_role_id);
+  const allowed = db.getAccessRoleAllowedInstanceIds(user.access_role_id);
   if (allowed.has(instanceId)) return next();
   res.status(403).json({ error: 'Not permitted to access this service' });
 }

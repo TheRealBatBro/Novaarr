@@ -22,30 +22,44 @@ function validateInstanceIds(instanceIds) {
   return null;
 }
 
+function validateWidgets(widgets) {
+  if (widgets === undefined) return null;
+  if (!Array.isArray(widgets)) return 'widgets must be an array';
+  for (const w of widgets) {
+    if (!w || typeof w.widgetKey !== 'string' || !w.widgetKey) return 'Each widget needs a widgetKey';
+    if (!db.getServiceInstance(w.instanceId)) return `Service instance ${w.instanceId} not found`;
+  }
+  return null;
+}
+
 router.get('/', (_req, res) => {
   res.json(db.listAccessRoles());
 });
 
 router.post('/', (req, res) => {
-  const { name, instanceIds } = req.body || {};
+  const { name, instanceIds, widgets } = req.body || {};
   const nameError = validateName(name);
   if (nameError) return res.status(400).json({ error: nameError });
   const instanceError = validateInstanceIds(instanceIds);
   if (instanceError) return res.status(400).json({ error: instanceError });
-  res.status(201).json(db.createAccessRole(name, instanceIds || []));
+  const widgetError = validateWidgets(widgets);
+  if (widgetError) return res.status(400).json({ error: widgetError });
+  res.status(201).json(db.createAccessRole(name, instanceIds || [], widgets || []));
 });
 
 router.put('/:id', (req, res) => {
   const id = Number(req.params.id);
   if (!db.getAccessRoleById(id)) return res.status(404).json({ error: 'Not found' });
-  const { name, instanceIds } = req.body || {};
+  const { name, instanceIds, widgets } = req.body || {};
   if (name !== undefined) {
     const nameError = validateName(name, id);
     if (nameError) return res.status(400).json({ error: nameError });
   }
   const instanceError = validateInstanceIds(instanceIds);
   if (instanceError) return res.status(400).json({ error: instanceError });
-  res.json(db.updateAccessRole(id, { name, instanceIds }));
+  const widgetError = validateWidgets(widgets);
+  if (widgetError) return res.status(400).json({ error: widgetError });
+  res.json(db.updateAccessRole(id, { name, instanceIds, widgets }));
 });
 
 router.delete('/:id', (req, res) => {

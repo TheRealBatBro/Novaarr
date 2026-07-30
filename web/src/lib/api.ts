@@ -13,8 +13,18 @@ export function apiUrl(path: string): string {
 
 export type AuthMode = 'pin' | 'password';
 export type UserLink = { instanceId: number; externalId: string; externalName?: string | null; auto: boolean };
-export type AppUser = { id: number; username: string; role: 'admin' | 'member'; accessRoleId?: number | null; links?: UserLink[] };
-export type AccessRole = { id: number; name: string; serviceInstanceIds: number[] };
+export type AppUser = {
+  id: number;
+  username: string;
+  role: 'admin' | 'member';
+  accessRoleId?: number | null;
+  links?: UserLink[];
+  /** Non-null only when the assigned role curated a specific widget list — null means no
+   * widget-level restriction beyond whatever service-level access already allows. */
+  widgetKeys?: string[] | null;
+};
+export type AccessRoleWidget = { widgetKey: string; instanceId: number };
+export type AccessRole = { id: number; name: string; serviceInstanceIds: number[]; widgets: AccessRoleWidget[] };
 export type AuthStatus = {
   hasCredential: boolean;
   authMode: AuthMode | null;
@@ -103,14 +113,14 @@ export const usersApi = {
 
 export const accessRolesApi = {
   list: () => fetch(apiUrl('/api/access-roles'), { credentials: 'same-origin' }).then((r) => json<AccessRole[]>(r)),
-  create: (name: string, instanceIds: number[]) =>
+  create: (name: string, instanceIds: number[], widgets: AccessRoleWidget[]) =>
     fetch(apiUrl('/api/access-roles'), {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, instanceIds }),
+      body: JSON.stringify({ name, instanceIds, widgets }),
     }).then((r) => json<AccessRole>(r)),
-  update: (id: number, data: { name?: string; instanceIds?: number[] }) =>
+  update: (id: number, data: { name?: string; instanceIds?: number[]; widgets?: AccessRoleWidget[] }) =>
     fetch(apiUrl(`/api/access-roles/${id}`), {
       method: 'PUT',
       credentials: 'same-origin',

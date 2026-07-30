@@ -12,7 +12,7 @@ import { Slider } from '@/components/ui/slider';
 import { WIDGET_CATALOG, instanceWidgetCatalog, mergeNewWidgetsByCatalogPosition, parseWidgetKey, type WidgetDef } from '@/lib/dashboardWidgets';
 import { getServiceDefinition } from '@/lib/serviceRegistry';
 import { getServiceIcon } from '@/lib/serviceIcons';
-import { useDashboardWidgets, useSetDashboardWidgets, useServices, useUpdateService } from '@/lib/queries';
+import { useDashboardWidgets, useSetDashboardWidgets, useServices, useUpdateService, useAuthStatus } from '@/lib/queries';
 import { useUiStore } from '@/stores/useUiStore';
 import { cn } from '@/lib/utils';
 import type { ServiceInstance } from '@/lib/api';
@@ -231,9 +231,11 @@ function WidgetRow({
 function SettingsDashboard() {
   const { data: instances = [] } = useServices();
   const { data: config, isLoading } = useDashboardWidgets();
+  const { data: authStatus } = useAuthStatus();
   const setWidgets = useSetDashboardWidgets();
   const [rows, setRows] = useState<Row[] | null>(null);
-  const fullCatalog = [...WIDGET_CATALOG, ...instanceWidgetCatalog(instances)];
+  const widgetKeys = authStatus?.user?.widgetKeys;
+  const fullCatalog = [...WIDGET_CATALOG, ...instanceWidgetCatalog(instances)].filter((w) => !widgetKeys || widgetKeys.includes(w.key));
 
   useEffect(() => {
     if (isLoading || rows) return;
@@ -283,7 +285,11 @@ function SettingsDashboard() {
 
       {rows && (
         <Reorder.Group axis="y" values={rows} onReorder={save} className="flex flex-col gap-2">
-          {rows.map((row) => {
+          {/* A restricted-out row would otherwise still surface here via the WIDGET_CATALOG
+              fallback below (meant for "instance removed", not "not permitted") — filtering the
+              rows themselves, not just fullCatalog, keeps a curated role from ever revealing a
+              widget's title/existence to someone it wasn't granted to. */}
+          {(widgetKeys ? rows.filter((r) => widgetKeys.includes(r.key)) : rows).map((row) => {
             const { baseKey, instanceId } = parseWidgetKey(row.key);
             const def = fullCatalog.find((w) => w.key === row.key) ?? WIDGET_CATALOG.find((w) => w.key === baseKey);
             if (!def) return null;

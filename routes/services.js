@@ -41,7 +41,10 @@ router.get('/', (req, res) => {
   let instances = db.listServiceInstances();
   const restricted = isRestrictedMember(req);
   if (restricted) {
-    const allowed = db.getAccessRoleServiceIds(restricted.access_role_id);
+    // Union of the role's directly-checked services and whatever instances its granted widgets
+    // resolve to — a widget-only grant still needs its backing instance's proxy calls to work,
+    // so it shows up here too (see db.js's getAccessRoleAllowedInstanceIds for the full story).
+    const allowed = db.getAccessRoleAllowedInstanceIds(restricted.access_role_id);
     instances = instances.filter((i) => allowed.has(i.id));
   }
   const serialized = instances.map(serialize);

@@ -50,6 +50,17 @@ export function parseWidgetKey(widgetKey: string): { baseKey: string; instanceId
   return { baseKey: widgetKey.slice(0, at), instanceId: Number.isNaN(instanceId) ? undefined : instanceId };
 }
 
+/** Which instance actually backs a catalog widget entry — an `@instanceId`-suffixed key names it
+ * directly, a plain key means the first/default instance of its source (mirrors
+ * DashboardWidget.tsx's own `bySource[def.source][0]` resolution). Used when an admin picks a
+ * widget for an access role, so the grant can also unlock proxy access to its backing instance
+ * (see routes/accessRoles.js / db.js's access_role_widgets). */
+export function resolveWidgetInstanceId(widgetKey: string, source: WidgetSource, instances: ServiceInstance[]): number | undefined {
+  const { instanceId } = parseWidgetKey(widgetKey);
+  if (instanceId !== undefined) return instanceId;
+  return instances.find((i) => i.serviceId === source)?.id;
+}
+
 // Inserts only genuinely-new catalog widgets (keys in `newKeys`, meaning no saved row exists for
 // them at all yet — not merely disabled) into baseOrder, right after their nearest catalog
 // neighbor that's already in baseOrder. Both the dashboard page and Settings > Dashboard need

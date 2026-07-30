@@ -10,9 +10,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { SettingsTabs } from '@/components/settings/SettingsTabs';
-import { usersApi, accessRolesApi, type AppUser, type AccessRole } from '@/lib/api';
+import { usersApi, accessRolesApi, type AppUser, type AccessRole, type AccessRoleWidget } from '@/lib/api';
 import { useAuthStatus, useServices } from '@/lib/queries';
 import { UserLinksEditor } from '@/components/settings/UserLinksEditor';
+import { WIDGET_CATALOG, instanceWidgetCatalog, resolveWidgetInstanceId } from '@/lib/dashboardWidgets';
 
 export const Route = createFileRoute('/settings/users')({ component: SettingsUsers });
 
@@ -104,12 +105,25 @@ function AccessRoleForm({ existing, onClose }: { existing?: AccessRole; onClose:
   const { data: instances = [] } = useServices();
   const [name, setName] = useState(existing?.name ?? '');
   const [instanceIds, setInstanceIds] = useState<Set<number>>(new Set(existing?.serviceInstanceIds ?? []));
+  const [widgetKeys, setWidgetKeys] = useState<Set<string>>(new Set(existing?.widgets.map((w) => w.widgetKey) ?? []));
+  const widgetCatalog = [...WIDGET_CATALOG, ...instanceWidgetCatalog(instances)];
 
   const save = useMutation({
-    mutationFn: () =>
-      existing
-        ? accessRolesApi.update(existing.id, { name, instanceIds: [...instanceIds] })
-        : accessRolesApi.create(name, [...instanceIds]),
+    mutationFn: () => {
+      // Each selected widget's backing instance is resolved here (not on the backend, which has
+      // no notion of the widget catalog) and sent alongside its key — see
+      // lib/dashboardWidgets.ts's resolveWidgetInstanceId.
+      const widgets: AccessRoleWidget[] = [...widgetKeys]
+        .map((widgetKey) => {
+          const def = widgetCatalog.find((w) => w.key === widgetKey);
+          const instanceId = def ? resolveWidgetInstanceId(widgetKey, def.source, instances) : undefined;
+          return instanceId !== undefined ? { widgetKey, instanceId } : null;
+        })
+        .filter((w): w is AccessRoleWidget => w !== null);
+      return existing
+        ? accessRolesApi.update(existing.id, { name, instanceIds: [...instanceIds], widgets })
+        : accessRolesApi.create(name, [...instanceIds], widgets);
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['access-roles'] });
       toast.success(existing ? 'Role updated' : 'Role created');
@@ -118,11 +132,20 @@ function AccessRoleForm({ existing, onClose }: { existing?: AccessRole; onClose:
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to save'),
   });
 
-  function toggle(id: number) {
+  function toggleInstance(id: number) {
     setInstanceIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleWidget(key: string) {
+    setWidgetKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }
@@ -141,12 +164,29 @@ function AccessRoleForm({ existing, onClose }: { existing?: AccessRole; onClose:
       </div>
       <div className="grid gap-1.5">
         <Label>Allowed services</Label>
-        <div className="flex max-h-64 flex-col gap-1 overflow-y-auto rounded-lg border border-border p-2">
+        <p className="text-xs text-muted-foreground">Full page + nav access. Some sources (Plex, Trakt, …) have no page at all — grant those below instead.</p>
+        <div className="flex max-h-48 flex-col gap-1 overflow-y-auto rounded-lg border border-border p-2">
           {instances.length === 0 && <p className="p-2 text-sm text-muted-foreground">Configure a service first.</p>}
           {instances.map((i) => (
             <label key={i.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent">
-              <input type="checkbox" checked={instanceIds.has(i.id)} onChange={() => toggle(i.id)} />
+              <input type="checkbox" checked={instanceIds.has(i.id)} onChange={() => toggleInstance(i.id)} />
               {i.displayName}
+            </label>
+          ))}
+        </div>
+      </div>
+      <div className="grid gap-1.5">
+        <Label>Allowed dashboard widgets</Label>
+        <p className="text-xs text-muted-foreground">
+          Leave none checked to allow every widget from the services above. Checking any widget here also grants access to its
+          underlying service's data — this narrows the dashboard, it can't hide data behind an otherwise-open service.
+        </p>
+        <div className="flex max-h-48 flex-col gap-1 overflow-y-auto rounded-lg border border-border p-2">
+          {widgetCatalog.length === 0 && <p className="p-2 text-sm text-muted-foreground">Configure a service first.</p>}
+          {widgetCatalog.map((w) => (
+            <label key={w.key} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent">
+              <input type="checkbox" checked={widgetKeys.has(w.key)} onChange={() => toggleWidget(w.key)} />
+              {w.title}
             </label>
           ))}
         </div>
@@ -261,7 +301,10 @@ function SettingsUsers() {
                 <CardContent className="flex items-center gap-3 p-3">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{r.name}</p>
-                    <p className="text-xs text-muted-foreground">{r.serviceInstanceIds.length} service{r.serviceInstanceIds.length === 1 ? '' : 's'}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {r.serviceInstanceIds.length} service{r.serviceInstanceIds.length === 1 ? '' : 's'}
+                      {r.widgets.length > 0 && ` · ${r.widgets.length} widget${r.widgets.length === 1 ? '' : 's'}`}
+                    </p>
                   </div>
                   <Button variant="ghost" size="sm" onClick={() => setEditingRole(r)}>
                     Edit
