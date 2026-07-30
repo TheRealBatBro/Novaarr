@@ -27,6 +27,19 @@ function initDb() {
       created_at INTEGER DEFAULT (unixepoch())
     );
 
+    CREATE TABLE IF NOT EXISTS users (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      username      TEXT    NOT NULL UNIQUE,
+      password_hash TEXT    NOT NULL,
+      role          TEXT    NOT NULL DEFAULT 'member',
+      created_at    INTEGER DEFAULT (unixepoch())
+    );
+
+    CREATE TABLE IF NOT EXISTS user_dashboard_widgets (
+      user_id INTEGER PRIMARY KEY,
+      widgets TEXT NOT NULL DEFAULT '[]'
+    );
+
     CREATE TABLE IF NOT EXISTS service_instances (
       id             INTEGER PRIMARY KEY AUTOINCREMENT,
       service_id     TEXT    NOT NULL,
@@ -51,6 +64,7 @@ function initDb() {
   ensureColumn('settings', 'auth_mode', "auth_mode TEXT NOT NULL DEFAULT 'pin'");
   ensureColumn('settings', 'failed_attempts', 'failed_attempts INTEGER NOT NULL DEFAULT 0');
   ensureColumn('settings', 'locked_until', 'locked_until INTEGER');
+  ensureColumn('settings', 'multi_user', 'multi_user INTEGER NOT NULL DEFAULT 0');
   ensureColumn('service_instances', 'refresh_interval_minutes', 'refresh_interval_minutes INTEGER NOT NULL DEFAULT 5');
   ensureColumn('service_instances', 'custom_headers', "custom_headers TEXT NOT NULL DEFAULT '{}'");
 
@@ -272,7 +286,20 @@ function setServiceSessionToken(id, token) {
   getDb().prepare('UPDATE service_instances SET session_token = ? WHERE id = ?').run(token, id);
 }
 
-function getDashboardWidgets() {
+// `userId` is undefined/null in simple mode (the only mode that existed before multi-user), which
+// keeps reading/writing the original single global column completely unchanged. Multi-user mode
+// scopes to a per-user row in user_dashboard_widgets instead, added purely additively — simple
+// mode never touches that table.
+function getDashboardWidgets(userId) {
+  if (userId) {
+    const row = getDb().prepare('SELECT widgets FROM user_dashboard_widgets WHERE user_id = ?').get(userId);
+    if (!row) return [];
+    try {
+      return JSON.parse(row.widgets);
+    } catch {
+      return [];
+    }
+  }
   const raw = getSettings().dashboard_widgets;
   if (!raw) return [];
   try {
@@ -282,9 +309,66 @@ function getDashboardWidgets() {
   }
 }
 
-function setDashboardWidgets(widgets) {
+function setDashboardWidgets(widgets, userId) {
+  if (userId) {
+    getDb()
+      .prepare('INSERT INTO user_dashboard_widgets (user_id, widgets) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET widgets = excluded.widgets')
+      .run(userId, JSON.stringify(widgets));
+    return widgets;
+  }
   getDb().prepare('UPDATE settings SET dashboard_widgets = ? WHERE id = 1').run(JSON.stringify(widgets));
   return widgets;
+}
+
+function isMultiUser() {
+  return !!getSettings().multi_user;
+}
+
+function setMultiUser(on) {
+  getDb().prepare('UPDATE settings SET multi_user = ? WHERE id = 1').run(on ? 1 : 0);
+}
+
+function serializeUser(row) {
+  if (!row) return row;
+  const { password_hash, ...rest } = row;
+  return rest;
+}
+
+function listUsers() {
+  return getDb().prepare('SELECT * FROM users ORDER BY id').all().map(serializeUser);
+}
+
+function getUserById(id) {
+  return getDb().prepare('SELECT * FROM users WHERE id = ?').get(id);
+}
+
+function getUserByUsername(username) {
+  return getDb().prepare('SELECT * FROM users WHERE username = ?').get(username);
+}
+
+function countAdmins() {
+  return getDb().prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'admin'").get().n;
+}
+
+function createUser({ username, passwordHash, role }) {
+  const result = getDb()
+    .prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)')
+    .run(username, passwordHash, role || 'member');
+  return serializeUser(getUserById(result.lastInsertRowid));
+}
+
+function updateUser(id, { username, passwordHash, role }) {
+  const existing = getUserById(id);
+  if (!existing) return null;
+  getDb()
+    .prepare('UPDATE users SET username = ?, password_hash = ?, role = ? WHERE id = ?')
+    .run(username ?? existing.username, passwordHash ?? existing.password_hash, role ?? existing.role, id);
+  return serializeUser(getUserById(id));
+}
+
+function deleteUser(id) {
+  getDb().prepare('DELETE FROM users WHERE id = ?').run(id);
+  getDb().prepare('DELETE FROM user_dashboard_widgets WHERE user_id = ?').run(id);
 }
 
 module.exports = {
@@ -293,4 +377,5 @@ module.exports = {
   closeDb, backupTo, restoreFrom, DB_PATH,
   listServiceInstances, getServiceInstance, createServiceInstance, updateServiceInstance, deleteServiceInstance,
   setServiceSessionToken, getDashboardWidgets, setDashboardWidgets,
+  isMultiUser, setMultiUser, listUsers, getUserById, getUserByUsername, countAdmins, createUser, updateUser, deleteUser,
 };

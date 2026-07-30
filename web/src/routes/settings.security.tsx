@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Hash, KeyRound } from 'lucide-react';
+import { Hash, KeyRound, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -23,6 +23,78 @@ function validateCredential(mode: AuthMode, value: string): string | null {
   return null;
 }
 
+function EnableMultiUserCard() {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (password !== confirmPassword) {
+      toast.error('Passwords did not match');
+      return;
+    }
+    setBusy(true);
+    try {
+      await authApi.enableMultiUser(username, password);
+      await qc.invalidateQueries({ queryKey: ['auth', 'status'] });
+      toast.success('Multi-user mode enabled — you’re signed in as the first admin');
+      navigate({ to: '/settings/users' });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to enable multi-user mode');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className="max-w-md">
+      <CardContent className="p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <Users className="h-4 w-4 text-muted-foreground" />
+          <p className="text-sm font-semibold">Multi-user mode</p>
+        </div>
+        <p className="mb-3 text-sm text-muted-foreground">
+          Give each household member their own username, password, and dashboard layout instead of one shared{' '}
+          {'PIN or password'}. This can’t be undone from here — the shared credential above stops being checked once you switch.
+        </p>
+        {!open ? (
+          <Button variant="outline" onClick={() => setOpen(true)}>
+            Switch to multi-user mode
+          </Button>
+        ) : (
+          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+            <div className="grid gap-1.5">
+              <Label htmlFor="mu-username">Your admin username</Label>
+              <Input id="mu-username" required value={username} onChange={(e) => setUsername(e.target.value)} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="mu-password">Your admin password</Label>
+              <Input id="mu-password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="mu-confirm">Confirm password</Label>
+              <Input id="mu-confirm" type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+            </div>
+            <div className="flex gap-2">
+              <Button type="submit" disabled={busy}>
+                Create admin & switch
+              </Button>
+              <Button type="button" variant="outline" disabled={busy} onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function SettingsSecurity() {
   const { data } = useAuthStatus();
   const qc = useQueryClient();
@@ -33,6 +105,19 @@ function SettingsSecurity() {
   const [newCredential, setNewCredential] = useState('');
   const [confirmCredential, setConfirmCredential] = useState('');
   const [busy, setBusy] = useState(false);
+
+  if (data?.multiUser) {
+    return (
+      <div>
+        <SettingsTabs active="security" />
+        <h1 className="text-2xl font-bold tracking-tight">Security</h1>
+        <p className="mb-6 text-sm text-muted-foreground">
+          This deployment uses multi-user sign-in. Manage accounts under{' '}
+          <span className="font-medium text-foreground">Settings → Users</span>.
+        </p>
+      </div>
+    );
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -131,6 +216,10 @@ function SettingsSecurity() {
           </form>
         </CardContent>
       </Card>
+
+      <div className="mt-6">
+        <EnableMultiUserCard />
+      </div>
     </div>
   );
 }

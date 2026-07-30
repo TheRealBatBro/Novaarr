@@ -7,6 +7,7 @@ import { useIsDevEnvironment } from '@/lib/visibility';
 import { Button } from '@/components/ui/button';
 import { PinPad } from './PinPad';
 import { PasswordEntry } from './PasswordEntry';
+import { UsernamePasswordEntry } from './UsernamePasswordEntry';
 
 function ModePicker({ onChoose }: { onChoose: (mode: AuthMode) => void }) {
   return (
@@ -81,6 +82,19 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
     }
   }
 
+  async function handleMultiUserLogin(username: string, password: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      await authApi.loginMultiUser(username, password);
+      await qc.invalidateQueries({ queryKey: ['auth', 'status'] });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Incorrect username or password');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   // Dev/testing deployment (SHOW_ALL_SERVICES=true, see middleware/auth.js) — skip the lock
   // screen entirely so whoever is building/testing the app never gets locked out of their own
   // instance. A real deployment still requires the PIN/password set up below.
@@ -98,6 +112,16 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
 
   if (data?.authenticated) {
     return <>{children}</>;
+  }
+
+  // Multi-user mode's sign-in is username+password, resolved server-side to an account — never
+  // the setup/PIN/password flow below, which only applies to simple mode's single shared credential.
+  if (data?.multiUser) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-6">
+        <UsernamePasswordEntry title="Sign in" error={error} busy={busy} onComplete={handleMultiUserLogin} />
+      </div>
+    );
   }
 
   const setupMode = !data?.hasCredential;

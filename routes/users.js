@@ -1,0 +1,79 @@
+const express = require('express');
+const bcrypt = require('bcryptjs');
+const db = require('../db');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
+
+const router = express.Router();
+router.use(requireAuth);
+router.use(requireAdmin);
+
+function validateUsername(username, excludeId) {
+  if (!username || typeof username !== 'string' || username.length < 2 || username.length > 64) {
+    return 'Username must be 2-64 characters';
+  }
+  const existing = db.getUserByUsername(username);
+  if (existing && existing.id !== excludeId) return 'Username already taken';
+  return null;
+}
+
+function validatePassword(password) {
+  if (!password || password.length < 6 || password.length > 128) return 'Password must be 6-128 characters';
+  return null;
+}
+
+router.get('/', (_req, res) => {
+  res.json(db.listUsers());
+});
+
+router.post('/', async (req, res) => {
+  const { username, password, role } = req.body || {};
+  const usernameError = validateUsername(username);
+  if (usernameError) return res.status(400).json({ error: usernameError });
+  const passwordError = validatePassword(password);
+  if (passwordError) return res.status(400).json({ error: passwordError });
+  if (role && role !== 'admin' && role !== 'member') return res.status(400).json({ error: 'role must be "admin" or "member"' });
+  const passwordHash = await bcrypt.hash(password, 12);
+  const user = db.createUser({ username, passwordHash, role: role || 'member' });
+  res.status(201).json(user);
+});
+
+router.put('/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  const existing = db.getUserById(id);
+  if (!existing) return res.status(404).json({ error: 'Not found' });
+
+  const { username, password, role } = req.body || {};
+  if (username !== undefined) {
+    const usernameError = validateUsername(username, id);
+    if (usernameError) return res.status(400).json({ error: usernameError });
+  }
+  let passwordHash;
+  if (password !== undefined) {
+    const passwordError = validatePassword(password);
+    if (passwordError) return res.status(400).json({ error: passwordError });
+    passwordHash = await bcrypt.hash(password, 12);
+  }
+  if (role !== undefined && role !== 'admin' && role !== 'member') {
+    return res.status(400).json({ error: 'role must be "admin" or "member"' });
+  }
+  // A deployment with zero admins would lock everyone out of user management for good — refuse
+  // to demote the last one, same protection deleteUser below applies to removal.
+  if (existing.role === 'admin' && role === 'member' && db.countAdmins() <= 1) {
+    return res.status(409).json({ error: 'Cannot demote the last remaining admin' });
+  }
+  const updated = db.updateUser(id, { username, passwordHash, role });
+  res.json(updated);
+});
+
+router.delete('/:id', (req, res) => {
+  const id = Number(req.params.id);
+  const existing = db.getUserById(id);
+  if (!existing) return res.status(404).json({ error: 'Not found' });
+  if (existing.role === 'admin' && db.countAdmins() <= 1) {
+    return res.status(409).json({ error: 'Cannot delete the last remaining admin' });
+  }
+  db.deleteUser(id);
+  res.json({ ok: true });
+});
+
+module.exports = router;

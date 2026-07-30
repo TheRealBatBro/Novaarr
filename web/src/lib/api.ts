@@ -12,7 +12,14 @@ export function apiUrl(path: string): string {
 }
 
 export type AuthMode = 'pin' | 'password';
-export type AuthStatus = { hasCredential: boolean; authMode: AuthMode | null; authenticated: boolean };
+export type AppUser = { id: number; username: string; role: 'admin' | 'member' };
+export type AuthStatus = {
+  hasCredential: boolean;
+  authMode: AuthMode | null;
+  authenticated: boolean;
+  multiUser: boolean;
+  user?: AppUser;
+};
 
 async function json<T>(res: Response): Promise<T> {
   const data = await res.json().catch(() => null);
@@ -38,6 +45,13 @@ export const authApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ credential }),
     }).then((r) => json<{ ok: true }>(r)),
+  loginMultiUser: (username: string, password: string) =>
+    fetch(apiUrl('/api/auth/login'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    }).then((r) => json<{ ok: true; user: AppUser }>(r)),
   logout: () => fetch(apiUrl('/api/auth/logout'), { method: 'POST', credentials: 'same-origin' }).then((r) => json<{ ok: true }>(r)),
   changeCredential: (current: string, newMode: AuthMode, newCredential: string) =>
     fetch(apiUrl('/api/auth/change-credential'), {
@@ -46,6 +60,33 @@ export const authApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ current, newMode, newCredential }),
     }).then((r) => json<{ ok: true }>(r)),
+  enableMultiUser: (username: string, password: string) =>
+    fetch(apiUrl('/api/auth/enable-multi-user'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    }).then((r) => json<{ ok: true; user: AppUser }>(r)),
+};
+
+export const usersApi = {
+  list: () => fetch(apiUrl('/api/users'), { credentials: 'same-origin' }).then((r) => json<AppUser[]>(r)),
+  create: (username: string, password: string, role: 'admin' | 'member') =>
+    fetch(apiUrl('/api/users'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password, role }),
+    }).then((r) => json<AppUser>(r)),
+  update: (id: number, data: { username?: string; password?: string; role?: 'admin' | 'member' }) =>
+    fetch(apiUrl(`/api/users/${id}`), {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).then((r) => json<AppUser>(r)),
+  remove: (id: number) =>
+    fetch(apiUrl(`/api/users/${id}`), { method: 'DELETE', credentials: 'same-origin' }).then((r) => json<{ ok: true }>(r)),
 };
 
 export type ServiceInstance = {

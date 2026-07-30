@@ -28,19 +28,26 @@ function validateCredential(mode, value) {
 router.get('/status', (req, res) => {
   const settings = db.getSettings();
   const hasCredential = !!settings.pin_hash;
+  const multiUser = db.isMultiUser();
   let authenticated = false;
+  let user;
   const token = req.cookies[COOKIE];
   if (token) {
     try {
-      jwt.verify(token, settings.jwt_secret);
+      const payload = jwt.verify(token, settings.jwt_secret);
       authenticated = true;
+      if (multiUser && payload.userId) {
+        const u = db.getUserById(payload.userId);
+        if (u) user = { id: u.id, username: u.username, role: u.role };
+      }
     } catch {}
   }
-  res.json({ hasCredential, authMode: hasCredential ? settings.auth_mode : null, authenticated });
+  res.json({ hasCredential, authMode: hasCredential ? settings.auth_mode : null, authenticated, multiUser, user });
 });
 
 router.post('/setup', async (req, res) => {
   const settings = db.getSettings();
+  if (db.isMultiUser()) return res.status(409).json({ error: 'This deployment uses multi-user sign-in' });
   if (settings.pin_hash) return res.status(409).json({ error: 'A PIN or password is already configured' });
   const { mode, credential } = req.body || {};
   const validationError = validateCredential(mode, credential);
@@ -53,7 +60,6 @@ router.post('/setup', async (req, res) => {
 
 router.post('/login', credentialLimiter, async (req, res) => {
   const settings = db.getSettings();
-  if (!settings.pin_hash) return res.status(409).json({ error: 'Not set up yet' });
 
   const lockedSeconds = db.getLockoutSeconds();
   if (lockedSeconds > 0) {
@@ -61,6 +67,21 @@ router.post('/login', credentialLimiter, async (req, res) => {
     return res.status(429).json({ error: `Too many failed attempts. Try again in ${lockedSeconds}s.`, retryAfter: lockedSeconds });
   }
 
+  if (db.isMultiUser()) {
+    const { username, password } = req.body || {};
+    if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
+    const user = db.getUserByUsername(username);
+    const ok = user && (await bcrypt.compare(password, user.password_hash));
+    if (!ok) {
+      db.recordFailedLogin();
+      return res.status(401).json({ error: 'Incorrect username or password' });
+    }
+    db.resetFailedLogins();
+    setAuthCookie(res, req, { userId: user.id, role: user.role });
+    return res.json({ ok: true, user: { id: user.id, username: user.username, role: user.role } });
+  }
+
+  if (!settings.pin_hash) return res.status(409).json({ error: 'Not set up yet' });
   const { credential } = req.body || {};
   if (!credential) return res.status(400).json({ error: 'Credential required' });
   const ok = await bcrypt.compare(credential, settings.pin_hash);
@@ -73,6 +94,27 @@ router.post('/login', credentialLimiter, async (req, res) => {
   res.json({ ok: true });
 });
 
+// Opt-in switch from simple mode's single shared PIN/password to per-person accounts — requires
+// an authenticated simple-mode session (not multi-user already) and creates the first Admin.
+// The caller's own session is immediately re-signed with that admin's identity so they don't get
+// logged out by their own request.
+router.post('/enable-multi-user', requireAuth, async (req, res) => {
+  if (db.isMultiUser()) return res.status(409).json({ error: 'Multi-user mode is already enabled' });
+  const { username, password } = req.body || {};
+  if (!username || typeof username !== 'string' || username.length < 2 || username.length > 64) {
+    return res.status(400).json({ error: 'Username must be 2-64 characters' });
+  }
+  if (!password || password.length < 6 || password.length > 128) {
+    return res.status(400).json({ error: 'Password must be 6-128 characters' });
+  }
+  if (db.getUserByUsername(username)) return res.status(409).json({ error: 'Username already taken' });
+  const passwordHash = await bcrypt.hash(password, 12);
+  const admin = db.createUser({ username, passwordHash, role: 'admin' });
+  db.setMultiUser(true);
+  setAuthCookie(res, req, { userId: admin.id, role: admin.role });
+  res.status(201).json({ ok: true, user: admin });
+});
+
 router.post('/logout', (_req, res) => {
   clearAuthCookie(res);
   res.json({ ok: true });
@@ -81,6 +123,7 @@ router.post('/logout', (_req, res) => {
 // Changes the credential and/or switches between PIN and password — always requires the
 // current credential, regardless of whether the mode is also changing.
 router.post('/change-credential', requireAuth, credentialLimiter, async (req, res) => {
+  if (db.isMultiUser()) return res.status(409).json({ error: 'Use user management in multi-user mode' });
   const settings = db.getSettings();
 
   const lockedSeconds = db.getLockoutSeconds();

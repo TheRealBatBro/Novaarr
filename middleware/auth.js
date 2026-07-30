@@ -10,12 +10,15 @@ const MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
 // or testing the app. A real deployment (SHOW_ALL_SERVICES unset/false) always requires it.
 const DEV_BYPASS = process.env.SHOW_ALL_SERVICES === 'true';
 
-function signToken() {
-  return jwt.sign({ ok: true }, db.getJwtSecret(), { expiresIn: '30d' });
+// Simple mode (the only mode that existed before multi-user) keeps signing {ok: true} — no user
+// identity at all. Multi-user mode instead carries {userId, role}, so requireAuth/requireAdmin
+// below can tell who's signed in and what they're allowed to do.
+function signToken(payload = { ok: true }) {
+  return jwt.sign(payload, db.getJwtSecret(), { expiresIn: '30d' });
 }
 
-function setAuthCookie(res, req) {
-  const token = signToken();
+function setAuthCookie(res, req, payload) {
+  const token = signToken(payload);
   const secure = req.secure || req.headers['x-forwarded-proto'] === 'https';
   res.cookie(COOKIE, token, {
     httpOnly: true,
@@ -36,7 +39,7 @@ function requireAuth(req, res, next) {
   const token = req.cookies[COOKIE];
   if (!token) return res.status(401).json({ error: 'Not authenticated' });
   try {
-    jwt.verify(token, db.getJwtSecret());
+    req.user = jwt.verify(token, db.getJwtSecret());
     next();
   } catch {
     clearAuthCookie(res);
@@ -44,4 +47,12 @@ function requireAuth(req, res, next) {
   }
 }
 
-module.exports = { setAuthCookie, clearAuthCookie, requireAuth, COOKIE };
+// No-ops in simple mode (and under the dev bypass) — there's no "admin" concept until a
+// deployment opts into multi-user mode, at which point only an admin-role session passes.
+function requireAdmin(req, res, next) {
+  if (DEV_BYPASS || !db.isMultiUser()) return next();
+  if (req.user?.role === 'admin') return next();
+  res.status(403).json({ error: 'Admin access required' });
+}
+
+module.exports = { setAuthCookie, clearAuthCookie, requireAuth, requireAdmin, signToken, COOKIE };

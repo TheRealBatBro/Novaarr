@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../db');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -29,7 +29,7 @@ router.get('/', (_req, res) => {
   res.json(db.listServiceInstances().map(serialize));
 });
 
-router.post('/', (req, res) => {
+router.post('/', requireAdmin, (req, res) => {
   const { serviceId, displayName, authType } = req.body || {};
   if (!serviceId || !displayName || !authType) {
     return res.status(400).json({ error: 'serviceId, displayName, and authType are required' });
@@ -38,13 +38,13 @@ router.post('/', (req, res) => {
   res.status(201).json(serialize(created));
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', requireAdmin, (req, res) => {
   const updated = db.updateServiceInstance(req.params.id, req.body || {});
   if (!updated) return res.status(404).json({ error: 'Not found' });
   res.json(serialize(updated));
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', requireAdmin, (req, res) => {
   db.deleteServiceInstance(req.params.id);
   res.json({ ok: true });
 });
