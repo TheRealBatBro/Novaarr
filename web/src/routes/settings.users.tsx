@@ -14,6 +14,8 @@ import { usersApi, accessRolesApi, type AppUser, type AccessRole, type AccessRol
 import { useAuthStatus, useServices } from '@/lib/queries';
 import { UserLinksEditor } from '@/components/settings/UserLinksEditor';
 import { WIDGET_CATALOG, instanceWidgetCatalog, resolveWidgetInstanceId } from '@/lib/dashboardWidgets';
+import { getServiceDefinition } from '@/lib/serviceRegistry';
+import { getServiceIcon } from '@/lib/serviceIcons';
 
 export const Route = createFileRoute('/settings/users')({ component: SettingsUsers });
 
@@ -183,12 +185,19 @@ function AccessRoleForm({ existing, onClose }: { existing?: AccessRole; onClose:
         </p>
         <div className="flex max-h-48 flex-col gap-1 overflow-y-auto rounded-lg border border-border p-2">
           {widgetCatalog.length === 0 && <p className="p-2 text-sm text-muted-foreground">Configure a service first.</p>}
-          {widgetCatalog.map((w) => (
-            <label key={w.key} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent">
-              <input type="checkbox" checked={widgetKeys.has(w.key)} onChange={() => toggleWidget(w.key)} />
-              {w.title}
-            </label>
-          ))}
+          {widgetCatalog.map((w) => {
+            const Icon = getServiceIcon(w.source);
+            const serviceName = getServiceDefinition(w.source)?.displayName ?? w.source;
+            return (
+              <label key={w.key} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent">
+                <input type="checkbox" checked={widgetKeys.has(w.key)} onChange={() => toggleWidget(w.key)} />
+                <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 truncate">
+                  {w.title} <span className="text-muted-foreground">— {serviceName}</span>
+                </span>
+              </label>
+            );
+          })}
         </div>
       </div>
       <Button type="submit" disabled={save.isPending} className="mt-1">
