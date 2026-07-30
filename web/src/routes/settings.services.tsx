@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, CirclePlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { SERVICE_REGISTRY, CATEGORY_LABELS, CATEGORY_ORDER, type ServiceDefinition } from '@/lib/serviceRegistry';
@@ -97,11 +98,19 @@ function SettingsServices() {
               {rows.map((def) => {
                 const defInstances = byServiceId.get(def.id) ?? [];
                 const Icon = getServiceIcon(def.id);
+                const hasInstances = defInstances.length > 0;
                 return (
-                  <div key={def.id} className="flex flex-col gap-2">
-                    {defInstances.map((instance) => (
-                      <Card key={instance.id} className={!instance.enabled ? 'opacity-60' : undefined}>
-                        <CardContent className="flex items-center justify-between gap-4 p-4">
+                  <Card key={def.id} className="overflow-hidden p-0">
+                    {hasInstances ? (
+                      defInstances.map((instance, i) => (
+                        <div
+                          key={instance.id}
+                          className={cn(
+                            'flex items-center justify-between gap-4 p-4',
+                            i > 0 && 'border-t border-border',
+                            !instance.enabled && 'opacity-60',
+                          )}
+                        >
                           <div className="flex min-w-0 items-center gap-3">
                             <div
                               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
@@ -111,7 +120,9 @@ function SettingsServices() {
                             </div>
                             <div className="min-w-0">
                               <p className="truncate font-medium leading-tight">{instance.displayName}</p>
-                              <p className="truncate text-xs text-muted-foreground">Configured</p>
+                              <p className="truncate text-xs text-muted-foreground">
+                                {defInstances.length > 1 ? `Configured · ${i + 1} of ${defInstances.length}` : 'Configured'}
+                              </p>
                             </div>
                           </div>
                           <div className="flex shrink-0 items-center gap-3">
@@ -127,53 +138,53 @@ function SettingsServices() {
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
                           </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-
-                    {defInstances.length === 0 && (
-                      <Card>
-                        <CardContent className="flex items-center justify-between gap-4 p-4">
-                          <div className="flex min-w-0 items-center gap-3">
-                            <div
-                              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
-                              style={{ backgroundColor: `${def.brandColor}22`, color: def.brandColor }}
-                            >
-                              <Icon className="h-5 w-5" />
-                            </div>
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-1.5">
-                                <p className="truncate font-medium leading-tight">{def.displayName}</p>
-                                {def.comingSoon && (
-                                  <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                    Coming soon
-                                  </span>
-                                )}
-                              </div>
-                              <p className="truncate text-xs text-muted-foreground">Not configured</p>
-                            </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="flex items-center justify-between gap-4 p-4">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div
+                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+                            style={{ backgroundColor: `${def.brandColor}22`, color: def.brandColor }}
+                          >
+                            <Icon className="h-5 w-5" />
                           </div>
-                          {def.comingSoon ? (
-                            <span className="shrink-0 text-xs text-muted-foreground">Not available yet</span>
-                          ) : (
-                            <Button variant="outline" size="sm" className="shrink-0" onClick={() => setEditing({ definition: def })}>
-                              <Plus className="h-3.5 w-3.5" /> Add
-                            </Button>
-                          )}
-                        </CardContent>
-                      </Card>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <p className="truncate font-medium leading-tight">{def.displayName}</p>
+                              {def.comingSoon && (
+                                <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                  Coming soon
+                                </span>
+                              )}
+                            </div>
+                            <p className="truncate text-xs text-muted-foreground">Not configured</p>
+                          </div>
+                        </div>
+                        {def.comingSoon ? (
+                          <span className="shrink-0 text-xs text-muted-foreground">Not available yet</span>
+                        ) : (
+                          <Button variant="outline" size="sm" className="shrink-0" onClick={() => setEditing({ definition: def })}>
+                            <Plus className="h-3.5 w-3.5" /> Add
+                          </Button>
+                        )}
+                      </div>
                     )}
 
-                    {defInstances.length > 0 && !def.comingSoon && (
+                    {/* Lives inside the same card as its instances, right below the last one, so
+                        adding a second/third instance reads as "more of this same group" rather
+                        than a separate, disconnected action floating below the list. */}
+                    {hasInstances && !def.comingSoon && (
                       <button
                         type="button"
                         onClick={() => setEditing({ definition: def })}
-                        className="flex items-center gap-1.5 self-start px-1 text-xs text-muted-foreground transition-colors hover:text-primary"
+                        className="flex w-full items-center gap-2 border-t border-dashed border-border p-3 text-left text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-primary"
                       >
-                        <Plus className="h-3 w-3" /> Add another {def.displayName}
+                        <CirclePlus className="h-3.5 w-3.5 shrink-0" />
+                        Add another {def.displayName} instance
                       </button>
                     )}
-                  </div>
+                  </Card>
                 );
               })}
             </div>
