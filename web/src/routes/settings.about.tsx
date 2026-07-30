@@ -9,6 +9,55 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Remotarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.16.1',
+    notes: ['Settings > Services now groups every instance of a service into one card with a built-in "Add another instance" action, instead of a separate floating link'],
+  },
+  {
+    version: '0.16.0',
+    notes: [
+      'Added MDBList as an alternative to Trakt for the Trending/Most Anticipated dashboard widgets, for deployments where Trakt’s API is unreachable',
+    ],
+  },
+  {
+    version: '0.15.0',
+    notes: ['Access roles can grant Calendar data from a specific Sonarr/Radarr instance independently of that instance’s own page'],
+  },
+  {
+    version: '0.14.2',
+    notes: ['Fixed an access role widget grant also silently exposing that widget’s underlying service page'],
+  },
+  {
+    version: '0.14.1',
+    notes: ['Access roles’ widget picker now shows which service each widget belongs to'],
+  },
+  {
+    version: '0.14.0',
+    notes: ['Access roles can grant individual dashboard widgets, not just entire services'],
+  },
+  {
+    version: '0.13.0',
+    notes: ['Admins can create named access roles to restrict a member to specific services'],
+  },
+  {
+    version: '0.12.0',
+    notes: [
+      'Admins can link a household member’s account to Plex/Emby/Jellyfin, with Overseerr/Ombi auto-matched from that',
+      'Fixed a menu-visibility setting that was also silently disabling sign-in for every deployment',
+    ],
+  },
+  {
+    version: '0.11.0',
+    notes: [
+      'Multi-instance support: any service can now be configured more than once (e.g. two Sonarr instances)',
+      'Direct Emby and Jellyfin dashboard widgets',
+      'Multi-user login with Admin/Member roles, opt-in from Settings > Security',
+      'New integrations: rTorrent/ruTorrent, qBittorrent, Lidarr, Readarr, Deluge, Transmission, Sick Beard, Ombi, µTorrent, NZBGet, Jackett, NZBHydra2, and full Unraid support',
+      'Torrent file upload added to every torrent client',
+      'Calendar redesigned as a full-width month grid',
+      'Add series/movie search now shows ratings, runtime, and full titles, with a wider layout on desktop',
+    ],
+  },
+  {
     version: '0.10.0',
     notes: [
       'Now Playing (Tautulli) and Streaming Activity (Tracearr) redesigned with a fanart backdrop behind each session, plus episode code, quality/player info, and time remaining',
