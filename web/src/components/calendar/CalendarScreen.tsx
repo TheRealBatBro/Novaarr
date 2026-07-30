@@ -61,8 +61,11 @@ function monthGrid(viewMonth: Date): Date[] {
 
 export function CalendarScreen() {
   const { data: instances = [], isLoading: instancesLoading } = useServices();
-  const sonarrInstances = instances.filter((i) => i.serviceId === 'sonarr');
-  const radarrInstances = instances.filter((i) => i.serviceId === 'radarr');
+  // navAllowed excludes an instance only reachable via an access role's widget grant — Calendar
+  // is a full page/feature in its own right, not "a dashboard widget", so it follows the same
+  // page-level restriction nav does.
+  const sonarrInstances = instances.filter((i) => i.serviceId === 'sonarr' && i.navAllowed);
+  const radarrInstances = instances.filter((i) => i.serviceId === 'radarr' && i.navAllowed);
   const sonarr = sonarrInstances.length > 0;
   const radarr = radarrInstances.length > 0;
 

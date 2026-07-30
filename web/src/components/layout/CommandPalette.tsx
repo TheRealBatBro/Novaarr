@@ -98,8 +98,10 @@ export function CommandPalette() {
   const navigate = useNavigate();
   const visible = useVisibleServices();
   const { data: instances = [] } = useServices();
-  const radarrInstances = instances.filter((i) => i.serviceId === 'radarr');
-  const sonarrInstances = instances.filter((i) => i.serviceId === 'sonarr');
+  // navAllowed excludes an instance only reachable via an access role's widget grant — search
+  // and "add new" are full page-level features, not "a dashboard widget".
+  const radarrInstances = instances.filter((i) => i.serviceId === 'radarr' && i.navAllowed);
+  const sonarrInstances = instances.filter((i) => i.serviceId === 'sonarr' && i.navAllowed);
   // "Add new" always targets the first configured instance of each — picking which of several
   // Radarr/Sonarr instances to add a brand-new title to isn't exposed here, same as it wasn't
   // before multi-instance existed at all.

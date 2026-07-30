@@ -61,7 +61,10 @@ function sortVisible(list: VisibleService[]): VisibleService[] {
 export function useVisibleServices(): VisibleService[] {
   const { data: instances = [] } = useServices();
   const byServiceId = new Map<string, ServiceInstance[]>();
-  for (const i of instances) {
+  // An instance present only because an access role's widget list resolved to it (navAllowed:
+  // false — see routes/services.js) still needs to exist in `instances` for widget-building
+  // purposes, but never as a navigable page.
+  for (const i of instances.filter((i) => i.navAllowed)) {
     const list = byServiceId.get(i.serviceId);
     if (list) list.push(i);
     else byServiceId.set(i.serviceId, [i]);

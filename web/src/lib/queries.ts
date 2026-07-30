@@ -27,12 +27,17 @@ export function useServiceInstance(id: number | undefined) {
  * — anything else falls back to matching serviceId (old links/bookmarks, and the common
  * still-only-one-instance case, unaffected either way). */
 export function resolveServiceParam(instances: ServiceInstance[], param: string): ServiceInstance | undefined {
+  // navAllowed excludes an instance only reachable via an access role's widget grant — a
+  // restricted member typing/following a link to its page (e.g. from a search result or an
+  // old bookmark) should land on "not configured," same as if it didn't exist at all, not the
+  // full page.
+  const navigable = instances.filter((i) => i.navAllowed);
   const asId = Number(param);
   if (!Number.isNaN(asId)) {
-    const byId = instances.find((i) => i.id === asId);
+    const byId = navigable.find((i) => i.id === asId);
     if (byId) return byId;
   }
-  return instances.find((i) => i.serviceId === param);
+  return navigable.find((i) => i.serviceId === param);
 }
 
 export function useCreateService() {

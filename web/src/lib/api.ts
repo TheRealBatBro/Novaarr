@@ -151,6 +151,11 @@ export type ServiceInstance = {
   /** How often this instance's dashboard carousels/widgets refresh, in minutes — see
    * REFRESH_INTERVAL_LIMITS in lib/dashboardWidgets.ts for the allowed range per service. */
   refreshIntervalMinutes: number;
+  /** False only for a restricted member whose sole grant on this instance came from an access
+   * role's widget list, not its service list — present in this array (so its widget can still
+   * be built) but must not be offered as a navigable page: nav, Settings > Menu, Calendar, and
+   * Command Palette all need to filter on this. Always true outside multi-user restriction. */
+  navAllowed: boolean;
 };
 
 export type ServiceInstanceInput = Partial<Omit<ServiceInstance, 'id'>> & {
