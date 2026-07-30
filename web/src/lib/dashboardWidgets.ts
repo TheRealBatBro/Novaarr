@@ -7,7 +7,7 @@ import { mapWithConcurrency } from './concurrency';
 // concurrency.ts for why this exists.
 const POSTER_FETCH_CONCURRENCY = 4;
 
-export type WidgetSource = 'sonarr' | 'radarr' | 'overseerr' | 'trakt' | 'sabnzbd' | 'tautulli' | 'tracearr' | 'plex' | 'emby' | 'jellyfin' | 'prowlarr' | 'nzbhydra2' | 'unraid' | 'jackett' | 'nzbget' | 'sickbeard' | 'ombi' | 'utorrent' | 'deluge' | 'transmission' | 'qbittorrent' | 'rutorrent';
+export type WidgetSource = 'sonarr' | 'radarr' | 'overseerr' | 'trakt' | 'mdblist' | 'sabnzbd' | 'tautulli' | 'tracearr' | 'plex' | 'emby' | 'jellyfin' | 'prowlarr' | 'nzbhydra2' | 'unraid' | 'jackett' | 'nzbget' | 'sickbeard' | 'ombi' | 'utorrent' | 'deluge' | 'transmission' | 'qbittorrent' | 'rutorrent';
 export type RecommendationSeed = { title: string; mediaType: 'movie' | 'tv'; extraCount: number } | undefined;
 
 export type WidgetDef = {
@@ -147,13 +147,19 @@ export const WIDGET_CATALOG: WidgetDef[] = [
   { key: 'trakt-trending-movies', title: 'Trending Movies', source: 'trakt' },
   { key: 'trakt-anticipated-shows', title: 'Most Anticipated Shows', source: 'trakt' },
   { key: 'trakt-trending-shows', title: 'Trending Shows', source: 'trakt' },
+  { key: 'mdblist-anticipated-movies', title: 'Most Anticipated Movies', source: 'mdblist' },
+  { key: 'mdblist-trending-movies', title: 'Trending Movies', source: 'mdblist' },
+  { key: 'mdblist-anticipated-shows', title: 'Most Anticipated Shows', source: 'mdblist' },
+  { key: 'mdblist-trending-shows', title: 'Trending Shows', source: 'mdblist' },
 ];
 
-// Mirrors db.js's REFRESH_INTERVAL_LIMITS — Trakt is a shared cloud API worth protecting with a
-// higher floor than a self-hosted service on the local network. The server re-clamps on save
-// regardless, this just keeps the Settings > Dashboard input's min/max honest up front.
+// Mirrors db.js's REFRESH_INTERVAL_LIMITS — Trakt and MDBList are both shared cloud APIs worth
+// protecting with a higher floor than a self-hosted service on the local network (MDBList's free
+// tier is also hard-capped at 1,000 requests/day). The server re-clamps on save regardless, this
+// just keeps the Settings > Dashboard input's min/max honest up front.
 export const REFRESH_INTERVAL_LIMITS: Record<string, { min: number; max: number }> = {
   trakt: { min: 60, max: 1440 },
+  mdblist: { min: 60, max: 1440 },
   default: { min: 5, max: 1440 },
 };
 
@@ -161,7 +167,7 @@ export const REFRESH_INTERVAL_LIMITS: Record<string, { min: number; max: number 
 // doesn't force an immediate refetch just because the global 10s default elapsed — otherwise a
 // deliberately long configured schedule (e.g. 12h) would be defeated by ordinary navigation.
 function refreshSchedule(instance: ServiceInstance | undefined): { refetchInterval: number; staleTime: number } {
-  const fallback = instance?.serviceId === 'trakt' ? 60 : 5;
+  const fallback = instance?.serviceId === 'trakt' || instance?.serviceId === 'mdblist' ? 60 : 5;
   const ms = (instance?.refreshIntervalMinutes ?? fallback) * 60_000;
   return { refetchInterval: ms, staleTime: ms };
 }
@@ -496,20 +502,14 @@ type TraktMovieOrShow = { title: string; year?: number; ids?: TraktIds };
 type TraktListEntry = { movie?: TraktMovieOrShow; show?: TraktMovieOrShow } & TraktMovieOrShow;
 type TmdbPosterInfo = { posterPath?: string; releaseDate?: string; firstAirDate?: string; mediaInfo?: { status?: number } };
 
-export function useTraktCarousel(
-  trakt: ServiceInstance | undefined,
-  overseerr: ServiceInstance | undefined,
-  path: string,
-  mediaType: 'movie' | 'tv',
-): CarouselResult {
-  const listQuery = useServiceProxy<TraktListEntry[]>(trakt, { path, ...refreshSchedule(trakt), timeoutMs: 15_000 });
-  const raw = asArray(listQuery.data).slice(0, LIMIT).map((entry) => entry.movie ?? entry.show ?? entry).filter((m) => m?.title);
-  const tmdbIds = raw.map((m) => m.ids?.tmdb).filter((id): id is number => typeof id === 'number');
-
-  const postersQuery = useQuery({
-    queryKey: ['trakt-posters', overseerr?.id, mediaType, tmdbIds.join(',')],
+/** Resolves poster art (and status/rating) for a batch of TMDB ids via Overseerr's own
+ * TMDB-backed detail endpoints — shared by any widget whose source (Trakt, MDBList, ...) gives
+ * a tmdb id but no artwork of its own. `cacheKeyPrefix` keeps each source's cache entries apart. */
+function useTmdbPosterLookup(cacheKeyPrefix: string, overseerr: ServiceInstance | undefined, mediaType: 'movie' | 'tv', tmdbIds: number[]) {
+  return useQuery({
+    queryKey: [cacheKeyPrefix, overseerr?.id, mediaType, tmdbIds.join(',')],
     queryFn: async () => {
-      // Capped at POSTER_FETCH_CONCURRENCY, not fired all at once — with 4 Trakt widgets each
+      // Capped at POSTER_FETCH_CONCURRENCY, not fired all at once — with several widgets each
       // resolving ~15 posters, an uncapped Promise.all here was 40-60 simultaneous requests on
       // a single dashboard load, easily enough to make unrelated slower-network requests queue
       // past their own timeout. Each lookup stays isolated (try/catch) so one flaky request still
@@ -531,6 +531,18 @@ export function useTraktCarousel(
     staleTime: 10 * 60 * 1000,
     retry: 1,
   });
+}
+
+export function useTraktCarousel(
+  trakt: ServiceInstance | undefined,
+  overseerr: ServiceInstance | undefined,
+  path: string,
+  mediaType: 'movie' | 'tv',
+): CarouselResult {
+  const listQuery = useServiceProxy<TraktListEntry[]>(trakt, { path, ...refreshSchedule(trakt), timeoutMs: 15_000 });
+  const raw = asArray(listQuery.data).slice(0, LIMIT).map((entry) => entry.movie ?? entry.show ?? entry).filter((m) => m?.title);
+  const tmdbIds = raw.map((m) => m.ids?.tmdb).filter((id): id is number => typeof id === 'number');
+  const postersQuery = useTmdbPosterLookup('trakt-posters', overseerr, mediaType, tmdbIds);
 
   const items: CarouselItem[] = raw.map((m, i) => {
     const tmdbId = m.ids?.tmdb;
@@ -539,6 +551,59 @@ export function useTraktCarousel(
       id: tmdbId ? String(tmdbId) : `${m.title}-${i}`,
       title: m.title,
       subtitle: m.year ? String(m.year) : undefined,
+      imageUrl: info?.posterPath ? `${TMDB_IMAGE}${info.posterPath}` : undefined,
+      status: info ? tmdbStatus(info) : undefined,
+      overseerrDetail: tmdbId !== undefined ? { mediaType, tmdbId } : undefined,
+      to: { serviceId: 'overseerr' },
+    };
+  });
+
+  return {
+    items,
+    isLoading: listQuery.isLoading || (!!overseerr && tmdbIds.length > 0 && postersQuery.isLoading),
+    error: proxyError(listQuery.data),
+  };
+}
+
+// --- MDBList (direct) ---
+// An alternative to Trakt for the same trending/anticipated widgets, since Trakt's API has been
+// seen returning a blanket 403 from some hosting IP ranges (confirmed unrelated to credential
+// validity — a garbage key gets the identical 403). "Trending" reads off MDBList's official
+// "Popular Movies & Shows" list (recent vote movement) — but that list is dominated by titles
+// already out, so "anticipated" instead reads off the official IMDb MovieMeter list (which does
+// carry real forthcoming titles, confirmed live) filtered to a future release_date, keeping that
+// list's own rank order. MDBList has no dedicated official "anticipated" chart the way Trakt
+// does — this is the closest available proxy. Both trending widgets share one request (same
+// path+query → one cache entry), and both anticipated widgets share the other, so enabling all
+// four is only 2 requests per refresh against MDBList's 1,000/day free-tier cap, not 4.
+type MdblistItem = { title: string; release_year?: number; release_date?: string; ids?: { tmdb?: number } };
+type MdblistItemsResponse = { movies?: MdblistItem[]; shows?: MdblistItem[] };
+type MdblistMode = 'anticipated-movies' | 'trending-movies' | 'anticipated-shows' | 'trending-shows';
+
+export function useMdblistCarousel(mdblist: ServiceInstance | undefined, overseerr: ServiceInstance | undefined, mode: MdblistMode): CarouselResult {
+  const isMovie = mode.endsWith('movies');
+  const isAnticipated = mode.startsWith('anticipated');
+  const mediaType: 'movie' | 'tv' = isMovie ? 'movie' : 'tv';
+  const listQuery = useServiceProxy<MdblistItemsResponse>(mdblist, {
+    path: `/lists/official/${isAnticipated ? 'moviemeter' : 'popular'}/items`,
+    query: { limit: '100' },
+    ...refreshSchedule(mdblist),
+    timeoutMs: 15_000,
+  });
+  const rawList = listQuery.data?.ok ? (isMovie ? listQuery.data.data?.movies : listQuery.data.data?.shows) ?? [] : [];
+  const today = new Date().toISOString().slice(0, 10);
+  const filtered = isAnticipated ? rawList.filter((m) => m.release_date && m.release_date > today) : rawList;
+  const raw = filtered.slice(0, LIMIT);
+  const tmdbIds = raw.map((m) => m.ids?.tmdb).filter((id): id is number => typeof id === 'number');
+  const postersQuery = useTmdbPosterLookup('mdblist-posters', overseerr, mediaType, tmdbIds);
+
+  const items: CarouselItem[] = raw.map((m, i) => {
+    const tmdbId = m.ids?.tmdb;
+    const info = tmdbId !== undefined ? postersQuery.data?.[tmdbId] : undefined;
+    return {
+      id: tmdbId ? String(tmdbId) : `${m.title}-${i}`,
+      title: m.title,
+      subtitle: m.release_year ? String(m.release_year) : undefined,
       imageUrl: info?.posterPath ? `${TMDB_IMAGE}${info.posterPath}` : undefined,
       status: info ? tmdbStatus(info) : undefined,
       overseerrDetail: tmdbId !== undefined ? { mediaType, tmdbId } : undefined,

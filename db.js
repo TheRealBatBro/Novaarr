@@ -229,16 +229,18 @@ function restoreFrom(sourcePath) {
   return { credentialPreserved: hadCredential };
 }
 
-// Trakt is a shared cloud API with its own rate limits, worth protecting with a higher floor
-// than a self-hosted service on the local network — everything else just needs *some* bound so
-// a typo doesn't turn into either a dead-slow dashboard or an accidental hammering loop.
+// Trakt and MDBList are shared cloud APIs with their own rate limits (MDBList's free tier is
+// hard-capped at 1,000 requests/day), worth protecting with a higher floor than a self-hosted
+// service on the local network — everything else just needs *some* bound so a typo doesn't turn
+// into either a dead-slow dashboard or an accidental hammering loop.
 const REFRESH_INTERVAL_LIMITS = {
   trakt: { min: 60, max: 1440 },
+  mdblist: { min: 60, max: 1440 },
   default: { min: 5, max: 1440 },
 };
 
 function defaultRefreshInterval(serviceId) {
-  return serviceId === 'trakt' ? 60 : 5;
+  return serviceId === 'trakt' || serviceId === 'mdblist' ? 60 : 5;
 }
 
 function clampRefreshInterval(serviceId, minutes) {

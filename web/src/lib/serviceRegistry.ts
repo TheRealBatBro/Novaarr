@@ -395,6 +395,26 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     // as usual but doesn't get a slot in the nav/command palette.
     hideFromNav: true,
   },
+  {
+    id: 'mdblist',
+    category: 'other',
+    displayName: 'MDBList',
+    brandColor: '#f5a623',
+    authType: 'apikey-query',
+    fixedBaseUrl: 'https://api.mdblist.com',
+    fields: [
+      {
+        key: 'apiKey',
+        label: 'API Key',
+        type: 'password',
+        required: true,
+        helpText: 'Find your key at mdblist.com/preferences under API Access. Free-tier keys are capped at 1,000 requests/day.',
+      },
+    ],
+    helpText: 'An alternative to Trakt for the dashboard’s trending/anticipated carousels — same widgets, different data source.',
+    healthCheck: { path: '/user' },
+    hideFromNav: true,
+  },
 ];
 
 export const CATEGORY_LABELS: Record<ServiceCategory, string> = {

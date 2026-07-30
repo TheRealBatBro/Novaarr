@@ -49,6 +49,19 @@ const Plex: Icon = (p) =>
     </>,
   );
 
+// No published logo in the dashboard-icons set at hand-authoring time — a simple list/ranking
+// glyph, same treatment as the other hand-drawn fallbacks above.
+const Mdblist: Icon = (p) =>
+  svg(
+    p,
+    <>
+      <circle cx="5" cy="6" r="1.4" fill="currentColor" />
+      <circle cx="5" cy="12" r="1.4" fill="currentColor" />
+      <circle cx="5" cy="18" r="1.4" fill="currentColor" />
+      <path d="M9 6h10M9 12h10M9 18h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </>,
+  );
+
 const Fallback: Icon = (p) => svg(p, <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />);
 
 const REGISTRY: Record<string, Icon> = {
@@ -78,6 +91,7 @@ const REGISTRY: Record<string, Icon> = {
   plex: Plex,
   emby: logo('emby'),
   jellyfin: logo('jellyfin'),
+  mdblist: Mdblist,
 };
 
 export function getServiceIcon(serviceId: string): Icon {

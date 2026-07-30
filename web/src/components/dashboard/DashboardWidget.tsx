@@ -7,6 +7,7 @@ import {
   useSonarrUpcomingCarousel,
   useOverseerrCarousel,
   useTraktCarousel,
+  useMdblistCarousel,
   useTautulliRecentCarousel,
   useTautulliRecentlyAddedCarousel,
   usePlexRecommendationsCarousel,
@@ -99,6 +100,22 @@ function TraktAnticipatedShows({ instance, overseerr, sourceId, title, sourceLab
 }
 function TraktTrendingShows({ instance, overseerr, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
   const result = useTraktCarousel(instance, overseerr, '/shows/trending', 'tv');
+  return <DashboardCarousel title={title} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} overseerrInstance={overseerr} {...result} />;
+}
+function MdblistAnticipatedMovies({ instance, overseerr, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
+  const result = useMdblistCarousel(instance, overseerr, 'anticipated-movies');
+  return <DashboardCarousel title={title} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} overseerrInstance={overseerr} {...result} />;
+}
+function MdblistTrendingMovies({ instance, overseerr, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
+  const result = useMdblistCarousel(instance, overseerr, 'trending-movies');
+  return <DashboardCarousel title={title} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} overseerrInstance={overseerr} {...result} />;
+}
+function MdblistAnticipatedShows({ instance, overseerr, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
+  const result = useMdblistCarousel(instance, overseerr, 'anticipated-shows');
+  return <DashboardCarousel title={title} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} overseerrInstance={overseerr} {...result} />;
+}
+function MdblistTrendingShows({ instance, overseerr, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
+  const result = useMdblistCarousel(instance, overseerr, 'trending-shows');
   return <DashboardCarousel title={title} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} overseerrInstance={overseerr} {...result} />;
 }
 function TautulliRecent({ instance, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
@@ -195,6 +212,10 @@ const WIDGET_COMPONENTS: Record<string, (props: SourceProps) => JSX.Element> = {
   'trakt-trending-movies': TraktTrendingMovies,
   'trakt-anticipated-shows': TraktAnticipatedShows,
   'trakt-trending-shows': TraktTrendingShows,
+  'mdblist-anticipated-movies': MdblistAnticipatedMovies,
+  'mdblist-trending-movies': MdblistTrendingMovies,
+  'mdblist-anticipated-shows': MdblistAnticipatedShows,
+  'mdblist-trending-shows': MdblistTrendingShows,
   'tautulli-recent': TautulliRecent,
   'tautulli-recommendations': TautulliRecommendations,
   'tautulli-recently-added': TautulliRecentlyAdded,
@@ -214,7 +235,7 @@ export function DashboardWidget({ widgetKey }: { widgetKey: string }) {
   if (!def) return null;
 
   const bySource: Record<WidgetSource, ServiceInstance[]> = {
-    radarr: [], sonarr: [], overseerr: [], trakt: [], sabnzbd: [], tautulli: [], tracearr: [], plex: [],
+    radarr: [], sonarr: [], overseerr: [], trakt: [], mdblist: [], sabnzbd: [], tautulli: [], tracearr: [], plex: [],
     emby: [], jellyfin: [],
     prowlarr: [], nzbhydra2: [], unraid: [], jackett: [], nzbget: [], sickbeard: [], ombi: [], utorrent: [],
     deluge: [], transmission: [], qbittorrent: [], rutorrent: [],
