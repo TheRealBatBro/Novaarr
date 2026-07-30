@@ -37,20 +37,22 @@ router.get('/', (_req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { name, instanceIds, widgets } = req.body || {};
+  const { name, instanceIds, widgets, calendarSourceIds } = req.body || {};
   const nameError = validateName(name);
   if (nameError) return res.status(400).json({ error: nameError });
   const instanceError = validateInstanceIds(instanceIds);
   if (instanceError) return res.status(400).json({ error: instanceError });
   const widgetError = validateWidgets(widgets);
   if (widgetError) return res.status(400).json({ error: widgetError });
-  res.status(201).json(db.createAccessRole(name, instanceIds || [], widgets || []));
+  const calendarError = validateInstanceIds(calendarSourceIds);
+  if (calendarError) return res.status(400).json({ error: calendarError });
+  res.status(201).json(db.createAccessRole(name, instanceIds || [], widgets || [], calendarSourceIds || []));
 });
 
 router.put('/:id', (req, res) => {
   const id = Number(req.params.id);
   if (!db.getAccessRoleById(id)) return res.status(404).json({ error: 'Not found' });
-  const { name, instanceIds, widgets } = req.body || {};
+  const { name, instanceIds, widgets, calendarSourceIds } = req.body || {};
   if (name !== undefined) {
     const nameError = validateName(name, id);
     if (nameError) return res.status(400).json({ error: nameError });
@@ -59,7 +61,9 @@ router.put('/:id', (req, res) => {
   if (instanceError) return res.status(400).json({ error: instanceError });
   const widgetError = validateWidgets(widgets);
   if (widgetError) return res.status(400).json({ error: widgetError });
-  res.json(db.updateAccessRole(id, { name, instanceIds, widgets }));
+  const calendarError = validateInstanceIds(calendarSourceIds);
+  if (calendarError) return res.status(400).json({ error: calendarError });
+  res.json(db.updateAccessRole(id, { name, instanceIds, widgets, calendarSourceIds }));
 });
 
 router.delete('/:id', (req, res) => {

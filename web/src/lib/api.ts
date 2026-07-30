@@ -22,9 +22,12 @@ export type AppUser = {
   /** Non-null only when the assigned role curated a specific widget list — null means no
    * widget-level restriction beyond whatever service-level access already allows. */
   widgetKeys?: string[] | null;
+  /** Whether the Calendar nav item shows at all — distinct from whether any specific
+   * Sonarr/Radarr page is reachable (see ServiceInstance.calendarAllowed for that). */
+  calendarAccessible?: boolean;
 };
 export type AccessRoleWidget = { widgetKey: string; instanceId: number };
-export type AccessRole = { id: number; name: string; serviceInstanceIds: number[]; widgets: AccessRoleWidget[] };
+export type AccessRole = { id: number; name: string; serviceInstanceIds: number[]; widgets: AccessRoleWidget[]; calendarSourceIds: number[] };
 export type AuthStatus = {
   hasCredential: boolean;
   authMode: AuthMode | null;
@@ -113,14 +116,14 @@ export const usersApi = {
 
 export const accessRolesApi = {
   list: () => fetch(apiUrl('/api/access-roles'), { credentials: 'same-origin' }).then((r) => json<AccessRole[]>(r)),
-  create: (name: string, instanceIds: number[], widgets: AccessRoleWidget[]) =>
+  create: (name: string, instanceIds: number[], widgets: AccessRoleWidget[], calendarSourceIds: number[]) =>
     fetch(apiUrl('/api/access-roles'), {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, instanceIds, widgets }),
+      body: JSON.stringify({ name, instanceIds, widgets, calendarSourceIds }),
     }).then((r) => json<AccessRole>(r)),
-  update: (id: number, data: { name?: string; instanceIds?: number[]; widgets?: AccessRoleWidget[] }) =>
+  update: (id: number, data: { name?: string; instanceIds?: number[]; widgets?: AccessRoleWidget[]; calendarSourceIds?: number[] }) =>
     fetch(apiUrl(`/api/access-roles/${id}`), {
       method: 'PUT',
       credentials: 'same-origin',
@@ -156,6 +159,10 @@ export type ServiceInstance = {
    * be built) but must not be offered as a navigable page: nav, Settings > Menu, Calendar, and
    * Command Palette all need to filter on this. Always true outside multi-user restriction. */
   navAllowed: boolean;
+  /** True if this instance's episodes/releases may appear on Calendar — via full service access,
+   * or via an access role's Calendar-specific grant on this instance (see
+   * access_role_calendar_sources in db.js). Always true outside multi-user restriction. */
+  calendarAllowed: boolean;
 };
 
 export type ServiceInstanceInput = Partial<Omit<ServiceInstance, 'id'>> & {

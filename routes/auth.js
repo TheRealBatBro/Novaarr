@@ -42,13 +42,28 @@ router.get('/status', (req, res) => {
           // Non-null only when the assigned role actually curated a widget list — an empty/no
           // list means "no widget-level restriction," so the dashboard falls back to whatever
           // service-level access already allows (unchanged from before this existed).
-          const widgets = u.role !== 'admin' && u.access_role_id ? db.getAccessRoleWidgets(u.access_role_id) : [];
+          const restricted = u.role !== 'admin' && u.access_role_id;
+          const widgets = restricted ? db.getAccessRoleWidgets(u.access_role_id) : [];
+          // Whether the Calendar nav item shows at all — distinct from whether the underlying
+          // Sonarr/Radarr *pages* are reachable, since a role can grant Calendar data from an
+          // instance without granting that instance's own page (access_role_calendar_sources).
+          let calendarAccessible = true;
+          if (restricted) {
+            const sonarrOrRadarrIds = new Set(
+              db.listServiceInstances().filter((i) => i.service_id === 'sonarr' || i.service_id === 'radarr').map((i) => i.id),
+            );
+            // Deliberately NOT getAccessRoleAllowedInstanceIds — a widget-only grant on a
+            // Sonarr/Radarr instance shouldn't also imply Calendar access to it.
+            const granted = new Set([...db.getAccessRoleServiceIds(u.access_role_id), ...db.getAccessRoleCalendarSourceIds(u.access_role_id)]);
+            calendarAccessible = [...sonarrOrRadarrIds].some((id) => granted.has(id));
+          }
           user = {
             id: u.id,
             username: u.username,
             role: u.role,
             links: db.listUserLinks(u.id),
             widgetKeys: widgets.length > 0 ? widgets.map((w) => w.widgetKey) : null,
+            calendarAccessible,
           };
         }
       }

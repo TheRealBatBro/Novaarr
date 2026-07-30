@@ -5,7 +5,7 @@ const { requireAuth, requireAdmin } = require('../middleware/auth');
 const router = express.Router();
 router.use(requireAuth);
 
-function serialize(instance, navAllowed = true) {
+function serialize(instance, navAllowed = true, calendarAllowed = true) {
   return {
     id: instance.id,
     serviceId: instance.service_id,
@@ -22,13 +22,14 @@ function serialize(instance, navAllowed = true) {
     sortOrder: instance.sort_order,
     enabled: !!instance.enabled,
     refreshIntervalMinutes: instance.refresh_interval_minutes,
-    // false only for a restricted member whose ONLY grant on this instance came from a widget —
-    // it stays in this list (needed so DashboardWidget.tsx can actually build that widget), but
-    // nav/menu/calendar/command-palette must not treat it as a navigable page. Widget-granted
-    // proxy access is unavoidably as broad as a real page's (same generic proxy endpoint either
-    // way) — this flag only controls what the UI offers to navigate to, not what a request could
-    // technically reach.
+    // false only for a restricted member whose ONLY grant on this instance came from a widget or
+    // Calendar-source grant — it stays in this list (needed so DashboardWidget.tsx/CalendarScreen
+    // can actually build from it), but nav/menu/command-palette must not treat it as a navigable
+    // page. That granted proxy access is unavoidably as broad as a real page's (same generic
+    // proxy endpoint either way) — this flag only controls what the UI offers to navigate to.
     navAllowed,
+    // True via full service access OR an access role's Calendar-specific grant on this instance.
+    calendarAllowed,
   };
 }
 
@@ -49,14 +50,14 @@ router.get('/', (req, res) => {
   const restricted = isRestrictedMember(req);
   let serialized;
   if (restricted) {
-    // Union of the role's directly-checked services and whatever instances its granted widgets
-    // resolve to — a widget-only grant still needs its backing instance's proxy calls to work,
-    // so it stays in the list (see db.js's getAccessRoleAllowedInstanceIds), but only the
-    // directly-checked ones are nav-allowed.
+    // Union of every grant path (services, widgets, Calendar sources) — anything not in this
+    // union doesn't even stay in the list. navAllowed and calendarAllowed then narrow what each
+    // instance that DOES stay is actually allowed to power.
     const allowed = db.getAccessRoleAllowedInstanceIds(restricted.access_role_id);
     const navAllowedIds = db.getAccessRoleServiceIds(restricted.access_role_id);
+    const calendarAllowedIds = new Set([...navAllowedIds, ...db.getAccessRoleCalendarSourceIds(restricted.access_role_id)]);
     instances = instances.filter((i) => allowed.has(i.id));
-    serialized = instances.map((i) => serialize(i, navAllowedIds.has(i.id)));
+    serialized = instances.map((i) => serialize(i, navAllowedIds.has(i.id), calendarAllowedIds.has(i.id)));
     // Credentials/API keys are only needed by the admin-only edit form — stripped for everyone else.
     serialized.forEach((s) => (s.credentials = {}));
   } else {

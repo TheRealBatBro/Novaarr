@@ -64,6 +64,16 @@ function initDb() {
       PRIMARY KEY (role_id, widget_key)
     );
 
+    -- Calendar aggregates across every configured Sonarr/Radarr instance, independent of full
+    -- page access to any of them — a role can grant "show this instance's episodes/releases on
+    -- Calendar" per instance without granting that instance's own page, same relationship
+    -- widgets have to services.
+    CREATE TABLE IF NOT EXISTS access_role_calendar_sources (
+      role_id     INTEGER NOT NULL,
+      instance_id INTEGER NOT NULL,
+      PRIMARY KEY (role_id, instance_id)
+    );
+
     CREATE TABLE IF NOT EXISTS user_service_links (
       user_id       INTEGER NOT NULL,
       instance_id   INTEGER NOT NULL,
@@ -469,36 +479,56 @@ function setAccessRoleWidgets(roleId, widgets) {
   for (const w of widgets || []) insert.run(roleId, w.widgetKey, w.instanceId);
 }
 
-// Union of both grant paths — everything requireServiceAccess and routes/services.js's list
-// filter need to allow through so a granted widget's data can actually load.
+function getAccessRoleCalendarSourceIds(roleId) {
+  return new Set(getDb().prepare('SELECT instance_id FROM access_role_calendar_sources WHERE role_id = ?').all(roleId).map((r) => r.instance_id));
+}
+
+function setAccessRoleCalendarSources(roleId, instanceIds) {
+  const conn = getDb();
+  conn.prepare('DELETE FROM access_role_calendar_sources WHERE role_id = ?').run(roleId);
+  const insert = conn.prepare('INSERT INTO access_role_calendar_sources (role_id, instance_id) VALUES (?, ?)');
+  for (const id of instanceIds || []) insert.run(roleId, id);
+}
+
+// Union of every grant path — everything requireServiceAccess and routes/services.js's list
+// filter need to allow through so a granted widget's or Calendar source's data can actually load.
 function getAccessRoleAllowedInstanceIds(roleId) {
   const ids = getAccessRoleServiceIds(roleId);
   for (const w of getAccessRoleWidgets(roleId)) ids.add(w.instanceId);
+  for (const id of getAccessRoleCalendarSourceIds(roleId)) ids.add(id);
   return ids;
 }
 
 function getAccessRoleById(id) {
   const row = getDb().prepare('SELECT * FROM access_roles WHERE id = ?').get(id);
   if (!row) return null;
-  return { id: row.id, name: row.name, serviceInstanceIds: [...getAccessRoleServiceIds(id)], widgets: getAccessRoleWidgets(id) };
+  return {
+    id: row.id,
+    name: row.name,
+    serviceInstanceIds: [...getAccessRoleServiceIds(id)],
+    widgets: getAccessRoleWidgets(id),
+    calendarSourceIds: [...getAccessRoleCalendarSourceIds(id)],
+  };
 }
 
 function listAccessRoles() {
   return getDb().prepare('SELECT id FROM access_roles ORDER BY id').all().map((r) => getAccessRoleById(r.id));
 }
 
-function createAccessRole(name, instanceIds, widgets) {
+function createAccessRole(name, instanceIds, widgets, calendarSourceIds) {
   const result = getDb().prepare('INSERT INTO access_roles (name) VALUES (?)').run(name);
   setAccessRoleServices(result.lastInsertRowid, instanceIds);
   setAccessRoleWidgets(result.lastInsertRowid, widgets);
+  setAccessRoleCalendarSources(result.lastInsertRowid, calendarSourceIds);
   return getAccessRoleById(result.lastInsertRowid);
 }
 
-function updateAccessRole(id, { name, instanceIds, widgets }) {
+function updateAccessRole(id, { name, instanceIds, widgets, calendarSourceIds }) {
   if (!getAccessRoleById(id)) return null;
   if (name !== undefined) getDb().prepare('UPDATE access_roles SET name = ? WHERE id = ?').run(name, id);
   if (instanceIds !== undefined) setAccessRoleServices(id, instanceIds);
   if (widgets !== undefined) setAccessRoleWidgets(id, widgets);
+  if (calendarSourceIds !== undefined) setAccessRoleCalendarSources(id, calendarSourceIds);
   return getAccessRoleById(id);
 }
 
@@ -506,6 +536,7 @@ function deleteAccessRole(id) {
   getDb().prepare('DELETE FROM access_roles WHERE id = ?').run(id);
   getDb().prepare('DELETE FROM access_role_services WHERE role_id = ?').run(id);
   getDb().prepare('DELETE FROM access_role_widgets WHERE role_id = ?').run(id);
+  getDb().prepare('DELETE FROM access_role_calendar_sources WHERE role_id = ?').run(id);
   getDb().prepare('UPDATE users SET access_role_id = NULL WHERE access_role_id = ?').run(id);
 }
 
@@ -517,6 +548,6 @@ module.exports = {
   setServiceSessionToken, getDashboardWidgets, setDashboardWidgets,
   isMultiUser, setMultiUser, listUsers, getUserById, getUserByUsername, countAdmins, createUser, updateUser, deleteUser,
   listUserLinks, upsertUserLink, deleteUserLink,
-  getAccessRoleServiceIds, getAccessRoleWidgets, getAccessRoleAllowedInstanceIds,
+  getAccessRoleServiceIds, getAccessRoleWidgets, getAccessRoleCalendarSourceIds, getAccessRoleAllowedInstanceIds,
   listAccessRoles, getAccessRoleById, createAccessRole, updateAccessRole, deleteAccessRole,
 };

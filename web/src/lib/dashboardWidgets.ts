@@ -61,6 +61,22 @@ export function resolveWidgetInstanceId(widgetKey: string, source: WidgetSource,
   return instances.find((i) => i.serviceId === source)?.id;
 }
 
+/** Trims a raw catalog (WIDGET_CATALOG + instanceWidgetCatalog) down to what the signed-in user
+ * may actually see. With an explicit widget grant (widgetKeys non-null), only those exact keys
+ * show — that allowlist is itself allowed to reach beyond full service access (see
+ * access_role_widgets). Without one, an entry only shows if its backing instance has full
+ * service access (navAllowed) — `instances` can otherwise also contain instances present only
+ * for Calendar or another widget's sake, and those must NOT leak into a plain, unrestricted
+ * widget's default resolution just because the instance happens to exist in the array. */
+export function filterCatalogForUser(catalog: WidgetDef[], instances: ServiceInstance[], widgetKeys: string[] | null | undefined): WidgetDef[] {
+  if (widgetKeys) return catalog.filter((w) => widgetKeys.includes(w.key));
+  return catalog.filter((w) => {
+    const instanceId = resolveWidgetInstanceId(w.key, w.source, instances);
+    const instance = instances.find((i) => i.id === instanceId);
+    return instance ? instance.navAllowed : true;
+  });
+}
+
 // Inserts only genuinely-new catalog widgets (keys in `newKeys`, meaning no saved row exists for
 // them at all yet — not merely disabled) into baseOrder, right after their nearest catalog
 // neighbor that's already in baseOrder. Both the dashboard page and Settings > Dashboard need

@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import { WIDGET_CATALOG, instanceWidgetCatalog, mergeNewWidgetsByCatalogPosition, parseWidgetKey, type WidgetDef } from '@/lib/dashboardWidgets';
+import { WIDGET_CATALOG, instanceWidgetCatalog, mergeNewWidgetsByCatalogPosition, parseWidgetKey, filterCatalogForUser, type WidgetDef } from '@/lib/dashboardWidgets';
 import { getServiceDefinition } from '@/lib/serviceRegistry';
 import { getServiceIcon } from '@/lib/serviceIcons';
 import { useDashboardWidgets, useSetDashboardWidgets, useServices, useUpdateService, useAuthStatus } from '@/lib/queries';
@@ -235,7 +235,8 @@ function SettingsDashboard() {
   const setWidgets = useSetDashboardWidgets();
   const [rows, setRows] = useState<Row[] | null>(null);
   const widgetKeys = authStatus?.user?.widgetKeys;
-  const fullCatalog = [...WIDGET_CATALOG, ...instanceWidgetCatalog(instances)].filter((w) => !widgetKeys || widgetKeys.includes(w.key));
+  const isRestricted = instances.some((i) => !i.navAllowed);
+  const fullCatalog = filterCatalogForUser([...WIDGET_CATALOG, ...instanceWidgetCatalog(instances)], instances, widgetKeys);
 
   useEffect(() => {
     if (isLoading || rows) return;
@@ -288,8 +289,10 @@ function SettingsDashboard() {
           {/* A restricted-out row would otherwise still surface here via the WIDGET_CATALOG
               fallback below (meant for "instance removed", not "not permitted") — filtering the
               rows themselves, not just fullCatalog, keeps a curated role from ever revealing a
-              widget's title/existence to someone it wasn't granted to. */}
-          {(widgetKeys ? rows.filter((r) => widgetKeys.includes(r.key)) : rows).map((row) => {
+              widget's title/existence to someone it wasn't granted to. Applies whenever ANY
+              restriction is active (an explicit widget grant, or an instance present only for
+              Calendar/another widget's sake), not just when widgetKeys itself is set. */}
+          {(isRestricted ? rows.filter((r) => fullCatalog.some((w) => w.key === r.key)) : rows).map((row) => {
             const { baseKey, instanceId } = parseWidgetKey(row.key);
             const def = fullCatalog.find((w) => w.key === row.key) ?? WIDGET_CATALOG.find((w) => w.key === baseKey);
             if (!def) return null;

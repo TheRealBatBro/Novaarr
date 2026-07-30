@@ -108,7 +108,9 @@ function AccessRoleForm({ existing, onClose }: { existing?: AccessRole; onClose:
   const [name, setName] = useState(existing?.name ?? '');
   const [instanceIds, setInstanceIds] = useState<Set<number>>(new Set(existing?.serviceInstanceIds ?? []));
   const [widgetKeys, setWidgetKeys] = useState<Set<string>>(new Set(existing?.widgets.map((w) => w.widgetKey) ?? []));
+  const [calendarSourceIds, setCalendarSourceIds] = useState<Set<number>>(new Set(existing?.calendarSourceIds ?? []));
   const widgetCatalog = [...WIDGET_CATALOG, ...instanceWidgetCatalog(instances)];
+  const calendarSources = instances.filter((i) => i.serviceId === 'sonarr' || i.serviceId === 'radarr');
 
   const save = useMutation({
     mutationFn: () => {
@@ -123,8 +125,8 @@ function AccessRoleForm({ existing, onClose }: { existing?: AccessRole; onClose:
         })
         .filter((w): w is AccessRoleWidget => w !== null);
       return existing
-        ? accessRolesApi.update(existing.id, { name, instanceIds: [...instanceIds], widgets })
-        : accessRolesApi.create(name, [...instanceIds], widgets);
+        ? accessRolesApi.update(existing.id, { name, instanceIds: [...instanceIds], widgets, calendarSourceIds: [...calendarSourceIds] })
+        : accessRolesApi.create(name, [...instanceIds], widgets, [...calendarSourceIds]);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['access-roles'] });
@@ -148,6 +150,15 @@ function AccessRoleForm({ existing, onClose }: { existing?: AccessRole; onClose:
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
+      return next;
+    });
+  }
+
+  function toggleCalendarSource(id: number) {
+    setCalendarSourceIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
@@ -198,6 +209,22 @@ function AccessRoleForm({ existing, onClose }: { existing?: AccessRole; onClose:
               </label>
             );
           })}
+        </div>
+      </div>
+      <div className="grid gap-1.5">
+        <Label>Calendar sources</Label>
+        <p className="text-xs text-muted-foreground">
+          Which Sonarr/Radarr instances' episodes and releases show on Calendar — independent of the page access above, so
+          Calendar can pull from an instance without exposing its own page.
+        </p>
+        <div className="flex max-h-48 flex-col gap-1 overflow-y-auto rounded-lg border border-border p-2">
+          {calendarSources.length === 0 && <p className="p-2 text-sm text-muted-foreground">Configure Sonarr or Radarr first.</p>}
+          {calendarSources.map((i) => (
+            <label key={i.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent">
+              <input type="checkbox" checked={calendarSourceIds.has(i.id)} onChange={() => toggleCalendarSource(i.id)} />
+              {i.displayName}
+            </label>
+          ))}
         </div>
       </div>
       <Button type="submit" disabled={save.isPending} className="mt-1">
@@ -313,6 +340,7 @@ function SettingsUsers() {
                     <p className="text-xs text-muted-foreground">
                       {r.serviceInstanceIds.length} service{r.serviceInstanceIds.length === 1 ? '' : 's'}
                       {r.widgets.length > 0 && ` · ${r.widgets.length} widget${r.widgets.length === 1 ? '' : 's'}`}
+                      {r.calendarSourceIds.length > 0 && ` · ${r.calendarSourceIds.length} calendar source${r.calendarSourceIds.length === 1 ? '' : 's'}`}
                     </p>
                   </div>
                   <Button variant="ghost" size="sm" onClick={() => setEditingRole(r)}>

@@ -5,6 +5,7 @@ import { useVisibleServices, type VisibleService } from '@/lib/visibility';
 import { getServiceIcon } from '@/lib/serviceIcons';
 import { StatusDot } from '@/components/dashboard/StatusDot';
 import { useServiceHealth } from '@/lib/serviceHealth';
+import { useAuthStatus } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 import { BASE_PATH } from '@/lib/api';
 
@@ -77,6 +78,8 @@ export function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const visible = useVisibleServices();
+  const { data: authStatus } = useAuthStatus();
+  const showCalendar = authStatus?.user?.calendarAccessible ?? true;
 
   function go(to: string) {
     onNavigate?.();
@@ -93,7 +96,9 @@ export function NavContent({ onNavigate }: { onNavigate?: () => void }) {
       <div className="flex-1 overflow-y-auto p-2">
         <div className="flex flex-col gap-0.5">
           <NavRow icon={Home} label="Dashboard" active={pathname === '/'} onClick={() => go('/')} />
-          <NavRow icon={CalendarDays} label="Calendar" active={pathname === '/calendar'} onClick={() => go('/calendar')} />
+          {showCalendar && (
+            <NavRow icon={CalendarDays} label="Calendar" active={pathname === '/calendar'} onClick={() => go('/calendar')} />
+          )}
         </div>
 
         <div className="mt-5 flex flex-col gap-0.5">
