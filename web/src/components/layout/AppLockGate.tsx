@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Hash, KeyRound } from 'lucide-react';
 import { authApi, type AuthMode } from '@/lib/api';
 import { useAuthStatus } from '@/lib/queries';
-import { useIsDevEnvironment } from '@/lib/visibility';
+import { useAuthBypass } from '@/lib/visibility';
 import { Button } from '@/components/ui/button';
 import { PinPad } from './PinPad';
 import { PasswordEntry } from './PasswordEntry';
@@ -37,7 +37,7 @@ function ModePicker({ onChoose }: { onChoose: (mode: AuthMode) => void }) {
 }
 
 export function AppLockGate({ children }: { children: React.ReactNode }) {
-  const isDevEnvironment = useIsDevEnvironment();
+  const authBypass = useAuthBypass();
   const { data, isLoading } = useAuthStatus();
   const qc = useQueryClient();
   const [chosenMode, setChosenMode] = useState<AuthMode | null>(null);
@@ -98,7 +98,7 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
   // Dev/testing deployment (SHOW_ALL_SERVICES=true, see middleware/auth.js) — skip the lock
   // screen entirely so whoever is building/testing the app never gets locked out of their own
   // instance. A real deployment still requires the PIN/password set up below.
-  if (isDevEnvironment) {
+  if (authBypass) {
     return <>{children}</>;
   }
 

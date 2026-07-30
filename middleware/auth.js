@@ -4,11 +4,13 @@ const db = require('../db');
 const COOKIE = 'remotarr_session';
 const MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
 
-// SHOW_ALL_SERVICES=true marks this deployment as a dev/testing instance (see docker-compose.yml
-// and web/src/lib/visibility.ts's useIsDevEnvironment) — in that mode the PIN/password lock is
-// skipped entirely, both here and in AppLockGate, so it never blocks whoever is actively building
-// or testing the app. A real deployment (SHOW_ALL_SERVICES unset/false) always requires it.
-const DEV_BYPASS = process.env.SHOW_ALL_SERVICES === 'true';
+// DISABLE_AUTH=true skips the sign-in lock entirely, both here and in AppLockGate — for local
+// `vite dev`/backend hacking only. This is intentionally its own flag, separate from
+// SHOW_ALL_SERVICES (which only controls whether unconfigured services show in the nav menu):
+// the two used to be the same flag, which meant every real deployment shipped with auth
+// completely disabled by default, since docker-compose.yml ships SHOW_ALL_SERVICES=true out of
+// the box. DISABLE_AUTH is unset/false by default — a real deployment always requires sign-in.
+const DEV_BYPASS = process.env.DISABLE_AUTH === 'true';
 
 // Simple mode (the only mode that existed before multi-user) keeps signing {ok: true} — no user
 // identity at all. Multi-user mode instead carries {userId, role}, so requireAuth/requireAdmin

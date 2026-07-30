@@ -31,6 +31,10 @@ const BASE = RAW_BASE.startsWith('/') || RAW_BASE === '' ? RAW_BASE : '/' + RAW_
 // flag, not a Vite build-time DEV check, so it actually works from a normal deployment.
 const SHOW_ALL_SERVICES = process.env.SHOW_ALL_SERVICES === 'true';
 
+// Separate from SHOW_ALL_SERVICES on purpose — see middleware/auth.js's DEV_BYPASS comment.
+// Unset/false by default; only for local `vite dev`/backend hacking.
+const DISABLE_AUTH = process.env.DISABLE_AUTH === 'true';
+
 app.set('trust proxy', 1);
 
 // A few high-value headers by hand rather than pulling in helmet — helmet's default CSP would
@@ -105,6 +109,7 @@ function serveIndex(_req, res) {
     .replace(/__BASE_HREF__/g, (BASE || '') + '/')
     .replace(/__VERSION__/g, version)
     .replace(/__SHOW_ALL_SERVICES_VALUE__/g, String(SHOW_ALL_SERVICES))
+    .replace(/__DISABLE_AUTH_VALUE__/g, String(DISABLE_AUTH))
     .replace('<script>', `<script nonce="${nonce}">`);
 
   // img-src stays broad (any HTTPS host, plus same-origin/data URIs) rather than an allowlist —

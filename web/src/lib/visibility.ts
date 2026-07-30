@@ -8,6 +8,7 @@ export type VisibleService = { definition: ServiceDefinition; instance?: Service
 declare global {
   interface Window {
     __SHOW_ALL_SERVICES__?: boolean;
+    __DISABLE_AUTH__?: boolean;
     /** Sub-path this app is mounted at behind a reverse proxy (e.g. "/remotarr"), or "" at
      * root — injected server-side from BASE_PATH, see server.js and web/src/lib/api.ts. */
     __BASE_PATH__?: string;
@@ -19,9 +20,20 @@ declare global {
  * Docker deployment started with SHOW_ALL_SERVICES=true (how this project's own dev instance
  * runs, since it's normally accessed via Docker rather than `vite dev`). Gates the Settings
  * toggle below: end users running a "real" deployment (SHOW_ALL_SERVICES unset) never see it.
+ * Purely a menu-visibility concern — does NOT bypass sign-in; see useAuthBypass for that.
  */
 export function useIsDevEnvironment(): boolean {
   return import.meta.env.DEV || window.__SHOW_ALL_SERVICES__ === true;
+}
+
+/**
+ * True only for local `vite dev`/backend hacking (DISABLE_AUTH=true) — deliberately NOT tied to
+ * SHOW_ALL_SERVICES, which docker-compose.yml ships enabled by default for its (harmless)
+ * menu-visibility purpose. The two used to be the same flag, which meant every real deployment
+ * running the shipped compose file had its sign-in lock fully disabled out of the box.
+ */
+export function useAuthBypass(): boolean {
+  return import.meta.env.DEV || window.__DISABLE_AUTH__ === true;
 }
 
 // Configured services sort by their persisted `sortOrder` (set by dragging in Settings >

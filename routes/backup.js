@@ -7,10 +7,11 @@ const { promisify } = require('util');
 const multer = require('multer');
 const Database = require('better-sqlite3');
 const db = require('../db');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 router.use(requireAuth);
+router.use(requireAdmin);
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
 const scrypt = promisify(crypto.scrypt);

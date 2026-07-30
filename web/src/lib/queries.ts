@@ -5,6 +5,14 @@ export function useAuthStatus() {
   return useQuery({ queryKey: ['auth', 'status'], queryFn: authApi.status, staleTime: 0, retry: 0 });
 }
 
+/** Simple mode has no roles at all — everyone with the shared PIN/password is equally "admin".
+ * Multi-user mode gates on the signed-in account's actual role. Mirrors the backend's
+ * requireAdmin (middleware/auth.js) so the UI never offers an action the server will 403. */
+export function useIsSettingsAdmin(): boolean {
+  const { data } = useAuthStatus();
+  return !data?.multiUser || data.user?.role === 'admin';
+}
+
 export function useServices() {
   return useQuery({ queryKey: ['services'], queryFn: servicesApi.list });
 }

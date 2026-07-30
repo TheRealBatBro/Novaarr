@@ -18,6 +18,9 @@ services:
       #   still setting things up). false: menu only shows services you've enabled in Settings.
       # Flip to "false" once you're done configuring and want the tidied-up production menu.
       SHOW_ALL_SERVICES: "true"
+      # DANGER: skips the sign-in lock (PIN/password or multi-user login) entirely. Leave unset
+      # in any deployment reachable by more than just you — only for local backend hacking.
+      # DISABLE_AUTH: "true"
     # Uncomment to expose only to a local reverse proxy (Nginx/Traefik/Caddy)
     # and remove the `ports` section above:
     # networks:

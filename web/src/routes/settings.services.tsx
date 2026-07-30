@@ -14,10 +14,13 @@ import { useUiStore } from '@/stores/useUiStore';
 import type { ServiceInstance } from '@/lib/api';
 import { ServiceInstanceForm } from '@/components/services/ServiceInstanceForm';
 import { SettingsTabs } from '@/components/settings/SettingsTabs';
+import { AdminOnlyNotice } from '@/components/settings/AdminOnlyNotice';
+import { useIsSettingsAdmin } from '@/lib/queries';
 
 export const Route = createFileRoute('/settings/services')({ component: SettingsServices });
 
 function SettingsServices() {
+  const isAdmin = useIsSettingsAdmin();
   const { data: instances = [] } = useServices();
   const deleteService = useDeleteService();
   const updateService = useUpdateService();
@@ -47,6 +50,15 @@ function SettingsServices() {
     const list = byServiceId.get(i.serviceId);
     if (list) list.push(i);
     else byServiceId.set(i.serviceId, [i]);
+  }
+
+  if (!isAdmin) {
+    return (
+      <div>
+        <SettingsTabs active="services" />
+        <AdminOnlyNotice />
+      </div>
+    );
   }
 
   return (

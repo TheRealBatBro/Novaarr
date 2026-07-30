@@ -4,14 +4,16 @@ import { Reorder } from 'framer-motion';
 import { GripVertical } from 'lucide-react';
 import { toast } from 'sonner';
 import { SettingsTabs } from '@/components/settings/SettingsTabs';
+import { AdminOnlyNotice } from '@/components/settings/AdminOnlyNotice';
 import { Card, CardContent } from '@/components/ui/card';
 import { useVisibleServices, type VisibleService } from '@/lib/visibility';
-import { useServices, useUpdateService } from '@/lib/queries';
+import { useServices, useUpdateService, useIsSettingsAdmin } from '@/lib/queries';
 import { getServiceIcon } from '@/lib/serviceIcons';
 
 export const Route = createFileRoute('/settings/menu')({ component: SettingsMenu });
 
 function SettingsMenu() {
+  const isAdmin = useIsSettingsAdmin();
   const { isLoading } = useServices();
   const visible = useVisibleServices();
   const configured = visible.filter((v) => v.instance);
@@ -38,6 +40,15 @@ function SettingsMenu() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save order');
     }
+  }
+
+  if (!isAdmin) {
+    return (
+      <div>
+        <SettingsTabs active="menu" />
+        <AdminOnlyNotice />
+      </div>
+    );
   }
 
   return (

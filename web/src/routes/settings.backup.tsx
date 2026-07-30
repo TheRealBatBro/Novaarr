@@ -8,7 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { SettingsTabs } from '@/components/settings/SettingsTabs';
+import { AdminOnlyNotice } from '@/components/settings/AdminOnlyNotice';
 import { backupApi } from '@/lib/api';
+import { useIsSettingsAdmin } from '@/lib/queries';
 
 export const Route = createFileRoute('/settings/backup')({ component: SettingsBackup });
 
@@ -140,6 +142,7 @@ function RestoreDialog({ file, onOpenChange }: { file: File | null; onOpenChange
 }
 
 function SettingsBackup() {
+  const isAdmin = useIsSettingsAdmin();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
@@ -148,6 +151,15 @@ function SettingsBackup() {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (file) setRestoreFile(file);
+  }
+
+  if (!isAdmin) {
+    return (
+      <div>
+        <SettingsTabs active="backup" />
+        <AdminOnlyNotice />
+      </div>
+    );
   }
 
   return (
