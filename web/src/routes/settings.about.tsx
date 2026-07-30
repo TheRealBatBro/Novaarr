@@ -9,6 +9,10 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Remotarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.16.2',
+    notes: ['Backfilled this changelog through v0.16.1 — every release now updates it going forward'],
+  },
+  {
     version: '0.16.1',
     notes: ['Settings > Services now groups every instance of a service into one card with a built-in "Add another instance" action, instead of a separate floating link'],
   },
