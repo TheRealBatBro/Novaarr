@@ -76,6 +76,8 @@ const REGISTRY: Record<string, Icon> = {
   tracearr: logo('tracearr'),
   trakt: logo('trakt'),
   plex: Plex,
+  emby: logo('emby'),
+  jellyfin: logo('jellyfin'),
 };
 
 export function getServiceIcon(serviceId: string): Icon {

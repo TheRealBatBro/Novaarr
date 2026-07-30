@@ -140,6 +140,19 @@ const adapters = {
     }, timeoutMs, instance);
   },
 
+  // Emby and Jellyfin (a fork of Emby with a near-identical REST API) both still accept the
+  // legacy lowercase `api_key` query param today (Jellyfin's `EnableLegacyAuthorization` flag
+  // defaults to true in current stable releases) — simpler than either's newer capitalized/header
+  // scheme and works identically across both, which is the whole point of sharing one adapter.
+  'emby-token': (instance, { path, method = 'GET', query = {}, body }, timeoutMs) => {
+    const url = buildUrl(instance.local_url, path, { ...query, api_key: instance.credentials.apiKey });
+    return fetchWithTimeout(url, {
+      method,
+      headers: { Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    }, timeoutMs, instance);
+  },
+
   // Torznab/Newznab manual search — the response is XML, parsed to JSON by the route handler below.
   torznab: (instance, { path = '', method = 'GET', query = {} }, timeoutMs) => {
     const url = buildUrl(instance.local_url, path, { ...query, apikey: instance.credentials.apiKey });

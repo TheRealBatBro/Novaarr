@@ -12,10 +12,13 @@ import {
   usePlexRecommendationsCarousel,
   usePlexRecentlyAddedCarousel,
   usePlexCollectionsCarousel,
+  useEmbyfinRecentlyAddedCarousel,
+  useEmbyfinCollectionsCarousel,
   useTautulliUsers,
   WIDGET_CATALOG,
   parseWidgetKey,
   type WidgetSource,
+  type EmbyfinKind,
 } from '@/lib/dashboardWidgets';
 import { useUiStore } from '@/stores/useUiStore';
 import { Select } from '@/components/ui/select';
@@ -27,6 +30,7 @@ import { TautulliStatusWidget } from './TautulliStatusWidget';
 import { TracearrStatusWidget } from './TracearrStatusWidget';
 import { TracearrViolationsWidget } from './TracearrViolationsWidget';
 import { PlexLibraryStatsWidget } from './PlexLibraryStatsWidget';
+import { EmbyfinLibraryStatsWidget } from './EmbyfinLibraryStatsWidget';
 import { ProwlarrStatusWidget } from './ProwlarrStatusWidget';
 import { NzbHydra2StatusWidget } from './NzbHydra2StatusWidget';
 import { UnraidStatusWidget } from './UnraidStatusWidget';
@@ -113,6 +117,14 @@ function PlexCollections({ instance, sourceId, title, sourceLabel, sourceColor }
   const result = usePlexCollectionsCarousel(instance);
   return <DashboardCarousel title={title} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} {...result} />;
 }
+function EmbyfinRecentlyAdded({ instance, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
+  const result = useEmbyfinRecentlyAddedCarousel(instance, sourceId as EmbyfinKind);
+  return <DashboardCarousel title={title} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} {...result} />;
+}
+function EmbyfinCollections({ instance, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
+  const result = useEmbyfinCollectionsCarousel(instance, sourceId as EmbyfinKind);
+  return <DashboardCarousel title={title} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} {...result} />;
+}
 function TautulliRecommendations({ instance, overseerr, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
   const users = useTautulliUsers(instance);
   const { plexRecommendationUserId, setPlexRecommendationUserId, plexRecommendationRefreshMinutes } = useUiStore();
@@ -174,6 +186,10 @@ const WIDGET_COMPONENTS: Record<string, (props: SourceProps) => JSX.Element> = {
   'tautulli-recently-added': TautulliRecentlyAdded,
   'plex-recently-added': PlexRecentlyAdded,
   'plex-collections': PlexCollections,
+  'emby-recently-added': EmbyfinRecentlyAdded,
+  'emby-collections': EmbyfinCollections,
+  'jellyfin-recently-added': EmbyfinRecentlyAdded,
+  'jellyfin-collections': EmbyfinCollections,
 };
 
 export function DashboardWidget({ widgetKey }: { widgetKey: string }) {
@@ -185,6 +201,7 @@ export function DashboardWidget({ widgetKey }: { widgetKey: string }) {
 
   const bySource: Record<WidgetSource, ServiceInstance[]> = {
     radarr: [], sonarr: [], overseerr: [], trakt: [], sabnzbd: [], tautulli: [], tracearr: [], plex: [],
+    emby: [], jellyfin: [],
     prowlarr: [], nzbhydra2: [], unraid: [], jackett: [], nzbget: [], sickbeard: [], ombi: [], utorrent: [],
     deluge: [], transmission: [], qbittorrent: [], rutorrent: [],
   };
@@ -227,6 +244,7 @@ export function DashboardWidget({ widgetKey }: { widgetKey: string }) {
 
   if (def.kind === 'stats') {
     if (def.source === 'plex') return <PlexLibraryStatsWidget instance={instance} title={def.title} />;
+    if (def.source === 'emby' || def.source === 'jellyfin') return <EmbyfinLibraryStatsWidget instance={instance} title={def.title} kind={def.source} />;
     return null;
   }
 

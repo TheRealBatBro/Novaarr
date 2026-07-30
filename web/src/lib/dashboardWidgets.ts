@@ -7,7 +7,7 @@ import { mapWithConcurrency } from './concurrency';
 // concurrency.ts for why this exists.
 const POSTER_FETCH_CONCURRENCY = 4;
 
-export type WidgetSource = 'sonarr' | 'radarr' | 'overseerr' | 'trakt' | 'sabnzbd' | 'tautulli' | 'tracearr' | 'plex' | 'prowlarr' | 'nzbhydra2' | 'unraid' | 'jackett' | 'nzbget' | 'sickbeard' | 'ombi' | 'utorrent' | 'deluge' | 'transmission' | 'qbittorrent' | 'rutorrent';
+export type WidgetSource = 'sonarr' | 'radarr' | 'overseerr' | 'trakt' | 'sabnzbd' | 'tautulli' | 'tracearr' | 'plex' | 'emby' | 'jellyfin' | 'prowlarr' | 'nzbhydra2' | 'unraid' | 'jackett' | 'nzbget' | 'sickbeard' | 'ombi' | 'utorrent' | 'deluge' | 'transmission' | 'qbittorrent' | 'rutorrent';
 export type RecommendationSeed = { title: string; mediaType: 'movie' | 'tv'; extraCount: number } | undefined;
 
 export type WidgetDef = {
@@ -100,6 +100,12 @@ export const WIDGET_CATALOG: WidgetDef[] = [
   { key: 'plex-recently-added', title: 'Recently Added', source: 'plex' },
   { key: 'plex-collections', title: 'Collections', source: 'plex' },
   { key: 'plex-library-stats', title: 'Library Stats', source: 'plex', kind: 'stats' },
+  { key: 'emby-recently-added', title: 'Recently Added', source: 'emby' },
+  { key: 'emby-collections', title: 'Collections', source: 'emby' },
+  { key: 'emby-library-stats', title: 'Library Stats', source: 'emby', kind: 'stats' },
+  { key: 'jellyfin-recently-added', title: 'Recently Added', source: 'jellyfin' },
+  { key: 'jellyfin-collections', title: 'Collections', source: 'jellyfin' },
+  { key: 'jellyfin-library-stats', title: 'Library Stats', source: 'jellyfin', kind: 'stats' },
   { key: 'tracearr-status', title: 'Streaming Activity', source: 'tracearr', kind: 'status' },
   { key: 'tracearr-violations', title: 'Rule Violations', source: 'tracearr', kind: 'violations' },
   { key: 'radarr-upcoming', title: 'Downloading Soon', source: 'radarr' },
@@ -859,6 +865,152 @@ export function usePlexLibraryStats(plex: ServiceInstance | undefined): LibraryS
     error: proxyError(sectionsQuery.data),
     refetch: async () => {
       await sectionsQuery.refetch();
+      await countsQuery.refetch();
+    },
+  };
+}
+
+// --- Emby / Jellyfin (shared) ---
+// Jellyfin is a fork of Emby with a near-identical REST API for these read-only endpoints, so one
+// implementation serves both, branching only where the two have actually diverged (confirmed
+// against each project's own source/docs, not assumed): recently-added and library-views each
+// have a legacy per-user path shared by both plus a newer path Jellyfin has since moved to,
+// api_key query auth still works on both today. Neither verified against a live server in this
+// session — no instance was available to test against; if a path/field is off, a widget just
+// yields no items rather than showing something wrong.
+export type EmbyfinKind = 'emby' | 'jellyfin';
+
+type EmbyfinUser = { Id: string };
+
+/** Both services' API keys are server-wide, not user-scoped, and several endpoints still need a
+ * concrete userId — resolved once here by taking the first account back from GET /Users. */
+export function useEmbyfinUserId(instance: ServiceInstance | undefined): string | undefined {
+  const { data } = useServiceProxy<EmbyfinUser[]>(instance, { path: '/Users', refetchInterval: false, enabled: !!instance });
+  const users = asArray(data);
+  return users[0]?.Id;
+}
+
+function embyfinImageUrl(instance: ServiceInstance | undefined, itemId?: string, imageType = 'Primary'): string | undefined {
+  if (!instance || !itemId) return undefined;
+  return apiUrl(`/api/embyfin/${instance.id}/image/${itemId}/${imageType}?${new URLSearchParams({ maxWidth: '300' })}`);
+}
+
+type EmbyfinItem = {
+  Id: string;
+  Name: string;
+  Type: 'Movie' | 'Episode' | 'Series' | 'Season' | 'BoxSet';
+  ProductionYear?: number;
+  SeriesName?: string;
+  ParentIndexNumber?: number;
+  IndexNumber?: number;
+  ImageTags?: { Primary?: string };
+  SeriesId?: string;
+  ChildCount?: number;
+};
+type EmbyfinItemsResponse = { Items?: EmbyfinItem[]; TotalRecordCount?: number };
+
+export function useEmbyfinRecentlyAddedCarousel(instance: ServiceInstance | undefined, kind: EmbyfinKind): CarouselResult {
+  const userId = useEmbyfinUserId(instance);
+  // Jellyfin's current endpoint is /Items/Latest?userId=; Emby only ever had (and Jellyfin's own
+  // legacy alias still is) /Users/{userId}/Items/Latest — sharing one adapter just means picking
+  // the right path per kind rather than assuming they converged here.
+  const path = kind === 'jellyfin' ? '/Items/Latest' : `/Users/${userId}/Items/Latest`;
+  const { data, isLoading, refetch } = useServiceProxy<EmbyfinItem[]>(instance, {
+    path,
+    query: { ...(kind === 'jellyfin' ? { userId: userId ?? '' } : {}), Limit: String(LIMIT) },
+    enabled: !!instance && !!userId,
+    ...refreshSchedule(instance),
+  });
+  const rows = asArray(data);
+  const items: CarouselItem[] = rows.slice(0, LIMIT).map((r) => {
+    const isEpisode = r.Type === 'Episode';
+    const subtitle = isEpisode
+      ? r.ParentIndexNumber !== undefined && r.IndexNumber !== undefined
+        ? `S${r.ParentIndexNumber}E${String(r.IndexNumber).padStart(2, '0')}`
+        : undefined
+      : r.ProductionYear
+        ? String(r.ProductionYear)
+        : undefined;
+    return {
+      id: r.Id,
+      title: isEpisode ? r.SeriesName || r.Name : r.Name,
+      subtitle,
+      imageUrl: embyfinImageUrl(instance, r.Id),
+      to: { serviceId: kind },
+    };
+  });
+  return { items, isLoading: isLoading || (!!instance && !userId), error: proxyError(data), refetch: async () => void (await refetch()) };
+}
+
+export function useEmbyfinCollectionsCarousel(instance: ServiceInstance | undefined, kind: EmbyfinKind): CarouselResult {
+  // Neither service has a dedicated "list collections" endpoint — both use the generic Items
+  // search filtered to the BoxSet item type (confirmed against Jellyfin's ItemsController source;
+  // Emby's API is identical here).
+  const { data, isLoading, refetch } = useServiceProxy<EmbyfinItemsResponse>(instance, {
+    path: '/Items',
+    query: { IncludeItemTypes: 'BoxSet', Recursive: 'true', Limit: String(LIMIT) },
+    ...refreshSchedule(instance),
+  });
+  const rows = data?.ok ? data.data?.Items ?? [] : [];
+  const items: CarouselItem[] = rows.slice(0, LIMIT).map((c) => ({
+    id: c.Id,
+    title: c.Name,
+    subtitle: c.ChildCount ? `${c.ChildCount} items` : undefined,
+    imageUrl: embyfinImageUrl(instance, c.Id),
+    to: { serviceId: kind },
+  }));
+  return { items, isLoading, error: proxyError(data), refetch: async () => void (await refetch()) };
+}
+
+type EmbyfinView = { Id: string; Name: string; CollectionType?: string };
+type EmbyfinViewsResponse = { Items?: EmbyfinView[] };
+
+export function useEmbyfinLibraryStats(instance: ServiceInstance | undefined, kind: EmbyfinKind): LibraryStatsResult {
+  const userId = useEmbyfinUserId(instance);
+  // Jellyfin's current endpoint is /UserViews?userId=; Emby only ever had (and Jellyfin's own
+  // legacy alias still is) /Users/{userId}/Views.
+  const viewsPath = kind === 'jellyfin' ? '/UserViews' : `/Users/${userId}/Views`;
+  const viewsQuery = useServiceProxy<EmbyfinViewsResponse>(instance, {
+    path: viewsPath,
+    query: kind === 'jellyfin' ? { userId: userId ?? '' } : {},
+    enabled: !!instance && !!userId,
+    ...refreshSchedule(instance),
+  });
+  const views = (viewsQuery.data?.ok ? viewsQuery.data.data?.Items ?? [] : []).filter(
+    (v) => v.CollectionType === 'movies' || v.CollectionType === 'tvshows' || v.CollectionType === 'music',
+  );
+  const viewKey = views.map((v) => v.Id).join(',');
+
+  // Jellyfin also exposes a dedicated /Items/Counts endpoint, but it's documented as slow/buggy
+  // (confirmed via open Jellyfin GitHub issues) — a per-library Limit=0 count (TotalRecordCount,
+  // no items actually returned) is the recommended approach on both services instead.
+  const countsQuery = useQuery({
+    queryKey: ['embyfin-library-counts', instance?.id, viewKey],
+    queryFn: async () => {
+      return mapWithConcurrency(views, 4, async (v) => {
+        try {
+          const res = await proxyApi.call<EmbyfinItemsResponse>(instance!.id, {
+            path: '/Items',
+            query: { ParentId: v.Id, Recursive: 'true', Limit: '0' },
+            timeoutMs: 10_000,
+          });
+          return { key: v.Id, title: v.Name, type: v.CollectionType ?? 'unknown', count: res.ok ? res.data?.TotalRecordCount ?? 0 : 0 };
+        } catch {
+          return { key: v.Id, title: v.Name, type: v.CollectionType ?? 'unknown', count: 0 };
+        }
+      });
+    },
+    enabled: !!instance && views.length > 0,
+    ...refreshSchedule(instance),
+    retry: 1,
+  });
+
+  return {
+    stats: countsQuery.data ?? [],
+    isLoading: viewsQuery.isLoading || (!!instance && !userId) || (views.length > 0 && countsQuery.isLoading),
+    error: proxyError(viewsQuery.data),
+    refetch: async () => {
+      await viewsQuery.refetch();
       await countsQuery.refetch();
     },
   };

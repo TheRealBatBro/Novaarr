@@ -15,6 +15,7 @@ export type AuthType =
   | 'trakt'
   | 'bearer-token'
   | 'plex-token'
+  | 'emby-token'
   | 'none';
 
 export type ServiceFieldDef = {
@@ -322,6 +323,44 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     // Purely a background data source for dashboard widgets (like Trakt) — no page of its own.
     hideFromNav: true,
     healthCheck: { path: '/identity' },
+  },
+  {
+    id: 'emby',
+    category: 'other',
+    displayName: 'Emby',
+    brandColor: '#52b54b',
+    authType: 'emby-token',
+    fields: [
+      {
+        key: 'apiKey',
+        label: 'API Key',
+        type: 'password',
+        required: true,
+        helpText: 'Generate one under Emby Dashboard → Advanced → API Keys.',
+      },
+    ],
+    helpText: 'Powers the dashboard’s recently-added, collections, and library-stats widgets directly from Emby.',
+    hideFromNav: true,
+    healthCheck: { path: '/System/Info/Public' },
+  },
+  {
+    id: 'jellyfin',
+    category: 'other',
+    displayName: 'Jellyfin',
+    brandColor: '#00a4dc',
+    authType: 'emby-token',
+    fields: [
+      {
+        key: 'apiKey',
+        label: 'API Key',
+        type: 'password',
+        required: true,
+        helpText: 'Generate one under Jellyfin Dashboard → API Keys.',
+      },
+    ],
+    helpText: 'Powers the dashboard’s recently-added, collections, and library-stats widgets directly from Jellyfin.',
+    hideFromNav: true,
+    healthCheck: { path: '/System/Info/Public' },
   },
   {
     id: 'tracearr',
