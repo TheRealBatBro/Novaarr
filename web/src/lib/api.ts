@@ -12,7 +12,8 @@ export function apiUrl(path: string): string {
 }
 
 export type AuthMode = 'pin' | 'password';
-export type AppUser = { id: number; username: string; role: 'admin' | 'member' };
+export type UserLink = { instanceId: number; externalId: string; externalName?: string | null; auto: boolean };
+export type AppUser = { id: number; username: string; role: 'admin' | 'member'; links?: UserLink[] };
 export type AuthStatus = {
   hasCredential: boolean;
   authMode: AuthMode | null;
@@ -87,6 +88,16 @@ export const usersApi = {
     }).then((r) => json<AppUser>(r)),
   remove: (id: number) =>
     fetch(apiUrl(`/api/users/${id}`), { method: 'DELETE', credentials: 'same-origin' }).then((r) => json<{ ok: true }>(r)),
+  links: (userId: number) => fetch(apiUrl(`/api/users/${userId}/links`), { credentials: 'same-origin' }).then((r) => json<UserLink[]>(r)),
+  upsertLink: (userId: number, instanceId: number, data: { externalId: string; externalName?: string; auto?: boolean }) =>
+    fetch(apiUrl(`/api/users/${userId}/links/${instanceId}`), {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).then((r) => json<UserLink[]>(r)),
+  removeLink: (userId: number, instanceId: number) =>
+    fetch(apiUrl(`/api/users/${userId}/links/${instanceId}`), { method: 'DELETE', credentials: 'same-origin' }).then((r) => json<{ ok: true }>(r)),
 };
 
 export type ServiceInstance = {

@@ -7,6 +7,32 @@ const router = express.Router();
 router.use(requireAuth);
 router.use(requireAdmin);
 
+// An admin links each household member to their account on Plex/Emby/Jellyfin (and Overseerr/Ombi,
+// usually auto-matched from that by username) — not a per-user self-service flow, since the admin
+// is the one who already knows which Plex account is whose.
+router.get('/:id/links', (req, res) => {
+  const id = Number(req.params.id);
+  if (!db.getUserById(id)) return res.status(404).json({ error: 'Not found' });
+  res.json(db.listUserLinks(id));
+});
+
+router.put('/:id/links/:instanceId', (req, res) => {
+  const id = Number(req.params.id);
+  if (!db.getUserById(id)) return res.status(404).json({ error: 'Not found' });
+  const instanceId = Number(req.params.instanceId);
+  if (!db.getServiceInstance(instanceId)) return res.status(404).json({ error: 'Service instance not found' });
+  const { externalId, externalName, auto } = req.body || {};
+  if (!externalId) return res.status(400).json({ error: 'externalId is required' });
+  res.json(db.upsertUserLink(id, instanceId, { externalId: String(externalId), externalName, auto: !!auto }));
+});
+
+router.delete('/:id/links/:instanceId', (req, res) => {
+  const id = Number(req.params.id);
+  if (!db.getUserById(id)) return res.status(404).json({ error: 'Not found' });
+  db.deleteUserLink(id, Number(req.params.instanceId));
+  res.json({ ok: true });
+});
+
 function validateUsername(username, excludeId) {
   if (!username || typeof username !== 'string' || username.length < 2 || username.length > 64) {
     return 'Username must be 2-64 characters';

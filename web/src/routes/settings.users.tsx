@@ -12,6 +12,7 @@ import { Select } from '@/components/ui/select';
 import { SettingsTabs } from '@/components/settings/SettingsTabs';
 import { usersApi, type AppUser } from '@/lib/api';
 import { useAuthStatus } from '@/lib/queries';
+import { UserLinksEditor } from '@/components/settings/UserLinksEditor';
 
 export const Route = createFileRoute('/settings/users')({ component: SettingsUsers });
 
@@ -150,6 +151,11 @@ function SettingsUsers() {
           </DialogHeader>
           {editing !== null && (
             <UserForm existing={editing === 'new' ? undefined : editing} onClose={() => setEditing(null)} />
+          )}
+          {editing !== null && editing !== 'new' && (
+            <div className="border-t border-border pt-4">
+              <UserLinksEditor user={editing} />
+            </div>
           )}
         </DialogContent>
       </Dialog>

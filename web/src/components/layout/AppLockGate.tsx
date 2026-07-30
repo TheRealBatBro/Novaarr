@@ -110,7 +110,13 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (data?.authenticated) {
+  // A session token signed before a deployment switched into multi-user mode carries no
+  // {userId, role} — still a validly-signed JWT (so `authenticated` is true), but meaningless
+  // once roles matter. Fall through to the multi-user login below instead of granting access
+  // with no resolved identity.
+  const staleSimpleModeSession = data?.multiUser && data.authenticated && !data.user;
+
+  if (data?.authenticated && !staleSimpleModeSession) {
     return <>{children}</>;
   }
 

@@ -38,7 +38,7 @@ router.get('/status', (req, res) => {
       authenticated = true;
       if (multiUser && payload.userId) {
         const u = db.getUserById(payload.userId);
-        if (u) user = { id: u.id, username: u.username, role: u.role };
+        if (u) user = { id: u.id, username: u.username, role: u.role, links: db.listUserLinks(u.id) };
       }
     } catch {}
   }

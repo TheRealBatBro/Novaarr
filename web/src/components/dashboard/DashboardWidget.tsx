@@ -1,5 +1,5 @@
 import { User } from 'lucide-react';
-import { useServices } from '@/lib/queries';
+import { useServices, useAuthStatus } from '@/lib/queries';
 import { getServiceDefinition } from '@/lib/serviceRegistry';
 import {
   useRadarrCarousel,
@@ -128,7 +128,21 @@ function EmbyfinCollections({ instance, sourceId, title, sourceLabel, sourceColo
 function TautulliRecommendations({ instance, overseerr, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
   const users = useTautulliUsers(instance);
   const { plexRecommendationUserId, setPlexRecommendationUserId, plexRecommendationRefreshMinutes } = useUiStore();
-  const activeUserId = plexRecommendationUserId && users.some((u) => String(u.user_id) === plexRecommendationUserId) ? plexRecommendationUserId : undefined;
+  const { data: authStatus } = useAuthStatus();
+  const { data: instances = [] } = useServices();
+
+  // In multi-user mode, an admin can link a household member to their Plex account (Settings >
+  // Users) — default this widget to that person's own history instead of "everyone's" when they
+  // haven't manually picked someone else on this device.
+  const myPlexLink = authStatus?.user?.links?.find((l) => instances.find((i) => i.id === l.instanceId)?.serviceId === 'plex');
+  const autoUser = myPlexLink
+    ? users.find((u) => [u.username, u.friendly_name].some((n) => n && myPlexLink.externalName && n.toLowerCase() === myPlexLink.externalName!.toLowerCase()))
+    : undefined;
+  const activeUserId = plexRecommendationUserId && users.some((u) => String(u.user_id) === plexRecommendationUserId)
+    ? plexRecommendationUserId
+    : autoUser
+      ? String(autoUser.user_id)
+      : undefined;
   const result = usePlexRecommendationsCarousel(instance, overseerr, activeUserId, plexRecommendationRefreshMinutes);
   const heading = result.seed ? `Because you watched ${result.seed.title}${result.seed.extraCount > 0 ? ` & ${result.seed.extraCount} more` : ''}` : title;
 
@@ -144,7 +158,7 @@ function TautulliRecommendations({ instance, overseerr, sourceId, title, sourceL
           <span className="text-xs text-muted-foreground">Recommend for</span>
           <Select
             className="h-8 w-44 text-xs"
-            value={plexRecommendationUserId ?? ''}
+            value={plexRecommendationUserId ?? (autoUser ? String(autoUser.user_id) : '')}
             onChange={(e) => setPlexRecommendationUserId(e.target.value || null)}
           >
             <option value="">Everyone's history</option>

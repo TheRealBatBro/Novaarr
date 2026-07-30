@@ -40,6 +40,15 @@ function initDb() {
       widgets TEXT NOT NULL DEFAULT '[]'
     );
 
+    CREATE TABLE IF NOT EXISTS user_service_links (
+      user_id       INTEGER NOT NULL,
+      instance_id   INTEGER NOT NULL,
+      external_id   TEXT    NOT NULL,
+      external_name TEXT,
+      auto          INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (user_id, instance_id)
+    );
+
     CREATE TABLE IF NOT EXISTS service_instances (
       id             INTEGER PRIMARY KEY AUTOINCREMENT,
       service_id     TEXT    NOT NULL,
@@ -369,6 +378,31 @@ function updateUser(id, { username, passwordHash, role }) {
 function deleteUser(id) {
   getDb().prepare('DELETE FROM users WHERE id = ?').run(id);
   getDb().prepare('DELETE FROM user_dashboard_widgets WHERE user_id = ?').run(id);
+  getDb().prepare('DELETE FROM user_service_links WHERE user_id = ?').run(id);
+}
+
+// Per-user links to an account on another configured service (Plex/Emby/Jellyfin picked
+// directly in the first-login wizard, Overseerr/Ombi derived automatically from a username
+// match against whichever of those the user picked) — `auto` distinguishes the two so the UI
+// can show which links were a guess versus a deliberate choice.
+function listUserLinks(userId) {
+  return getDb().prepare('SELECT instance_id AS instanceId, external_id AS externalId, external_name AS externalName, auto FROM user_service_links WHERE user_id = ?').all(userId)
+    .map((r) => ({ ...r, auto: !!r.auto }));
+}
+
+function upsertUserLink(userId, instanceId, { externalId, externalName, auto }) {
+  getDb()
+    .prepare(`
+      INSERT INTO user_service_links (user_id, instance_id, external_id, external_name, auto)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(user_id, instance_id) DO UPDATE SET external_id = excluded.external_id, external_name = excluded.external_name, auto = excluded.auto
+    `)
+    .run(userId, instanceId, externalId, externalName || null, auto ? 1 : 0);
+  return listUserLinks(userId);
+}
+
+function deleteUserLink(userId, instanceId) {
+  getDb().prepare('DELETE FROM user_service_links WHERE user_id = ? AND instance_id = ?').run(userId, instanceId);
 }
 
 module.exports = {
@@ -378,4 +412,5 @@ module.exports = {
   listServiceInstances, getServiceInstance, createServiceInstance, updateServiceInstance, deleteServiceInstance,
   setServiceSessionToken, getDashboardWidgets, setDashboardWidgets,
   isMultiUser, setMultiUser, listUsers, getUserById, getUserByUsername, countAdmins, createUser, updateUser, deleteUser,
+  listUserLinks, upsertUserLink, deleteUserLink,
 };
