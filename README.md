@@ -21,11 +21,19 @@ reverse proxy or VPN and everything else can stay bound to your local network on
   qBittorrent, rTorrent/ruTorrent
 - **_arr suite**: Sonarr, Radarr, Lidarr, Readarr, Bazarr (subtitles), Sick Beard
 - **Indexers**: Prowlarr, NZBHydra2, Jackett
-- **Other**: Seerr, Ombi, Tautulli, Tracearr, Trakt, Unraid
+- **Media servers**: Plex, Emby, Jellyfin (dashboard widgets — recently added,
+  collections, library stats)
+- **Other**: Seerr, Ombi, Tautulli, Tracearr, Trakt, MDBList, Unraid
 - **Coming soon**: NEWZnab — see Settings > Services for what's live today.
 
 Every service is optional. Add only what you run — anything left unconfigured is
-simply hidden from the menu.
+simply hidden from the menu. Any service can be configured **more than once** (e.g.
+two Sonarr instances) — Settings > Services groups each service's instances into one
+card with an "Add another instance" action.
+
+Trakt and MDBList both power the same Trending/Most Anticipated dashboard widgets —
+configure whichever one's API you can reach; MDBList is a good fallback if Trakt's API
+is blocked from your network.
 
 ## Quick start
 
@@ -71,6 +79,8 @@ they live in the `remotarr-data` volume, not the container image.
 | `BASE_PATH` | `""` (root) | Set to a sub-path (e.g. `/remotarr`) if hosting behind a reverse proxy at a non-root path — see [Running behind a reverse proxy](#running-behind-a-reverse-proxy). |
 | `DB_PATH` | `/data/remotarr.db` | Where the SQLite database lives. Leave as-is unless you've customized the volume mount. |
 | `SHOW_ALL_SERVICES` | `true` | `true` shows every supported service in the menu regardless of whether it's configured yet (handy while you're still setting things up). Set to `false` once you're done configuring, so the menu only shows services you've actually enabled. |
+| `DISABLE_AUTH` | unset | **Danger.** Skips the sign-in lock (PIN/password or multi-user login) entirely. Leave unset in any deployment reachable by more than just you — only for local backend hacking. Deliberately a separate flag from `SHOW_ALL_SERVICES`, which only affects menu visibility. |
+| `CLOUDFLARE_TUNNEL_HOSTNAME` | unset | Purely cosmetic — the public hostname shown as a link in Settings > Security's Cloudflare Tunnel status card. See [Cloudflare Tunnel](#cloudflare-tunnel) below. |
 
 The included `docker-compose.yml` maps container port `3000` to host port `3210`
 (`http://<host>:3210`) and mounts a named volume, `remotarr-data`, at `/data` for
@@ -234,6 +244,32 @@ generic CSP from Traefik on top would have browsers enforce the *intersection* o
 both policies, and the stricter parts of a generic policy would likely block things
 the app's own policy correctly allows, breaking posters or the trailer modal.
 
+## Cloudflare Tunnel
+
+An alternative to a reverse proxy: expose Remotarr through a
+[Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
+without opening any port on your router. `docker-compose.yml` includes an optional,
+commented-out `cloudflared` sidecar service:
+
+1. Create a tunnel at [one.dash.cloudflare.com](https://one.dash.cloudflare.com) > Zero
+   Trust > Networks > Tunnels, and add a public hostname pointing at
+   `http://remotarr:3000` (this container, by its Compose service name).
+2. Copy the tunnel token from the install step.
+3. Uncomment the `cloudflared` service in `docker-compose.yml` and paste the token into
+   its `command:` line. Optionally set `CLOUDFLARE_TUNNEL_HOSTNAME` in the `remotarr`
+   service to the hostname from step 1.
+4. `docker compose up -d`.
+
+Settings > Security will then show a live status card (Connected / Not connected /
+Not set up) by checking the sidecar's health across the Docker network — it's
+read-only, the tunnel itself is still managed from Cloudflare's dashboard.
+
+This runs as its own container deliberately, rather than being bundled inside the
+Remotarr container — a tunnel token is a bearer credential with full control over
+what's publicly exposed, and keeping it in a separate, minimal container (Cloudflare's
+own official image) keeps that blast radius contained if the app itself is ever
+compromised.
+
 ## Sign-in: PIN or password
 
 Settings > Security lets you change your sign-in credential at any time, and switch
@@ -241,12 +277,32 @@ between a PIN code and a password whenever you like — you're never locked into
 choice made during first-run setup. Changing it takes effect immediately; it doesn't
 log out other already-signed-in devices.
 
+## Multi-user mode & access roles
+
+By default, everyone shares one PIN/password. If you'd rather give each household
+member their own login, click **Switch to multi-user mode** in Settings > Security —
+this creates the first Admin account and can't be undone from that page (the shared
+credential stops being checked once you switch).
+
+- **Admin vs. Member**: Admins manage services, users, and backups. Members can use
+  the app but can't change shared settings.
+- **Access roles** (Settings > Users): name a set of services, individual dashboard
+  widgets, and Sonarr/Radarr Calendar sources a Member is restricted to — e.g. a "Kids"
+  role that only shows Sonarr and Radarr, or a role that grants just one Plex widget
+  without exposing anything else. A Member with no role assigned has full access.
+- **Account linking**: an admin can connect a member's account to their Plex, Emby, or
+  Jellyfin login (Settings > Users > Edit); Overseerr/Ombi accounts are then matched
+  automatically by username. This personalizes things like the "Because you watched"
+  recommendations widget to that person instead of everyone's combined history.
+
 ## Data & backups
 
-Everything Remotarr needs to remember — your sign-in credential, every configured
-service (including API keys and Wake-on-LAN details), and your dashboard layout —
-lives in one SQLite file inside the `remotarr-data` Docker volume. Back up that
-volume (or the file at `DB_PATH`) to back up your whole setup.
+Everything Remotarr needs to remember — your sign-in credential (or every user account
+and access role, in multi-user mode), every configured service (including API keys and
+Wake-on-LAN details), and each user's dashboard layout — lives in one SQLite file
+inside the `remotarr-data` Docker volume. Back up that volume (or the file at
+`DB_PATH`) to back up your whole setup. Settings > Backup also lets you export/import
+an encrypted snapshot from inside the app itself.
 
 ```bash
 # Example: copy the DB out of the named volume for a backup

@@ -89,11 +89,21 @@ they live in the volume, not the image.
   qBittorrent, rTorrent/ruTorrent
 - **_arr suite**: Sonarr, Radarr, Lidarr, Readarr, Bazarr (subtitles), Sick Beard
 - **Indexers**: Prowlarr, NZBHydra2, Jackett
-- **Other**: Plex, Seerr, Ombi, Tautulli, Tracearr, Trakt, Unraid
+- **Media servers**: Plex, Emby, Jellyfin
+- **Other**: Seerr, Ombi, Tautulli, Tracearr, Trakt, MDBList, Unraid
 - **Coming soon**: NEWZnab
 
 Every service is optional — add only what you run. Anything left unconfigured is
-simply hidden from the menu.
+simply hidden from the menu. Any service can be configured more than once (e.g. two
+Sonarr instances).
+
+## Multi-user mode
+
+Opt in from Settings → Security to give each household member their own login instead
+of one shared PIN/password, with Admin/Member roles and named **access roles** that
+restrict a Member to specific services, dashboard widgets, and Calendar sources. See
+the [full README](https://github.com/TheRealBatBro/Remotarr#multi-user-mode--access-roles)
+for details.
 
 ## Configuration
 
@@ -103,6 +113,8 @@ simply hidden from the menu.
 | `BASE_PATH` | `""` (root) | Set to a sub-path (e.g. `/remotarr`) if hosting behind a reverse proxy at a non-root path. |
 | `DB_PATH` | `/data/remotarr.db` | Where the SQLite database lives. Leave as-is unless you've customized the volume mount. |
 | `SHOW_ALL_SERVICES` | `true` | `true` shows every supported service in the menu regardless of whether it's configured yet. Set to `false` once you're done configuring, so the menu only shows services you've actually enabled. |
+| `DISABLE_AUTH` | unset | **Danger.** Skips the sign-in lock entirely — only for local backend hacking. |
+| `CLOUDFLARE_TUNNEL_HOSTNAME` | unset | Cosmetic link shown in Settings → Security if you're using the optional `cloudflared` sidecar — see the [full README](https://github.com/TheRealBatBro/Remotarr#cloudflare-tunnel). |
 
 ## Feature requests & support
 
