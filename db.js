@@ -111,6 +111,7 @@ function initDb() {
   ensureColumn('users', 'access_role_id', 'access_role_id INTEGER');
   ensureColumn('service_instances', 'refresh_interval_minutes', 'refresh_interval_minutes INTEGER NOT NULL DEFAULT 5');
   ensureColumn('service_instances', 'custom_headers', "custom_headers TEXT NOT NULL DEFAULT '{}'");
+  ensureColumn('service_instances', 'ignore_cert_errors', 'ignore_cert_errors INTEGER NOT NULL DEFAULT 0');
 
   const row = db.prepare('SELECT id FROM settings WHERE id = 1').get();
   if (!row) {
@@ -270,8 +271,8 @@ function getServiceInstance(id) {
 function createServiceInstance(data) {
   const stmt = getDb().prepare(`
     INSERT INTO service_instances
-      (service_id, display_name, auth_type, local_url, remote_url, preferred_mode, credentials, custom_headers, wol_mac, wol_broadcast, favorite, sort_order, enabled, refresh_interval_minutes)
-    VALUES (@service_id, @display_name, @auth_type, @local_url, @remote_url, @preferred_mode, @credentials, @custom_headers, @wol_mac, @wol_broadcast, @favorite, @sort_order, @enabled, @refresh_interval_minutes)
+      (service_id, display_name, auth_type, local_url, remote_url, preferred_mode, credentials, custom_headers, wol_mac, wol_broadcast, favorite, sort_order, enabled, refresh_interval_minutes, ignore_cert_errors)
+    VALUES (@service_id, @display_name, @auth_type, @local_url, @remote_url, @preferred_mode, @credentials, @custom_headers, @wol_mac, @wol_broadcast, @favorite, @sort_order, @enabled, @refresh_interval_minutes, @ignore_cert_errors)
   `);
   const result = stmt.run({
     service_id: data.serviceId,
@@ -288,6 +289,7 @@ function createServiceInstance(data) {
     sort_order: data.sortOrder || 0,
     enabled: data.enabled === false ? 0 : 1,
     refresh_interval_minutes: clampRefreshInterval(data.serviceId, data.refreshIntervalMinutes ?? defaultRefreshInterval(data.serviceId)),
+    ignore_cert_errors: data.ignoreCertErrors ? 1 : 0,
   });
   return getServiceInstance(result.lastInsertRowid);
 }
@@ -312,13 +314,15 @@ function updateServiceInstance(id, data) {
       data.refreshIntervalMinutes !== undefined
         ? clampRefreshInterval(existing.service_id, data.refreshIntervalMinutes)
         : existing.refresh_interval_minutes,
+    ignore_cert_errors: data.ignoreCertErrors !== undefined ? (data.ignoreCertErrors ? 1 : 0) : existing.ignore_cert_errors,
   };
   getDb().prepare(`
     UPDATE service_instances SET
       display_name = @display_name, auth_type = @auth_type, local_url = @local_url, remote_url = @remote_url,
       preferred_mode = @preferred_mode, credentials = @credentials, custom_headers = @custom_headers, wol_mac = @wol_mac,
       wol_broadcast = @wol_broadcast, favorite = @favorite, sort_order = @sort_order,
-      enabled = @enabled, refresh_interval_minutes = @refresh_interval_minutes, updated_at = unixepoch()
+      enabled = @enabled, refresh_interval_minutes = @refresh_interval_minutes, ignore_cert_errors = @ignore_cert_errors,
+      updated_at = unixepoch()
     WHERE id = @id
   `).run({ ...merged, id });
   return getServiceInstance(id);

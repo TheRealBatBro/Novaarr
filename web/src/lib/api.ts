@@ -163,6 +163,11 @@ export type ServiceInstance = {
    * or via an access role's Calendar-specific grant on this instance (see
    * access_role_calendar_sources in db.js). Always true outside multi-user restriction. */
   calendarAllowed: boolean;
+  /** Skip TLS certificate verification for this instance's requests — for a self-signed cert on
+   * a local IP (e.g. Plex's own generated cert), which Node's fetch rejects outright by default
+   * even though a browser would let you click through a warning. Opt-in per instance, never a
+   * process-wide bypass. */
+  ignoreCertErrors: boolean;
 };
 
 export type ServiceInstanceInput = Partial<Omit<ServiceInstance, 'id'>> & {
@@ -171,8 +176,27 @@ export type ServiceInstanceInput = Partial<Omit<ServiceInstance, 'id'>> & {
   authType: string;
 };
 
+export type ServiceTestInput = Partial<ServiceInstanceInput> & {
+  authType: string;
+  /** The service definition's own healthCheck (serviceRegistry.ts) — omitted entirely for a
+   * service with none (e.g. Bazarr), in which case the backend just checks reachability rather
+   * than requiring a specific successful response. */
+  testPath?: string;
+  testMethod?: string;
+  testQuery?: Record<string, string>;
+  testBody?: unknown;
+};
+export type ServiceTestResult = { ok: boolean; error?: string };
+
 export const servicesApi = {
   list: () => fetch(apiUrl('/api/services'), { credentials: 'same-origin' }).then((r) => json<ServiceInstance[]>(r)),
+  test: (input: ServiceTestInput) =>
+    fetch(apiUrl('/api/services/test'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    }).then((r) => json<ServiceTestResult>(r)),
   create: (input: ServiceInstanceInput) =>
     fetch(apiUrl('/api/services'), {
       method: 'POST',

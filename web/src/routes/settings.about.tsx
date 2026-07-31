@@ -9,6 +9,13 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Remotarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.18.0',
+    notes: [
+      'Added an "Ignore certificate errors" option for services with a local/remote URL, to support self-signed certs (e.g. Plex over a local IP)',
+      'Saving a service instance now tests the connection first and blocks the save on failure, with a "Save anyway" override',
+    ],
+  },
+  {
     version: '0.17.0',
     notes: [
       'Settings > Security now shows a live Cloudflare Tunnel status card, for deployments using the optional cloudflared sidecar in docker-compose.yml to expose Remotarr without port-forwarding',

@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../db');
 const { requireAuth, requireServiceAccess } = require('../middleware/auth');
 const { isBlockedTarget } = require('./proxy');
+const { certDispatcher } = require('../lib/certOptions');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -36,7 +37,7 @@ router.get('/:instanceId/image', async (req, res) => {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const upstream = await fetch(url, { signal: controller.signal });
+    const upstream = await fetch(url, { signal: controller.signal, ...certDispatcher(instance) });
     if (!upstream.ok) return res.status(upstream.status).end();
     res.set('Content-Type', upstream.headers.get('content-type') || 'image/jpeg');
     res.set('Cache-Control', 'private, max-age=3600');

@@ -3,6 +3,7 @@ const multer = require('multer');
 const db = require('../db');
 const { requireAuth, requireServiceAccess } = require('../middleware/auth');
 const { isBlockedTarget } = require('./proxy');
+const { certDispatcher } = require('../lib/certOptions');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -32,7 +33,7 @@ router.post('/:instanceId/upload', upload.single('file'), async (req, res) => {
   form.append('name', new Blob([req.file.buffer]), req.file.originalname);
 
   try {
-    const upstream = await fetch(url, { method: 'POST', body: form });
+    const upstream = await fetch(url, { method: 'POST', body: form, ...certDispatcher(instance) });
     const text = await upstream.text();
     let data;
     try {

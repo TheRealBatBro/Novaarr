@@ -3,6 +3,7 @@ const { XMLParser } = require('fast-xml-parser');
 const db = require('../db');
 const { requireAuth, requireServiceAccess } = require('../middleware/auth');
 const { buildMethodCall, parseMethodResponse } = require('../rtorrentXmlRpc');
+const { certDispatcher } = require('../lib/certOptions');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -49,6 +50,7 @@ async function fetchWithTimeout(url, opts, timeoutMs, instance) {
       ...opts,
       headers: { 'User-Agent': DEFAULT_USER_AGENT, ...(instance?.custom_headers || {}), ...opts.headers },
       signal: controller.signal,
+      ...certDispatcher(instance),
     });
   } finally {
     clearTimeout(t);
@@ -436,5 +438,33 @@ router.post('/:instanceId', async (req, res) => {
   }
 });
 
+// Used by routes/services.js's POST /test, run against a not-yet-saved draft instance (no row
+// id — session-token-caching adapters like qBittorrent/µTorrent/Deluge would throw on an
+// undefined bind parameter if they tried to persist a token against a real id, so callers pass
+// id: 0, a value no real row can ever have, making those writes harmless no-ops).
+// Deliberately simpler than the router handler above: a single attempt against whichever URL
+// preferredMode says to use, no auto-mode fallback across URLs — a connection test should tell
+// you plainly whether the URL you're about to save actually works, not paper over a failure by
+// quietly trying a different one.
+async function testConnection(instance, { path, method, query, body } = {}) {
+  const adapter = adapters[instance.auth_type];
+  if (!adapter) return { ok: false, error: `Auth type "${instance.auth_type}" not yet supported` };
+
+  const baseUrl = instance.preferred_mode === 'remote' && instance.remote_url ? instance.remote_url : instance.local_url;
+  if (!baseUrl) return { ok: false, error: 'Enter a URL first' };
+  if (isBlockedTarget(baseUrl)) return { ok: false, error: 'Target not allowed' };
+
+  try {
+    const upstream = await adapter({ ...instance, local_url: baseUrl }, { path: path || '/', method, query, body }, 8000);
+    // No known health-check endpoint for this service (path undefined) — the best available
+    // signal is "did we get any HTTP response at all", not a specific status code.
+    if (path && !upstream.ok) return { ok: false, error: `Server returned HTTP ${upstream.status}` };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.name === 'AbortError' ? 'Request timed out' : e.message };
+  }
+}
+
 module.exports = router;
 module.exports.isBlockedTarget = isBlockedTarget;
+module.exports.testConnection = testConnection;

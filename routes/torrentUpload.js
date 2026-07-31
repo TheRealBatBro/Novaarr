@@ -3,6 +3,7 @@ const multer = require('multer');
 const db = require('../db');
 const { requireAuth, requireServiceAccess } = require('../middleware/auth');
 const { isBlockedTarget } = require('./proxy');
+const { certDispatcher } = require('../lib/certOptions');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -36,6 +37,7 @@ async function uploadQbittorrent(instance, file) {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ username: username || '', password: password || '' }).toString(),
+    ...certDispatcher(instance),
   });
   const cookie = firstCookie(loginRes);
 
@@ -45,6 +47,7 @@ async function uploadQbittorrent(instance, file) {
     method: 'POST',
     headers: cookie ? { Cookie: cookie } : {},
     body: form,
+    ...certDispatcher(instance),
   });
   const text = await upstream.text();
   return { ok: upstream.ok, status: upstream.status, data: text };
@@ -55,7 +58,7 @@ async function uploadUtorrent(instance, file) {
   const { username, password } = instance.credentials || {};
   const authHeader = { Authorization: 'Basic ' + Buffer.from(`${username || ''}:${password || ''}`).toString('base64') };
 
-  const tokenRes = await fetch(new URL('gui/token.html', normalizedBase), { headers: authHeader });
+  const tokenRes = await fetch(new URL('gui/token.html', normalizedBase), { headers: authHeader, ...certDispatcher(instance) });
   const tokenText = await tokenRes.text();
   const match = tokenText.match(/id=['"]token['"][^>]*>([^<]+)</);
   const token = match ? match[1] : '';
@@ -71,6 +74,7 @@ async function uploadUtorrent(instance, file) {
     method: 'POST',
     headers: { ...authHeader, ...(cookie ? { Cookie: cookie } : {}) },
     body: form,
+    ...certDispatcher(instance),
   });
   const text = await upstream.text();
   return { ok: upstream.ok, status: upstream.status, data: text };

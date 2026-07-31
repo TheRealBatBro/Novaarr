@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import type { ServiceDefinition } from '@/lib/serviceRegistry';
-import type { ServiceInstance } from '@/lib/api';
+import { servicesApi, type ServiceInstance, type ServiceInstanceInput } from '@/lib/api';
 import { useCreateService, useUpdateService } from '@/lib/queries';
 
 export function ServiceInstanceForm({
@@ -28,15 +28,17 @@ export function ServiceInstanceForm({
   const [headerRows, setHeaderRows] = useState<{ key: string; value: string }[]>(
     existing?.customHeaders ? Object.entries(existing.customHeaders).map(([key, value]) => ({ key, value })) : [],
   );
+  const [ignoreCertErrors, setIgnoreCertErrors] = useState(existing?.ignoreCertErrors ?? false);
+  const [testState, setTestState] = useState<'idle' | 'testing' | 'failed'>('idle');
+  const [testError, setTestError] = useState<string | null>(null);
 
   const create = useCreateService();
   const update = useUpdateService();
-  const busy = create.isPending || update.isPending;
+  const busy = create.isPending || update.isPending || testState === 'testing';
   const isFixedBaseUrl = !!definition.fixedBaseUrl;
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const input = {
+  function buildInput(): ServiceInstanceInput {
+    return {
       displayName,
       // Always re-sync to the registry's current authType, not just on first creation — a
       // service's auth mechanism is a property of its type, not user-editable instance data,
@@ -52,7 +54,11 @@ export function ServiceInstanceForm({
       customHeaders: isFixedBaseUrl
         ? undefined
         : Object.fromEntries(headerRows.filter((h) => h.key.trim()).map((h) => [h.key.trim(), h.value])),
+      ignoreCertErrors: isFixedBaseUrl ? undefined : ignoreCertErrors,
     };
+  }
+
+  async function save(input: ServiceInstanceInput) {
     try {
       if (existing) {
         await update.mutateAsync({ id: existing.id, input });
@@ -65,6 +71,41 @@ export function ServiceInstanceForm({
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Something went wrong');
     }
+  }
+
+  async function handleSubmit(e: React.FormEvent, skipTest = false) {
+    e.preventDefault();
+    const input = buildInput();
+
+    if (skipTest) {
+      setTestState('idle');
+      await save(input);
+      return;
+    }
+
+    setTestState('testing');
+    setTestError(null);
+    try {
+      const result = await servicesApi.test({
+        ...input,
+        serviceId: definition.id,
+        testPath: definition.healthCheck?.path,
+        testMethod: definition.healthCheck?.method,
+        testQuery: definition.healthCheck?.query,
+        testBody: definition.healthCheck?.body,
+      });
+      if (!result.ok) {
+        setTestState('failed');
+        setTestError(result.error || 'Connection test failed');
+        return;
+      }
+    } catch (err) {
+      setTestState('failed');
+      setTestError(err instanceof Error ? err.message : 'Connection test failed');
+      return;
+    }
+    setTestState('idle');
+    await save(input);
   }
 
   return (
@@ -104,6 +145,24 @@ export function ServiceInstanceForm({
               <option value="remote">Always remote</option>
             </Select>
           </div>
+
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={ignoreCertErrors}
+              onChange={(e) => setIgnoreCertErrors(e.target.checked)}
+            />
+            <span className="flex flex-col gap-0.5">
+              <span className="flex items-center gap-1.5">
+                <ShieldAlert className="h-3.5 w-3.5 text-muted-foreground" />
+                Ignore certificate errors
+              </span>
+              <span className="text-xs text-muted-foreground">
+                Allow self-signed or invalid HTTPS certificates — needed for services reached over a local IP (e.g. Plex).
+              </span>
+            </span>
+          </label>
         </>
       )}
 
@@ -175,8 +234,18 @@ export function ServiceInstanceForm({
         </div>
       )}
 
+      {testState === 'failed' && (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+          <p className="font-medium">Connection test failed</p>
+          <p className="mt-0.5">{testError}</p>
+          <Button type="button" variant="outline" size="sm" className="mt-2" onClick={(e) => handleSubmit(e, true)} disabled={busy}>
+            Save anyway
+          </Button>
+        </div>
+      )}
+
       <Button type="submit" disabled={busy} className="mt-2">
-        {existing ? 'Save changes' : 'Add service'}
+        {testState === 'testing' ? 'Testing connection…' : existing ? 'Save changes' : 'Add service'}
       </Button>
     </form>
   );

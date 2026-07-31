@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { testConnection } = require('./proxy');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -22,6 +23,7 @@ function serialize(instance, navAllowed = true, calendarAllowed = true) {
     sortOrder: instance.sort_order,
     enabled: !!instance.enabled,
     refreshIntervalMinutes: instance.refresh_interval_minutes,
+    ignoreCertErrors: !!instance.ignore_cert_errors,
     // false only for a restricted member whose ONLY grant on this instance came from a widget or
     // Calendar-source grant — it stays in this list (needed so DashboardWidget.tsx/CalendarScreen
     // can actually build from it), but nav/menu/command-palette must not treat it as a navigable
@@ -64,6 +66,30 @@ router.get('/', (req, res) => {
     serialized = instances.map((i) => serialize(i));
   }
   res.json(serialized);
+});
+
+// Run before an admin is allowed to actually save a new/edited instance (see
+// ServiceInstanceForm.tsx) — id: 0 stands in for "not saved yet" so the couple of adapters that
+// cache a session token by instance id (qBittorrent, µTorrent, Deluge) still have something
+// harmless to write to; no real row can ever have id 0.
+router.post('/test', requireAdmin, async (req, res) => {
+  const { serviceId, authType, localUrl, remoteUrl, preferredMode, credentials, customHeaders, ignoreCertErrors, testPath, testMethod, testQuery, testBody } =
+    req.body || {};
+  if (!authType) return res.status(400).json({ ok: false, error: 'authType is required' });
+  const draft = {
+    id: 0,
+    service_id: serviceId,
+    auth_type: authType,
+    local_url: localUrl || null,
+    remote_url: remoteUrl || null,
+    preferred_mode: preferredMode || 'auto',
+    credentials: credentials || {},
+    custom_headers: customHeaders || {},
+    ignore_cert_errors: !!ignoreCertErrors,
+    session_token: null,
+  };
+  const result = await testConnection(draft, { path: testPath, method: testMethod, query: testQuery, body: testBody });
+  res.json(result);
 });
 
 router.post('/', requireAdmin, (req, res) => {
