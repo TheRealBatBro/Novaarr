@@ -21,10 +21,30 @@ services:
       # DANGER: skips the sign-in lock (PIN/password or multi-user login) entirely. Leave unset
       # in any deployment reachable by more than just you — only for local backend hacking.
       # DISABLE_AUTH: "true"
+      # Optional: shown as the clickable link in Settings > Security's Cloudflare Tunnel status
+      # card once you've set up the cloudflared sidecar below. Purely cosmetic — the app has no
+      # way to read this back from Cloudflare itself, so it's just what you tell it.
+      # CLOUDFLARE_TUNNEL_HOSTNAME: "remotarr.example.com"
     # Uncomment to expose only to a local reverse proxy (Nginx/Traefik/Caddy)
     # and remove the `ports` section above:
     # networks:
     #   - proxy
+
+  # Optional: exposes Remotarr to the internet through a Cloudflare Tunnel instead of port-
+  # forwarding or a separate reverse proxy. Setup (one-time, on Cloudflare's side):
+  #   1. one.dash.cloudflare.com > Zero Trust > Networks > Tunnels > Create a tunnel
+  #   2. Add a public hostname pointing at http://remotarr:3000 (this container, by its
+  #      Compose service name — reachable from cloudflared over the shared Compose network)
+  #   3. Copy the tunnel token from the install step and paste it below
+  # Uncomment this whole block, set CLOUDFLARE_TUNNEL_HOSTNAME above to match step 2, and
+  # Settings > Security will show the tunnel's live connection status.
+  # cloudflared:
+  #   image: cloudflare/cloudflared:latest
+  #   container_name: remotarr-cloudflared
+  #   restart: unless-stopped
+  #   # --metrics on 0.0.0.0 (not the image's 127.0.0.1 default) so the remotarr container can
+  #   # reach /ready across the Compose network to report status — never exposed outside it.
+  #   command: tunnel --no-autoupdate --metrics 0.0.0.0:2000 run --token YOUR_TUNNEL_TOKEN_HERE
 
 volumes:
   remotarr-data:

@@ -274,6 +274,12 @@ export const backupApi = {
   },
 };
 
+export type CloudflareTunnelStatus = { configured: boolean; connected: boolean; hostname: string | null };
+
+export const cloudflareTunnelApi = {
+  status: () => fetch(apiUrl('/api/cloudflare-tunnel/status'), { credentials: 'same-origin' }).then((r) => json<CloudflareTunnelStatus>(r)),
+};
+
 export const wolApi = {
   wake: (mac: string, broadcast?: string) =>
     fetch(apiUrl('/api/wol'), {

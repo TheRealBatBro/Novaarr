@@ -1,5 +1,5 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { authApi, servicesApi, proxyApi, dashboardApi, type ServiceInstance, type ServiceInstanceInput, type DashboardWidgetConfig } from './api';
+import { authApi, servicesApi, proxyApi, dashboardApi, cloudflareTunnelApi, type ServiceInstance, type ServiceInstanceInput, type DashboardWidgetConfig } from './api';
 
 export function useAuthStatus() {
   return useQuery({ queryKey: ['auth', 'status'], queryFn: authApi.status, staleTime: 0, retry: 0 });
@@ -11,6 +11,10 @@ export function useAuthStatus() {
 export function useIsSettingsAdmin(): boolean {
   const { data } = useAuthStatus();
   return !data?.multiUser || data.user?.role === 'admin';
+}
+
+export function useCloudflareTunnelStatus(enabled: boolean) {
+  return useQuery({ queryKey: ['cloudflare-tunnel', 'status'], queryFn: cloudflareTunnelApi.status, enabled, refetchInterval: 30_000, retry: 0 });
 }
 
 export function useServices() {

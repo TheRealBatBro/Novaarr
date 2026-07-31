@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Hash, KeyRound, Users } from 'lucide-react';
+import { Hash, KeyRound, Users, Cloud, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SettingsTabs } from '@/components/settings/SettingsTabs';
-import { useAuthStatus } from '@/lib/queries';
+import { useAuthStatus, useIsSettingsAdmin, useCloudflareTunnelStatus } from '@/lib/queries';
 import { authApi, type AuthMode } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -95,8 +95,57 @@ function EnableMultiUserCard() {
   );
 }
 
+function CloudflareTunnelCard() {
+  const { data, isLoading } = useCloudflareTunnelStatus(true);
+
+  const state = isLoading ? 'loading' : !data?.configured ? 'not-configured' : data.connected ? 'connected' : 'disconnected';
+  const dotColor = state === 'connected' ? 'bg-green-500' : state === 'disconnected' ? 'bg-amber-500' : 'bg-muted-foreground/40';
+  const label =
+    state === 'loading' ? 'Checking…' : state === 'connected' ? 'Connected' : state === 'disconnected' ? 'Not connected' : 'Not set up';
+
+  return (
+    <Card className="max-w-md">
+      <CardContent className="p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <Cloud className="h-4 w-4 text-muted-foreground" />
+          <p className="text-sm font-semibold">Cloudflare Tunnel</p>
+        </div>
+
+        <div className="mb-3 flex items-center gap-2 rounded-lg border border-border bg-background/40 px-3 py-2">
+          <span className={cn('h-2 w-2 shrink-0 rounded-full', dotColor)} />
+          <p className="text-sm font-medium">{label}</p>
+          {data?.hostname && state === 'connected' && (
+            <a
+              href={`https://${data.hostname}`}
+              target="_blank"
+              rel="noreferrer"
+              className="ml-auto flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              {data.hostname} <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+        </div>
+
+        {state === 'not-configured' ? (
+          <p className="text-sm text-muted-foreground">
+            Expose this deployment to the internet without port-forwarding, using a Cloudflare Tunnel sidecar container. Uncomment the{' '}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">cloudflared</code> service in <code className="rounded bg-muted px-1 py-0.5 text-xs">docker-compose.yml</code> to set it up — this card starts reporting its status automatically once it's running.
+          </p>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Managed by the <code className="rounded bg-muted px-1 py-0.5 text-xs">cloudflared</code> container in your{' '}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">docker-compose.yml</code> — this is a read-only status view, not a
+            control. Change the tunnel itself from Cloudflare's dashboard.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function SettingsSecurity() {
   const { data } = useAuthStatus();
+  const isAdmin = useIsSettingsAdmin();
   const qc = useQueryClient();
   const currentMode = data?.authMode ?? 'pin';
 
@@ -105,19 +154,6 @@ function SettingsSecurity() {
   const [newCredential, setNewCredential] = useState('');
   const [confirmCredential, setConfirmCredential] = useState('');
   const [busy, setBusy] = useState(false);
-
-  if (data?.multiUser) {
-    return (
-      <div>
-        <SettingsTabs active="security" />
-        <h1 className="text-2xl font-bold tracking-tight">Security</h1>
-        <p className="mb-6 text-sm text-muted-foreground">
-          This deployment uses multi-user sign-in. Manage accounts under{' '}
-          <span className="font-medium text-foreground">Settings → Users</span>.
-        </p>
-      </div>
-    );
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -143,6 +179,24 @@ function SettingsSecurity() {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (data?.multiUser) {
+    return (
+      <div>
+        <SettingsTabs active="security" />
+        <h1 className="text-2xl font-bold tracking-tight">Security</h1>
+        <p className="mb-6 text-sm text-muted-foreground">
+          This deployment uses multi-user sign-in. Manage accounts under{' '}
+          <span className="font-medium text-foreground">Settings → Users</span>.
+        </p>
+        {isAdmin && (
+          <div className="mt-6">
+            <CloudflareTunnelCard />
+          </div>
+        )}
+      </div>
+    );
   }
 
   return (
@@ -217,8 +271,9 @@ function SettingsSecurity() {
         </CardContent>
       </Card>
 
-      <div className="mt-6">
+      <div className="mt-6 flex max-w-md flex-col gap-6">
         <EnableMultiUserCard />
+        {isAdmin && <CloudflareTunnelCard />}
       </div>
     </div>
   );

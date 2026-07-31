@@ -9,6 +9,12 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Remotarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.17.0',
+    notes: [
+      'Settings > Security now shows a live Cloudflare Tunnel status card, for deployments using the optional cloudflared sidecar in docker-compose.yml to expose Remotarr without port-forwarding',
+    ],
+  },
+  {
     version: '0.16.2',
     notes: ['Backfilled this changelog through v0.16.1 — every release now updates it going forward'],
   },
