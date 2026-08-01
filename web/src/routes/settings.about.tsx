@@ -9,6 +9,12 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Remotarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.18.2',
+    notes: [
+      'The "Search Seerr" dashboard widget now searches automatically as you type instead of needing a button press, and shows the real error when the Seerr instance is unreachable instead of a misleading "No results"',
+    ],
+  },
+  {
     version: '0.18.1',
     notes: [
       'Fixed Seerr requests always being attributed to the admin account instead of the requesting member\'s linked Seerr account',
