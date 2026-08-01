@@ -1,11 +1,11 @@
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
-import { Home, CalendarDays, Settings, type LucideIcon } from 'lucide-react';
+import { Home, CalendarDays, Settings, Sparkles, type LucideIcon } from 'lucide-react';
 import { useVisibleServices, type VisibleService } from '@/lib/visibility';
 import { getServiceIcon } from '@/lib/serviceIcons';
 import { StatusDot } from '@/components/dashboard/StatusDot';
 import { useServiceHealth } from '@/lib/serviceHealth';
-import { useAuthStatus } from '@/lib/queries';
+import { useAuthStatus, useServices } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 import { BASE_PATH } from '@/lib/api';
 
@@ -80,6 +80,8 @@ export function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   const visible = useVisibleServices();
   const { data: authStatus } = useAuthStatus();
   const showCalendar = authStatus?.user?.calendarAccessible ?? true;
+  const { data: instances = [] } = useServices();
+  const showDiscover = instances.some((i) => i.serviceId === 'overseerr' && i.enabled);
 
   function go(to: string) {
     onNavigate?.();
@@ -98,6 +100,9 @@ export function NavContent({ onNavigate }: { onNavigate?: () => void }) {
           <NavRow icon={Home} label="Dashboard" active={pathname === '/'} onClick={() => go('/')} />
           {showCalendar && (
             <NavRow icon={CalendarDays} label="Calendar" active={pathname === '/calendar'} onClick={() => go('/calendar')} />
+          )}
+          {showDiscover && (
+            <NavRow icon={Sparkles} label="Discover" active={pathname === '/discover'} onClick={() => go('/discover')} />
           )}
         </div>
 

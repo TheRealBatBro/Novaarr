@@ -9,6 +9,14 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Remotarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.23.0',
+    notes: [
+      'New "Discover" page (needs Seerr): a short mood/genre wizard suggests 5 movies and 5 TV shows to watch now',
+      'Recommendations skip anything already in your library, plus watched history from Tautulli and Tracearr when configured',
+      'Tap a suggestion to see details and request it, reusing the same request dialog as Seerr search',
+    ],
+  },
+  {
     version: '0.22.0',
     notes: [
       'New "Now Playing (Plex)" dashboard widget — shows active Plex sessions with a stop control, no Tautulli required',
