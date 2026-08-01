@@ -36,7 +36,14 @@ router.delete('/:id/links/:instanceId', (req, res) => {
 
 function serializeUserOut(u) {
   if (!u) return u;
-  return { id: u.id, username: u.username, role: u.role, accessRoleId: u.access_role_id ?? null, createdAt: u.created_at };
+  return {
+    id: u.id,
+    username: u.username,
+    role: u.role,
+    accessRoleId: u.access_role_id ?? null,
+    cfAccessEmail: u.cf_access_email ?? null,
+    createdAt: u.created_at,
+  };
 }
 
 function validateUsername(username, excludeId) {
@@ -75,7 +82,7 @@ router.put('/:id', async (req, res) => {
   const existing = db.getUserById(id);
   if (!existing) return res.status(404).json({ error: 'Not found' });
 
-  const { username, password, role, accessRoleId } = req.body || {};
+  const { username, password, role, accessRoleId, cfAccessEmail } = req.body || {};
   if (username !== undefined) {
     const usernameError = validateUsername(username, id);
     if (usernameError) return res.status(400).json({ error: usernameError });
@@ -92,12 +99,16 @@ router.put('/:id', async (req, res) => {
   if (accessRoleId !== undefined && accessRoleId !== null && !db.getAccessRoleById(accessRoleId)) {
     return res.status(400).json({ error: 'Access role not found' });
   }
+  if (cfAccessEmail) {
+    const clash = db.getUserByCfAccessEmail(cfAccessEmail);
+    if (clash && clash.id !== id) return res.status(409).json({ error: 'That email is already linked to another user' });
+  }
   // A deployment with zero admins would lock everyone out of user management for good — refuse
   // to demote the last one, same protection deleteUser below applies to removal.
   if (existing.role === 'admin' && role === 'member' && db.countAdmins() <= 1) {
     return res.status(409).json({ error: 'Cannot demote the last remaining admin' });
   }
-  const updated = db.updateUser(id, { username, passwordHash, role, accessRoleId });
+  const updated = db.updateUser(id, { username, passwordHash, role, accessRoleId, cfAccessEmail });
   // A password reset should kill that user's existing sessions — otherwise a leaked/stolen
   // cookie signed under the old password keeps working right through the reset.
   if (passwordHash) db.bumpUserTokenValidAfter(id);
@@ -106,6 +117,7 @@ router.put('/:id', async (req, res) => {
     passwordHash && 'password reset',
     role !== undefined && `role → ${role}`,
     accessRoleId !== undefined && `access role → ${accessRoleId ?? 'none'}`,
+    cfAccessEmail !== undefined && `Cloudflare Access email → ${cfAccessEmail || 'none'}`,
   ].filter(Boolean);
   logAction(req, 'user.updated', { target: `user:${id}`, detail: changes.join(', ') || undefined });
   res.json(serializeUserOut(updated));

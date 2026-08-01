@@ -20,6 +20,7 @@ const usersRouter = require('./routes/users');
 const accessRolesRouter = require('./routes/accessRoles');
 const cloudflareTunnelRouter = require('./routes/cloudflareTunnel');
 const auditLogRouter = require('./routes/auditLog');
+const totpRouter = require('./routes/totp');
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -95,6 +96,7 @@ app.use(BASE + '/api/users', usersRouter);
 app.use(BASE + '/api/access-roles', accessRolesRouter);
 app.use(BASE + '/api/cloudflare-tunnel', cloudflareTunnelRouter);
 app.use(BASE + '/api/audit-log', auditLogRouter);
+app.use(BASE + '/api/2fa', totpRouter);
 app.get(BASE + '/api/health', (_req, res) => res.json({ ok: true }));
 
 // SPA fallback: serve index.html with __BASE__/__SHOW_ALL_SERVICES__ injected. The raw file read

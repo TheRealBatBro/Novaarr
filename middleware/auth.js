@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const db = require('../db');
+const cloudflareAccess = require('../lib/cloudflareAccess');
 
 const COOKIE = 'remotarr_session';
 const MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -36,8 +37,49 @@ function clearAuthCookie(res) {
   res.clearCookie(COOKIE, { path: '/' });
 }
 
-function requireAuth(req, res, next) {
+// Resolves a verified Cloudflare Access email to a Remotarr identity. Simple mode has only one
+// identity, so any verified Access login is that identity. Multi-user mode needs an explicit
+// admin-configured link (users.cf_access_email) — there's no safe way to auto-provision a role
+// from an email alone, so an unmatched email is refused rather than guessed at.
+function resolveCloudflareAccessUser(email) {
+  if (!db.isMultiUser()) return { ok: true };
+  const user = db.getUserByCfAccessEmail(email);
+  return user ? { userId: user.id, role: user.role } : null;
+}
+
+// Verifies a Cf-Access-Jwt-Assertion header (if Cloudflare Access is configured and the header
+// is present) and resolves it to a Remotarr identity. Returns null — never throws — on any
+// failure (not configured, no header, invalid/expired JWT, or no matching account), so callers
+// can always fall back to the app's own cookie-based check without special-casing errors.
+// `denied` distinguishes "a valid Access login with no linked Remotarr account" (worth a 403
+// with a clear message) from "Access isn't in play for this request at all" (silently fall
+// through) — both resolve to a falsy `user`, but only one should short-circuit with an error.
+async function tryCloudflareAccess(req) {
+  if (!cloudflareAccess.enabled) return { user: null, denied: false };
+  const assertion = req.headers['cf-access-jwt-assertion'];
+  if (!assertion) return { user: null, denied: false };
+  try {
+    const payload = await cloudflareAccess.verifyAccessToken(assertion);
+    const user = resolveCloudflareAccessUser(payload.email);
+    return { user, denied: !user, email: payload.email };
+  } catch {
+    return { user: null, denied: false };
+  }
+}
+
+async function requireAuth(req, res, next) {
   if (DEV_BYPASS) return next();
+
+  const access = await tryCloudflareAccess(req);
+  if (access.denied) {
+    return res.status(403).json({ error: `No Remotarr account is linked to ${access.email}. Ask an admin to link it in Settings > Users.` });
+  }
+  if (access.user) {
+    req.user = access.user;
+    req.cfAccessEmail = access.email;
+    return next();
+  }
+
   const token = req.cookies[COOKIE];
   if (!token) return res.status(401).json({ error: 'Not authenticated' });
   try {
@@ -78,4 +120,4 @@ function requireServiceAccess(req, res, next) {
   res.status(403).json({ error: 'Not permitted to access this service' });
 }
 
-module.exports = { setAuthCookie, clearAuthCookie, requireAuth, requireAdmin, requireServiceAccess, signToken, COOKIE };
+module.exports = { setAuthCookie, clearAuthCookie, requireAuth, requireAdmin, requireServiceAccess, signToken, tryCloudflareAccess, COOKIE };

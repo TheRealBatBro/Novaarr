@@ -9,6 +9,16 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Remotarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.21.0',
+    notes: [
+      'Added optional TOTP two-factor authentication (Settings > Security) — an authenticator-app code required after your PIN/password, with backup codes for recovery',
+      'Added optional Cloudflare Access SSO — sign in via Cloudflare\'s own login instead of (or alongside) the app\'s PIN/password; see README for setup',
+      'New/changed PINs now require 6-8 digits instead of 4-8 — a 4-digit PIN is only 10,000 combinations',
+      'The brute-force lockout now caps at 24 hours instead of 15 minutes for a deployment reachable from the internet',
+      'CI now scans every built image for known vulnerabilities before it publishes',
+    ],
+  },
+  {
     version: '0.20.1',
     notes: [
       'Settings > Security, Backup, Audit, and About now fill the available width instead of being capped to a narrow column',

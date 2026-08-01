@@ -128,6 +128,13 @@ function initDb() {
   ensureColumn('settings', 'credentials_key', 'credentials_key TEXT');
   ensureColumn('settings', 'token_valid_after', 'token_valid_after INTEGER NOT NULL DEFAULT 0');
   ensureColumn('users', 'token_valid_after', 'token_valid_after INTEGER NOT NULL DEFAULT 0');
+  ensureColumn('users', 'cf_access_email', 'cf_access_email TEXT');
+  ensureColumn('settings', 'totp_secret', 'totp_secret TEXT');
+  ensureColumn('settings', 'totp_enabled', 'totp_enabled INTEGER NOT NULL DEFAULT 0');
+  ensureColumn('settings', 'totp_backup_codes', 'totp_backup_codes TEXT');
+  ensureColumn('users', 'totp_secret', 'totp_secret TEXT');
+  ensureColumn('users', 'totp_enabled', 'totp_enabled INTEGER NOT NULL DEFAULT 0');
+  ensureColumn('users', 'totp_backup_codes', 'totp_backup_codes TEXT');
 
   const row = db.prepare('SELECT id FROM settings WHERE id = 1').get();
   if (!row) {
@@ -231,6 +238,44 @@ function isTokenRevoked(payload) {
   return false;
 }
 
+// TOTP two-factor auth. `totp_secret` is written on setup but `totp_enabled` only flips to true
+// once the user proves they actually scanned it (routes/totp.js's /enable), so an abandoned
+// setup just leaves an unused secret sitting there — harmless, the next /setup call overwrites
+// it. Mirrored on both `settings` (simple mode's single shared identity) and `users` (per-account
+// in multi-user mode) rather than unified, since the two modes already store every other
+// credential-adjacent field the same way.
+function setSettingsTotpPending(secret) {
+  getDb().prepare('UPDATE settings SET totp_secret = ? WHERE id = 1').run(secret);
+}
+
+function enableSettingsTotp(hashedBackupCodes) {
+  getDb().prepare('UPDATE settings SET totp_enabled = 1, totp_backup_codes = ? WHERE id = 1').run(JSON.stringify(hashedBackupCodes));
+}
+
+function disableSettingsTotp() {
+  getDb().prepare('UPDATE settings SET totp_enabled = 0, totp_secret = NULL, totp_backup_codes = NULL WHERE id = 1').run();
+}
+
+function consumeSettingsBackupCode(remainingHashedCodes) {
+  getDb().prepare('UPDATE settings SET totp_backup_codes = ? WHERE id = 1').run(JSON.stringify(remainingHashedCodes));
+}
+
+function setUserTotpPending(userId, secret) {
+  getDb().prepare('UPDATE users SET totp_secret = ? WHERE id = ?').run(secret, userId);
+}
+
+function enableUserTotp(userId, hashedBackupCodes) {
+  getDb().prepare('UPDATE users SET totp_enabled = 1, totp_backup_codes = ? WHERE id = ?').run(JSON.stringify(hashedBackupCodes), userId);
+}
+
+function disableUserTotp(userId) {
+  getDb().prepare('UPDATE users SET totp_enabled = 0, totp_secret = NULL, totp_backup_codes = NULL WHERE id = ?').run(userId);
+}
+
+function consumeUserBackupCode(userId, remainingHashedCodes) {
+  getDb().prepare('UPDATE users SET totp_backup_codes = ? WHERE id = ?').run(JSON.stringify(remainingHashedCodes), userId);
+}
+
 // Retention cap — an unbounded audit log is its own low-grade liability. Whichever limit
 // bites first: row count or age. Pruned opportunistically on write rather than on a timer,
 // since there's no background scheduler in this app to hang it off of.
@@ -258,10 +303,13 @@ function listAuditLog({ limit = 200, action } = {}) {
 
 // Brute-force lockout on the shared credential (login and change-credential's "current"
 // check both call this) — no lockout for the first few tries so a typo doesn't lock anyone
-// out, then an exponential cooldown that keeps climbing (capped at 15 min) for as long as
-// wrong attempts keep coming in.
+// out, then an exponential cooldown that keeps climbing for as long as wrong attempts keep
+// coming in. Capped at 24h rather than the old 15min: for an internet-exposed deployment, 15min
+// only throttled a sustained script to ~96 guesses/day forever — still enough to exhaust a
+// short PIN over weeks. A day-long cap makes that impractical while still self-resolving
+// without needing an admin to intervene.
 const LOCKOUT_THRESHOLD = 5;
-const LOCKOUT_CAP_SECONDS = 15 * 60;
+const LOCKOUT_CAP_SECONDS = 24 * 60 * 60;
 
 function recordFailedLogin() {
   const settings = getSettings();
@@ -493,6 +541,11 @@ function getUserByUsername(username) {
   return getDb().prepare('SELECT * FROM users WHERE username = ?').get(username);
 }
 
+function getUserByCfAccessEmail(email) {
+  if (!email) return null;
+  return getDb().prepare('SELECT * FROM users WHERE cf_access_email = ? COLLATE NOCASE').get(email);
+}
+
 function countAdmins() {
   return getDb().prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'admin'").get().n;
 }
@@ -504,16 +557,17 @@ function createUser({ username, passwordHash, role }) {
   return serializeUser(getUserById(result.lastInsertRowid));
 }
 
-function updateUser(id, { username, passwordHash, role, accessRoleId }) {
+function updateUser(id, { username, passwordHash, role, accessRoleId, cfAccessEmail }) {
   const existing = getUserById(id);
   if (!existing) return null;
   getDb()
-    .prepare('UPDATE users SET username = ?, password_hash = ?, role = ?, access_role_id = ? WHERE id = ?')
+    .prepare('UPDATE users SET username = ?, password_hash = ?, role = ?, access_role_id = ?, cf_access_email = ? WHERE id = ?')
     .run(
       username ?? existing.username,
       passwordHash ?? existing.password_hash,
       role ?? existing.role,
       accessRoleId !== undefined ? accessRoleId : existing.access_role_id,
+      cfAccessEmail !== undefined ? cfAccessEmail || null : existing.cf_access_email,
       id,
     );
   return serializeUser(getUserById(id));
@@ -646,12 +700,14 @@ function deleteAccessRole(id) {
 module.exports = {
   initDb, getDb, getSettings, setCredential, getJwtSecret,
   bumpTokenValidAfter, bumpUserTokenValidAfter, isTokenRevoked,
+  setSettingsTotpPending, enableSettingsTotp, disableSettingsTotp, consumeSettingsBackupCode,
+  setUserTotpPending, enableUserTotp, disableUserTotp, consumeUserBackupCode,
   logAudit, listAuditLog,
   recordFailedLogin, resetFailedLogins, getLockoutSeconds,
   closeDb, backupTo, restoreFrom, DB_PATH,
   listServiceInstances, getServiceInstance, createServiceInstance, updateServiceInstance, deleteServiceInstance,
   setServiceSessionToken, getDashboardWidgets, setDashboardWidgets,
-  isMultiUser, setMultiUser, listUsers, getUserById, getUserByUsername, countAdmins, createUser, updateUser, deleteUser,
+  isMultiUser, setMultiUser, listUsers, getUserById, getUserByUsername, getUserByCfAccessEmail, countAdmins, createUser, updateUser, deleteUser,
   listUserLinks, upsertUserLink, deleteUserLink,
   getAccessRoleServiceIds, getAccessRoleWidgets, getAccessRoleCalendarSourceIds, getAccessRoleAllowedInstanceIds,
   listAccessRoles, getAccessRoleById, createAccessRole, updateAccessRole, deleteAccessRole,

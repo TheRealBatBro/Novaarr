@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useQueryClient } from '@tanstack/react-query';
-import { Hash, KeyRound, Users, Cloud, ExternalLink, ShieldOff } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Hash, KeyRound, Users, Cloud, ExternalLink, ShieldOff, ShieldCheck, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -9,14 +9,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SettingsTabs } from '@/components/settings/SettingsTabs';
 import { useAuthStatus, useIsSettingsAdmin, useCloudflareTunnelStatus } from '@/lib/queries';
-import { authApi, type AuthMode } from '@/lib/api';
+import { authApi, totpApi, type AuthMode } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 export const Route = createFileRoute('/settings/security')({ component: SettingsSecurity });
 
 function validateCredential(mode: AuthMode, value: string): string | null {
   if (mode === 'pin') {
-    if (!/^\d{4,8}$/.test(value)) return 'PIN must be 4-8 digits';
+    if (!/^\d{6,8}$/.test(value)) return 'PIN must be 6-8 digits';
   } else if (value.length < 6 || value.length > 128) {
     return 'Password must be 6-128 characters';
   }
@@ -143,6 +143,154 @@ function CloudflareTunnelCard() {
   );
 }
 
+function TwoFactorCard() {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({ queryKey: ['2fa', 'status'], queryFn: totpApi.status });
+  const [setup, setSetup] = useState<{ secret: string; uri: string; qr: string } | null>(null);
+  const [code, setCode] = useState('');
+  const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
+  const [disableCode, setDisableCode] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function startSetup() {
+    setBusy(true);
+    try {
+      setSetup(await totpApi.setup());
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to start setup');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmEnable(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const result = await totpApi.enable(code);
+      setBackupCodes(result.backupCodes);
+      setSetup(null);
+      setCode('');
+      await qc.invalidateQueries({ queryKey: ['2fa', 'status'] });
+      toast.success('Two-factor authentication enabled');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Incorrect code');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDisable(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await totpApi.disable(disableCode);
+      setDisableCode('');
+      await qc.invalidateQueries({ queryKey: ['2fa', 'status'] });
+      toast.success('Two-factor authentication disabled');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Incorrect code');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (backupCodes) {
+    return (
+      <Card>
+        <CardContent className="p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+            <p className="text-sm font-semibold">Save your backup codes</p>
+          </div>
+          <p className="mb-3 text-sm text-muted-foreground">
+            Each works once, if you lose access to your authenticator app. There's no other way to recover — store these
+            somewhere safe.
+          </p>
+          <pre className="mb-3 grid grid-cols-2 gap-x-4 gap-y-1 rounded-lg border border-border bg-background/40 p-3 font-mono text-sm">
+            {backupCodes.map((c) => (
+              <span key={c}>{c}</span>
+            ))}
+          </pre>
+          <Button
+            variant="outline"
+            onClick={() => {
+              navigator.clipboard.writeText(backupCodes.join('\n'));
+              toast.success('Copied to clipboard');
+            }}
+          >
+            <Copy className="h-3.5 w-3.5" /> Copy codes
+          </Button>
+          <Button className="ml-2" onClick={() => setBackupCodes(null)}>
+            Done
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+          <p className="text-sm font-semibold">Two-factor authentication</p>
+        </div>
+
+        {isLoading ? null : data?.enabled ? (
+          <>
+            <p className="mb-3 text-sm text-muted-foreground">
+              Enabled — {data.backupCodesRemaining} backup code{data.backupCodesRemaining === 1 ? '' : 's'} remaining. Enter a
+              current code (or a backup code) to turn it off.
+            </p>
+            <form onSubmit={handleDisable} className="flex gap-2">
+              <Input
+                placeholder="123456"
+                value={disableCode}
+                onChange={(e) => setDisableCode(e.target.value)}
+                className="max-w-[10rem]"
+              />
+              <Button type="submit" variant="destructive" disabled={busy || !disableCode}>
+                Disable
+              </Button>
+            </form>
+          </>
+        ) : setup ? (
+          <form onSubmit={confirmEnable} className="flex flex-col gap-3">
+            <p className="text-sm text-muted-foreground">
+              Scan with your authenticator app (Google Authenticator, 1Password, Authy, …), or enter the code manually:{' '}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">{setup.secret}</code>
+            </p>
+            <img src={setup.qr} alt="2FA setup QR code" className="h-40 w-40 self-start rounded-lg border border-border bg-white p-2" />
+            <div className="grid gap-1.5">
+              <Label htmlFor="totp-confirm">Enter the 6-digit code it shows</Label>
+              <Input id="totp-confirm" autoFocus placeholder="123456" value={code} onChange={(e) => setCode(e.target.value)} />
+            </div>
+            <div className="flex gap-2">
+              <Button type="submit" disabled={busy || !code}>
+                Confirm & enable
+              </Button>
+              <Button type="button" variant="outline" disabled={busy} onClick={() => setSetup(null)}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <>
+            <p className="mb-3 text-sm text-muted-foreground">
+              Require a code from an authenticator app in addition to your PIN or password. Doesn't apply to signing in via
+              Cloudflare Access, which already has its own login policy.
+            </p>
+            <Button variant="outline" disabled={busy} onClick={startSetup}>
+              Enable two-factor authentication
+            </Button>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function RevokeSessionsCard() {
   const [busy, setBusy] = useState(false);
 
@@ -224,12 +372,15 @@ function SettingsSecurity() {
           This deployment uses multi-user sign-in. Manage accounts under{' '}
           <span className="font-medium text-foreground">Settings → Users</span>.
         </p>
-        {isAdmin && (
-          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-            <RevokeSessionsCard />
-            <CloudflareTunnelCard />
-          </div>
-        )}
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          <TwoFactorCard />
+          {isAdmin && (
+            <>
+              <RevokeSessionsCard />
+              <CloudflareTunnelCard />
+            </>
+          )}
+        </div>
       </div>
     );
   }
@@ -282,7 +433,7 @@ function SettingsSecurity() {
                 <Input
                   id="newCredential"
                   type="password"
-                  placeholder={newMode === 'pin' ? '4-8 digits' : 'At least 6 characters'}
+                  placeholder={newMode === 'pin' ? '6-8 digits' : 'At least 6 characters'}
                   required
                   value={newCredential}
                   onChange={(e) => setNewCredential(e.target.value)}
@@ -307,6 +458,7 @@ function SettingsSecurity() {
           </CardContent>
         </Card>
 
+        <TwoFactorCard />
         <RevokeSessionsCard />
         <EnableMultiUserCard />
         {isAdmin && <CloudflareTunnelCard />}

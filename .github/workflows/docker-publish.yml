@@ -37,20 +37,36 @@ jobs:
           TAGS="${TAGS},therealbatbro/remotarr:${GITHUB_SHA}"
           echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
 
-      - name: Build and push
+      - name: Build (local, for scanning before it ever reaches Docker Hub)
         uses: docker/build-push-action@v6
         with:
           context: .
-          push: true
-          # Plain single-manifest image — a provenance/SBOM attestation entry (tagged
-          # platform: unknown/unknown) breaks pulls on older Docker Engines and several
-          # NAS/Docker-UI tools (Unraid, Synology, Portainer, Watchtower) with "manifest
-          # unknown", even though the tag exists and pulls fine on an up-to-date Docker CLI.
+          push: false
+          load: true
           provenance: false
           sbom: false
           tags: ${{ steps.tags.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Scan image for vulnerabilities
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          # Any of the tags computed above resolves to the same just-built image.
+          image-ref: therealbatbro/remotarr:${{ github.sha }}
+          format: table
+          # A tagged release (v1.2.3) fails the build on a CRITICAL/HIGH finding with a known
+          # fix — a base image or dependency CVE severe enough to block :latest shouldn't ship
+          # silently. Ordinary main pushes only report (:development is meant to land
+          # continuously, per the note above) so this doesn't block every commit.
+          exit-code: ${{ startsWith(github.ref, 'refs/tags/v') && '1' || '0' }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+
+      - name: Push
+        # No tag specified pushes every locally-tagged reference for this repository (all four
+        # computed above) in one call.
+        run: docker push therealbatbro/remotarr
 
       - name: Sync Docker Hub overview
         uses: peter-evans/dockerhub-description@v4

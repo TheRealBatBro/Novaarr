@@ -2,9 +2,10 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const db = require('../db');
-const { setAuthCookie, clearAuthCookie, requireAuth, COOKIE } = require('../middleware/auth');
+const { setAuthCookie, clearAuthCookie, requireAuth, tryCloudflareAccess, COOKIE } = require('../middleware/auth');
 const { rateLimit } = require('../middleware/rateLimit');
 const { logAction } = require('../lib/audit');
+const totp = require('../lib/totp');
 
 const router = express.Router();
 
@@ -17,7 +18,11 @@ const credentialLimiter = rateLimit({ windowMs: 60_000, max: 20 });
 // only ever compares against a hash, so it doesn't need this.
 function validateCredential(mode, value) {
   if (mode === 'pin') {
-    if (!/^\d{4,8}$/.test(value || '')) return 'PIN must be 4-8 digits';
+    // A 4-digit PIN is only 10,000 combinations — fine behind a LAN-only firewall, thin
+    // protection for a deployment reachable from the internet. 6 digits (1M combinations) is a
+    // much safer floor for new/changed PINs; existing shorter PINs already set keep working
+    // (this only gates setup and future changes, not every login).
+    if (!/^\d{6,8}$/.test(value || '')) return 'PIN must be 6-8 digits';
   } else if (mode === 'password') {
     if (!value || value.length < 6 || value.length > 128) return 'Password must be 6-128 characters';
   } else {
@@ -26,49 +31,61 @@ function validateCredential(mode, value) {
   return null;
 }
 
-router.get('/status', (req, res) => {
+router.get('/status', async (req, res) => {
   const settings = db.getSettings();
   const hasCredential = !!settings.pin_hash;
   const multiUser = db.isMultiUser();
   let authenticated = false;
   let user;
-  const token = req.cookies[COOKIE];
-  if (token) {
-    try {
-      const payload = jwt.verify(token, settings.jwt_secret);
-      authenticated = true;
-      if (multiUser && payload.userId) {
-        const u = db.getUserById(payload.userId);
-        if (u) {
-          // Non-null only when the assigned role actually curated a widget list — an empty/no
-          // list means "no widget-level restriction," so the dashboard falls back to whatever
-          // service-level access already allows (unchanged from before this existed).
-          const restricted = u.role !== 'admin' && u.access_role_id;
-          const widgets = restricted ? db.getAccessRoleWidgets(u.access_role_id) : [];
-          // Whether the Calendar nav item shows at all — distinct from whether the underlying
-          // Sonarr/Radarr *pages* are reachable, since a role can grant Calendar data from an
-          // instance without granting that instance's own page (access_role_calendar_sources).
-          let calendarAccessible = true;
-          if (restricted) {
-            const sonarrOrRadarrIds = new Set(
-              db.listServiceInstances().filter((i) => i.service_id === 'sonarr' || i.service_id === 'radarr').map((i) => i.id),
-            );
-            // Deliberately NOT getAccessRoleAllowedInstanceIds — a widget-only grant on a
-            // Sonarr/Radarr instance shouldn't also imply Calendar access to it.
-            const granted = new Set([...db.getAccessRoleServiceIds(u.access_role_id), ...db.getAccessRoleCalendarSourceIds(u.access_role_id)]);
-            calendarAccessible = [...sonarrOrRadarrIds].some((id) => granted.has(id));
-          }
-          user = {
-            id: u.id,
-            username: u.username,
-            role: u.role,
-            links: db.listUserLinks(u.id),
-            widgetKeys: widgets.length > 0 ? widgets.map((w) => w.widgetKey) : null,
-            calendarAccessible,
-          };
-        }
+
+  // A Cloudflare Access login counts as authenticated here too — otherwise someone who signed
+  // in through Access (no native cookie ever set) would still see the app's own login screen.
+  const access = await tryCloudflareAccess(req);
+  let payload = access.user;
+  if (payload) {
+    authenticated = true;
+  } else {
+    const token = req.cookies[COOKIE];
+    if (token) {
+      try {
+        payload = jwt.verify(token, settings.jwt_secret);
+        authenticated = true;
+      } catch {
+        payload = null;
       }
-    } catch {}
+    }
+  }
+
+  if (authenticated && payload && multiUser && payload.userId) {
+    const u = db.getUserById(payload.userId);
+    if (u) {
+      // Non-null only when the assigned role actually curated a widget list — an empty/no
+      // list means "no widget-level restriction," so the dashboard falls back to whatever
+      // service-level access already allows (unchanged from before this existed).
+      const restricted = u.role !== 'admin' && u.access_role_id;
+      const widgets = restricted ? db.getAccessRoleWidgets(u.access_role_id) : [];
+      // Whether the Calendar nav item shows at all — distinct from whether the underlying
+      // Sonarr/Radarr *pages* are reachable, since a role can grant Calendar data from an
+      // instance without granting that instance's own page (access_role_calendar_sources).
+      let calendarAccessible = true;
+      if (restricted) {
+        const sonarrOrRadarrIds = new Set(
+          db.listServiceInstances().filter((i) => i.service_id === 'sonarr' || i.service_id === 'radarr').map((i) => i.id),
+        );
+        // Deliberately NOT getAccessRoleAllowedInstanceIds — a widget-only grant on a
+        // Sonarr/Radarr instance shouldn't also imply Calendar access to it.
+        const granted = new Set([...db.getAccessRoleServiceIds(u.access_role_id), ...db.getAccessRoleCalendarSourceIds(u.access_role_id)]);
+        calendarAccessible = [...sonarrOrRadarrIds].some((id) => granted.has(id));
+      }
+      user = {
+        id: u.id,
+        username: u.username,
+        role: u.role,
+        links: db.listUserLinks(u.id),
+        widgetKeys: widgets.length > 0 ? widgets.map((w) => w.widgetKey) : null,
+        calendarAccessible,
+      };
+    }
   }
   res.json({ hasCredential, authMode: hasCredential ? settings.auth_mode : null, authenticated, multiUser, user });
 });
@@ -106,6 +123,10 @@ router.post('/login', credentialLimiter, async (req, res) => {
       return res.status(401).json({ error: 'Incorrect username or password' });
     }
     db.resetFailedLogins();
+    if (user.totp_enabled) {
+      const pendingToken = jwt.sign({ twoFactorPending: true, userId: user.id, role: user.role }, db.getJwtSecret(), { expiresIn: '5m' });
+      return res.json({ ok: true, requiresTotp: true, pendingToken });
+    }
     setAuthCookie(res, req, { userId: user.id, role: user.role });
     db.logAudit({ actorUserId: user.id, actorLabel: user.username, action: 'auth.login', ip: req.ip });
     return res.json({ ok: true, user: { id: user.id, username: user.username, role: user.role } });
@@ -121,9 +142,63 @@ router.post('/login', credentialLimiter, async (req, res) => {
     return res.status(401).json({ error: settings.auth_mode === 'pin' ? 'Incorrect PIN' : 'Incorrect password' });
   }
   db.resetFailedLogins();
+  if (settings.totp_enabled) {
+    const pendingToken = jwt.sign({ twoFactorPending: true }, db.getJwtSecret(), { expiresIn: '5m' });
+    return res.json({ ok: true, requiresTotp: true, pendingToken });
+  }
   setAuthCookie(res, req);
   db.logAudit({ actorLabel: 'admin', action: 'auth.login', ip: req.ip });
   res.json({ ok: true });
+});
+
+// Second step of login when the resolved identity has TOTP enabled — `pendingToken` (from
+// /login above) proves the primary credential already checked out, without re-sending it here.
+// Shares the same account-wide lockout as the primary credential, so guessing 2FA codes is
+// throttled identically to guessing the PIN/password itself.
+router.post('/login/totp', credentialLimiter, async (req, res) => {
+  const { pendingToken, code } = req.body || {};
+  if (!pendingToken || !code) return res.status(400).json({ error: 'pendingToken and code are required' });
+
+  let pending;
+  try {
+    pending = jwt.verify(pendingToken, db.getJwtSecret());
+  } catch {
+    return res.status(401).json({ error: 'Login session expired — please sign in again' });
+  }
+  if (!pending.twoFactorPending) return res.status(400).json({ error: 'Invalid pending login' });
+
+  const lockedSeconds = db.getLockoutSeconds();
+  if (lockedSeconds > 0) {
+    res.set('Retry-After', String(lockedSeconds));
+    return res.status(429).json({ error: `Too many failed attempts. Try again in ${lockedSeconds}s.`, retryAfter: lockedSeconds });
+  }
+
+  const isSimple = !db.isMultiUser();
+  const record = isSimple ? db.getSettings() : db.getUserById(pending.userId);
+  if (!record) return res.status(401).json({ error: 'Account no longer exists' });
+
+  const validCode = totp.verifyCode(record.totp_secret, code);
+  const remainingBackupCodes =
+    !validCode && record.totp_backup_codes ? await totp.consumeBackupCode(JSON.parse(record.totp_backup_codes), code) : null;
+  if (!validCode && !remainingBackupCodes) {
+    db.recordFailedLogin();
+    db.logAudit({ actorLabel: isSimple ? 'admin' : record.username, action: 'auth.login_failed', detail: '2FA code', ip: req.ip });
+    return res.status(401).json({ error: 'Incorrect code' });
+  }
+  if (remainingBackupCodes) {
+    if (isSimple) db.consumeSettingsBackupCode(remainingBackupCodes);
+    else db.consumeUserBackupCode(record.id, remainingBackupCodes);
+  }
+  db.resetFailedLogins();
+
+  if (isSimple) {
+    setAuthCookie(res, req);
+    db.logAudit({ actorLabel: 'admin', action: 'auth.login', ip: req.ip });
+    return res.json({ ok: true });
+  }
+  setAuthCookie(res, req, { userId: record.id, role: record.role });
+  db.logAudit({ actorUserId: record.id, actorLabel: record.username, action: 'auth.login', ip: req.ip });
+  res.json({ ok: true, user: { id: record.id, username: record.username, role: record.role } });
 });
 
 // Opt-in switch from simple mode's single shared PIN/password to per-person accounts — requires

@@ -18,6 +18,9 @@ export type AppUser = {
   username: string;
   role: 'admin' | 'member';
   accessRoleId?: number | null;
+  /** Email this account is linked to in Cloudflare Access, if any — a verified Access login
+   * with this email signs in as this user without needing the app's own password/PIN. */
+  cfAccessEmail?: string | null;
   links?: UserLink[];
   /** Non-null only when the assigned role curated a specific widget list — null means no
    * widget-level restriction beyond whatever service-level access already allows. */
@@ -35,6 +38,9 @@ export type AuthStatus = {
   multiUser: boolean;
   user?: AppUser;
 };
+/** The primary credential checked out, but the identity has TOTP enabled — sign-in isn't
+ * complete until authApi.loginTotp is called with a valid code and this pendingToken. */
+export type LoginResult = { ok: true; user?: AppUser } | { ok: true; requiresTotp: true; pendingToken: string };
 
 async function json<T>(res: Response): Promise<T> {
   const data = await res.json().catch(() => null);
@@ -59,14 +65,21 @@ export const authApi = {
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ credential }),
-    }).then((r) => json<{ ok: true }>(r)),
+    }).then((r) => json<LoginResult>(r)),
   loginMultiUser: (username: string, password: string) =>
     fetch(apiUrl('/api/auth/login'), {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
-    }).then((r) => json<{ ok: true; user: AppUser }>(r)),
+    }).then((r) => json<LoginResult>(r)),
+  loginTotp: (pendingToken: string, code: string) =>
+    fetch(apiUrl('/api/auth/login/totp'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pendingToken, code }),
+    }).then((r) => json<{ ok: true; user?: AppUser }>(r)),
   logout: () => fetch(apiUrl('/api/auth/logout'), { method: 'POST', credentials: 'same-origin' }).then((r) => json<{ ok: true }>(r)),
   changeCredential: (current: string, newMode: AuthMode, newCredential: string) =>
     fetch(apiUrl('/api/auth/change-credential'), {
@@ -86,6 +99,28 @@ export const authApi = {
     fetch(apiUrl('/api/auth/revoke-sessions'), { method: 'POST', credentials: 'same-origin' }).then((r) => json<{ ok: true }>(r)),
 };
 
+export type TotpStatus = { enabled: boolean; backupCodesRemaining: number };
+export type TotpSetup = { secret: string; uri: string; qr: string };
+
+export const totpApi = {
+  status: () => fetch(apiUrl('/api/2fa'), { credentials: 'same-origin' }).then((r) => json<TotpStatus>(r)),
+  setup: () => fetch(apiUrl('/api/2fa/setup'), { method: 'POST', credentials: 'same-origin' }).then((r) => json<TotpSetup>(r)),
+  enable: (code: string) =>
+    fetch(apiUrl('/api/2fa/enable'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    }).then((r) => json<{ ok: true; backupCodes: string[] }>(r)),
+  disable: (code: string) =>
+    fetch(apiUrl('/api/2fa/disable'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    }).then((r) => json<{ ok: true }>(r)),
+};
+
 export const usersApi = {
   list: () => fetch(apiUrl('/api/users'), { credentials: 'same-origin' }).then((r) => json<AppUser[]>(r)),
   create: (username: string, password: string, role: 'admin' | 'member') =>
@@ -95,7 +130,10 @@ export const usersApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password, role }),
     }).then((r) => json<AppUser>(r)),
-  update: (id: number, data: { username?: string; password?: string; role?: 'admin' | 'member'; accessRoleId?: number | null }) =>
+  update: (
+    id: number,
+    data: { username?: string; password?: string; role?: 'admin' | 'member'; accessRoleId?: number | null; cfAccessEmail?: string | null },
+  ) =>
     fetch(apiUrl(`/api/users/${id}`), {
       method: 'PUT',
       credentials: 'same-origin',

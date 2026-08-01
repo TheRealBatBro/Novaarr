@@ -13,12 +13,17 @@ export function PinPad({
   error,
   busy,
   onComplete,
+  minLength = PIN_MIN,
 }: {
   title: string;
   subtitle?: string;
   error?: string | null;
   busy?: boolean;
   onComplete: (pin: string) => void;
+  /** Raises the minimum for creating/confirming a NEW pin (6, since a 4-digit PIN is only
+   * 10,000 combinations) without affecting logging in with an existing shorter one — omit for
+   * login, the default (4) matches whatever length a user's current PIN already is. */
+  minLength?: number;
 }) {
   const [digits, setDigits] = useState('');
   const [shakeSeq, setShakeSeq] = useState(0);
@@ -28,7 +33,7 @@ export function PinPad({
   }, [error]);
 
   function submit() {
-    if (digits.length < PIN_MIN) return;
+    if (digits.length < minLength) return;
     onComplete(digits);
     setDigits('');
   }
@@ -52,8 +57,8 @@ export function PinPad({
     }
   }
 
-  const dotCount = Math.min(PIN_MAX, Math.max(PIN_MIN, digits.length));
-  const canSubmit = digits.length >= PIN_MIN;
+  const dotCount = Math.min(PIN_MAX, Math.max(minLength, digits.length));
+  const canSubmit = digits.length >= minLength;
 
   return (
     <motion.div

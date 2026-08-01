@@ -34,12 +34,25 @@ function UserForm({ existing, onClose }: { existing?: AppUser; onClose: () => vo
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<'admin' | 'member'>(existing?.role ?? 'member');
   const [accessRoleId, setAccessRoleId] = useState<number | null>(existing?.accessRoleId ?? null);
+  const [cfAccessEmail, setCfAccessEmail] = useState(existing?.cfAccessEmail ?? '');
 
   const save = useMutation({
     mutationFn: () =>
       existing
-        ? usersApi.update(existing.id, { username, role, accessRoleId, ...(password ? { password } : {}) })
-        : usersApi.create(username, password, role).then((u) => (accessRoleId ? usersApi.update(u.id, { accessRoleId }) : u)),
+        ? usersApi.update(existing.id, {
+            username,
+            role,
+            accessRoleId,
+            cfAccessEmail: cfAccessEmail.trim() || null,
+            ...(password ? { password } : {}),
+          })
+        : usersApi
+            .create(username, password, role)
+            .then((u) =>
+              accessRoleId || cfAccessEmail.trim()
+                ? usersApi.update(u.id, { accessRoleId, cfAccessEmail: cfAccessEmail.trim() || null })
+                : u,
+            ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] });
       toast.success(existing ? 'User updated' : 'User created');
@@ -95,6 +108,20 @@ function UserForm({ existing, onClose }: { existing?: AppUser; onClose: () => vo
           <p className="text-xs text-muted-foreground">Restricts which service pages and dashboard widgets this person can see and use.</p>
         </div>
       )}
+      <div className="grid gap-1.5">
+        <Label htmlFor="cfAccessEmail">Cloudflare Access email (optional)</Label>
+        <Input
+          id="cfAccessEmail"
+          type="email"
+          placeholder="name@example.com"
+          value={cfAccessEmail}
+          onChange={(e) => setCfAccessEmail(e.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">
+          If Cloudflare Access is configured (CF_ACCESS_TEAM_DOMAIN/CF_ACCESS_AUD), a verified sign-in with this email signs
+          straight in as this user — no username/password needed.
+        </p>
+      </div>
       <Button type="submit" disabled={save.isPending} className="mt-1">
         {existing ? 'Save changes' : 'Create user'}
       </Button>

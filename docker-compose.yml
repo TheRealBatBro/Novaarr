@@ -36,6 +36,13 @@ services:
       # card once you've set up the cloudflared sidecar below. Purely cosmetic — the app has no
       # way to read this back from Cloudflare itself, so it's just what you tell it.
       # CLOUDFLARE_TUNNEL_HOSTNAME: "remotarr.example.com"
+      # Optional: enables signing in via Cloudflare Access instead of (or alongside) the app's
+      # own PIN/password/2FA — Cloudflare's own login becomes the auth boundary for anyone
+      # reaching Remotarr through this Access application. Both must be set together. See
+      # "Cloudflare Access" in README.md for the one-time setup on Cloudflare's side and how to
+      # link an email to a specific user in multi-user mode.
+      # CF_ACCESS_TEAM_DOMAIN: "yourteam.cloudflareaccess.com"
+      # CF_ACCESS_AUD: "the-access-application-aud-tag"
     # Uncomment to expose only to a local reverse proxy (Nginx/Traefik/Caddy)
     # and remove the `ports` section above:
     # networks:

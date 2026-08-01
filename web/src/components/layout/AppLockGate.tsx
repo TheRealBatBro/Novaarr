@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { PinPad } from './PinPad';
 import { PasswordEntry } from './PasswordEntry';
 import { UsernamePasswordEntry } from './UsernamePasswordEntry';
+import { TotpEntry } from './TotpEntry';
 
 function ModePicker({ onChoose }: { onChoose: (mode: AuthMode) => void }) {
   return (
@@ -21,7 +22,7 @@ function ModePicker({ onChoose }: { onChoose: (mode: AuthMode) => void }) {
           <Hash className="h-5 w-5 shrink-0" />
           <div className="text-left">
             <p className="font-medium leading-tight">PIN code</p>
-            <p className="text-xs text-muted-foreground">4-8 digits, tap to enter</p>
+            <p className="text-xs text-muted-foreground">6-8 digits, tap to enter</p>
           </div>
         </Button>
         <Button variant="outline" className="h-16 justify-start gap-3 px-4" onClick={() => onChoose('password')}>
@@ -44,6 +45,9 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
   const [pendingFirst, setPendingFirst] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Set once the primary credential checks out but the identity has 2FA enabled — presence of
+  // this token is what switches the screen to the code-entry step below.
+  const [totpPendingToken, setTotpPendingToken] = useState<string | null>(null);
 
   async function handleSetup(mode: AuthMode, value: string) {
     if (!pendingFirst) {
@@ -73,8 +77,12 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
     setBusy(true);
     setError(null);
     try {
-      await authApi.login(value);
-      await qc.invalidateQueries({ queryKey: ['auth', 'status'] });
+      const result = await authApi.login(value);
+      if ('requiresTotp' in result && result.requiresTotp) {
+        setTotpPendingToken(result.pendingToken);
+      } else {
+        await qc.invalidateQueries({ queryKey: ['auth', 'status'] });
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Incorrect credential');
     } finally {
@@ -86,10 +94,29 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
     setBusy(true);
     setError(null);
     try {
-      await authApi.loginMultiUser(username, password);
-      await qc.invalidateQueries({ queryKey: ['auth', 'status'] });
+      const result = await authApi.loginMultiUser(username, password);
+      if ('requiresTotp' in result && result.requiresTotp) {
+        setTotpPendingToken(result.pendingToken);
+      } else {
+        await qc.invalidateQueries({ queryKey: ['auth', 'status'] });
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Incorrect username or password');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleTotp(code: string) {
+    if (!totpPendingToken) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await authApi.loginTotp(totpPendingToken, code);
+      setTotpPendingToken(null);
+      await qc.invalidateQueries({ queryKey: ['auth', 'status'] });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Incorrect code');
     } finally {
       setBusy(false);
     }
@@ -106,6 +133,16 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  // The primary credential already checked out — this step is shared by both simple and
+  // multi-user mode, so it takes priority over the mode-specific screens below.
+  if (totpPendingToken) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-6">
+        <TotpEntry error={error} busy={busy} onComplete={handleTotp} />
       </div>
     );
   }
@@ -158,6 +195,7 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
           }
           error={error}
           busy={busy}
+          minLength={setupMode ? 6 : undefined}
           onComplete={(value) => (setupMode ? handleSetup('pin', value) : handleLogin(value))}
         />
       ) : (

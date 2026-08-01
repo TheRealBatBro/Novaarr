@@ -269,12 +269,54 @@ what's publicly exposed, and keeping it in a separate, minimal container (Cloudf
 own official image) keeps that blast radius contained if the app itself is ever
 compromised.
 
+## Cloudflare Access
+
+If you're already tunneling Remotarr through Cloudflare (above), you can go a step
+further and let [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/policies/access/)
+handle sign-in entirely — its own login (with whatever identity provider and 2FA
+policy you configure there) becomes the auth boundary, instead of relying only on
+Remotarr's own PIN/password.
+
+1. In [one.dash.cloudflare.com](https://one.dash.cloudflare.com) > Zero Trust >
+   Access > Applications, add an application for your Remotarr hostname, with
+   whatever login/2FA policy you want.
+2. Copy the application's **Audience (AUD) tag** from its Overview tab, and your
+   **team domain** (`https://<team-name>.cloudflareaccess.com`).
+3. Set `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` on the `remotarr` service in
+   `docker-compose.yml` (both required together) and `docker compose up -d`.
+4. **Simple mode**: any verified Access login now signs in as the shared identity —
+   no linking needed, since there's only one.
+5. **Multi-user mode**: each Remotarr account needs its Access email linked
+   explicitly — edit the user in Settings > Users and set "Cloudflare Access email".
+   An Access login with no linked account gets a clear "ask an admin to link it"
+   message rather than silently failing.
+
+This is additive, not a replacement: the app's own PIN/password/2FA sign-in still
+works too (e.g. for LAN access that bypasses the tunnel entirely). Every Access JWT
+is verified against Cloudflare's own public keys — nothing here trusts a header
+value on its own.
+
 ## Sign-in: PIN or password
 
 Settings > Security lets you change your sign-in credential at any time, and switch
 between a PIN code and a password whenever you like — you're never locked into the
-choice made during first-run setup. Changing it takes effect immediately; it doesn't
-log out other already-signed-in devices.
+choice made during first-run setup. Changing it signs every device back out
+(including this one, briefly — it reissues your own session right after), so a leaked
+old credential can't be used to keep an existing session alive.
+
+## Two-factor authentication (TOTP)
+
+Settings > Security also has an optional "Two-factor authentication" card — scan the
+QR code with an authenticator app (Google Authenticator, 1Password, Authy, …), confirm
+with a 6-digit code, and save the one-time backup codes it gives you afterward. Once
+enabled, signing in with your PIN/password is followed by a second step asking for a
+code. This is per-identity: in multi-user mode, each member enables their own
+independently; in simple mode, it applies to the one shared credential. It doesn't
+apply to signing in via Cloudflare Access (below), which already has its own login
+policy. **Save the backup codes somewhere safe** — there's no email/SMS recovery flow,
+so losing both your authenticator app and your backup codes means recovering access
+requires directly editing the database (clearing `totp_enabled`/`totp_secret` for the
+relevant row).
 
 ## Multi-user mode & access roles
 
@@ -327,6 +369,15 @@ A few things worth knowing about the security model:
 - **Container hardening**: the shipped `docker-compose.yml` runs the container
   read-only (except `/data` and `/tmp`), drops all Linux capabilities, and sets
   `no-new-privileges` — on top of the image already running as a non-root user.
+- **Brute-force lockout**: failed sign-ins trigger an exponentially growing lockout
+  (capped at 24 hours, up from an earlier 15-minute cap) — a script hammering the
+  login endpoint from the internet can no longer keep guessing at a steady drip
+  forever. New/changed PINs require 6-8 digits, not 4, for the same reason.
+- **CSRF**: the session cookie is `sameSite: lax` and no CORS is enabled anywhere, so a
+  cross-site page can neither attach the cookie to a fetch/XHR request nor trigger a
+  cookie-carrying state-changing request via a top-level form POST.
+- **Optional Cloudflare Access SSO** and **optional TOTP two-factor authentication** —
+  see below.
 - Found something that should be hardened further? Please open a
   [security-labeled issue](https://github.com/TheRealBatBro/Remotarr/issues/new?labels=security&title=Security%3A%20)
   rather than a public one if it's a live exploit, and we'll follow up privately.
