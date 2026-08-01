@@ -405,6 +405,15 @@ router.post('/:instanceId', async (req, res) => {
 
   const { path = '/', method, query, body, timeoutMs } = req.body || {};
 
+  // Overseerr/Jellyseerr requests always authenticate with the instance's single admin API
+  // key, so a request would otherwise always land in Seerr attributed to the admin. If the
+  // calling Remotarr user has a linked Seerr account (Settings > Users), stamp the real Seerr
+  // numeric userId onto new-request calls — Seerr honors an admin-key request's userId field.
+  if (instance.service_id === 'overseerr' && method === 'POST' && path === '/api/v1/request' && body && req.user?.userId) {
+    const link = db.listUserLinks(req.user.userId).find((l) => l.instanceId === instance.id);
+    if (link) body.userId = Number(link.externalId);
+  }
+
   async function attempt(baseUrl) {
     if (isBlockedTarget(baseUrl)) throw new Error('Target not allowed');
     const upstream = await adapter({ ...instance, local_url: baseUrl }, { path, method, query, body }, timeoutMs);

@@ -9,6 +9,12 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Remotarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.18.1',
+    notes: [
+      'Fixed Seerr requests always being attributed to the admin account instead of the requesting member\'s linked Seerr account',
+    ],
+  },
+  {
     version: '0.18.0',
     notes: [
       'Added an "Ignore certificate errors" option for services with a local/remote URL, to support self-signed certs (e.g. Plex over a local IP)',
