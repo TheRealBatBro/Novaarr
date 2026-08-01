@@ -23,8 +23,6 @@ export function ServiceInstanceForm({
   const [remoteUrl, setRemoteUrl] = useState(existing?.remoteUrl ?? '');
   const [preferredMode, setPreferredMode] = useState(existing?.preferredMode ?? 'auto');
   const [credentials, setCredentials] = useState<Record<string, string>>(existing?.credentials ?? {});
-  const [wolMac, setWolMac] = useState(existing?.wolMac ?? '');
-  const [wolBroadcast, setWolBroadcast] = useState(existing?.wolBroadcast ?? '');
   const [headerRows, setHeaderRows] = useState<{ key: string; value: string }[]>(
     existing?.customHeaders ? Object.entries(existing.customHeaders).map(([key, value]) => ({ key, value })) : [],
   );
@@ -49,8 +47,6 @@ export function ServiceInstanceForm({
       remoteUrl: isFixedBaseUrl ? undefined : remoteUrl || undefined,
       preferredMode: (isFixedBaseUrl ? 'local' : preferredMode) as 'auto' | 'local' | 'remote',
       credentials,
-      wolMac: isFixedBaseUrl ? undefined : wolMac || undefined,
-      wolBroadcast: isFixedBaseUrl ? undefined : wolBroadcast || undefined,
       customHeaders: isFixedBaseUrl
         ? undefined
         : Object.fromEntries(headerRows.filter((h) => h.key.trim()).map((h) => [h.key.trim(), h.value])),
@@ -180,24 +176,6 @@ export function ServiceInstanceForm({
           {field.helpText && <p className="text-xs text-muted-foreground">{field.helpText}</p>}
         </div>
       ))}
-
-      {!isFixedBaseUrl && (
-        <div className="grid grid-cols-2 gap-4">
-          <div className="grid gap-1.5">
-            <Label htmlFor="wolMac">Wake-on-LAN MAC (optional)</Label>
-            <Input id="wolMac" placeholder="AA:BB:CC:DD:EE:FF" value={wolMac} onChange={(e) => setWolMac(e.target.value)} />
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="wolBroadcast">Broadcast address</Label>
-            <Input
-              id="wolBroadcast"
-              placeholder="255.255.255.255"
-              value={wolBroadcast}
-              onChange={(e) => setWolBroadcast(e.target.value)}
-            />
-          </div>
-        </div>
-      )}
 
       {!isFixedBaseUrl && (
         <div className="grid gap-1.5">

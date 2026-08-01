@@ -2,7 +2,6 @@ import { ExternalLink } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { WolButton } from '@/components/shared/WolButton';
 import { getServiceIcon } from '@/lib/serviceIcons';
 import type { ServiceDefinition } from '@/lib/serviceRegistry';
 import type { ServiceInstance } from '@/lib/api';
@@ -56,7 +55,6 @@ export function GenericServiceScreen({ definition, instance }: { definition: Ser
                 </a>
               </Button>
             )}
-            <WolButton wolMac={instance.wolMac} wolBroadcast={instance.wolBroadcast} />
           </CardContent>
         </Card>
       )}

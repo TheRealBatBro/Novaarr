@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { WolButton } from '@/components/shared/WolButton';
 import { getServiceIcon } from '@/lib/serviceIcons';
 import { cn } from '@/lib/utils';
 import { useResetScrollOnChange } from '@/lib/useResetScrollOnChange';
@@ -41,7 +40,6 @@ export function UnraidScreen({ instance }: { instance: ServiceInstance }) {
               </span>
             )}
           </Button>
-          <WolButton wolMac={instance.wolMac} wolBroadcast={instance.wolBroadcast} />
         </div>
       </div>
 

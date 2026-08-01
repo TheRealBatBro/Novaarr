@@ -96,6 +96,9 @@ router.put('/:id', async (req, res) => {
     return res.status(409).json({ error: 'Cannot demote the last remaining admin' });
   }
   const updated = db.updateUser(id, { username, passwordHash, role, accessRoleId });
+  // A password reset should kill that user's existing sessions — otherwise a leaked/stolen
+  // cookie signed under the old password keeps working right through the reset.
+  if (passwordHash) db.bumpUserTokenValidAfter(id);
   res.json(serializeUserOut(updated));
 });
 

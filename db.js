@@ -92,8 +92,6 @@ function initDb() {
       remote_url     TEXT,
       preferred_mode TEXT    NOT NULL DEFAULT 'auto',
       credentials    TEXT    NOT NULL DEFAULT '{}',
-      wol_mac        TEXT,
-      wol_broadcast  TEXT,
       favorite       INTEGER NOT NULL DEFAULT 0,
       sort_order     INTEGER NOT NULL DEFAULT 0,
       session_token  TEXT,
@@ -112,11 +110,20 @@ function initDb() {
   ensureColumn('service_instances', 'refresh_interval_minutes', 'refresh_interval_minutes INTEGER NOT NULL DEFAULT 5');
   ensureColumn('service_instances', 'custom_headers', "custom_headers TEXT NOT NULL DEFAULT '{}'");
   ensureColumn('service_instances', 'ignore_cert_errors', 'ignore_cert_errors INTEGER NOT NULL DEFAULT 0');
+  ensureColumn('settings', 'credentials_key', 'credentials_key TEXT');
+  ensureColumn('settings', 'token_valid_after', 'token_valid_after INTEGER NOT NULL DEFAULT 0');
+  ensureColumn('users', 'token_valid_after', 'token_valid_after INTEGER NOT NULL DEFAULT 0');
 
   const row = db.prepare('SELECT id FROM settings WHERE id = 1').get();
   if (!row) {
     const jwtSecret = crypto.randomBytes(32).toString('hex');
-    db.prepare('INSERT INTO settings (id, pin_hash, jwt_secret) VALUES (1, NULL, ?)').run(jwtSecret);
+    const credentialsKey = crypto.randomBytes(32).toString('hex');
+    db.prepare('INSERT INTO settings (id, pin_hash, jwt_secret, credentials_key) VALUES (1, NULL, ?, ?)').run(jwtSecret, credentialsKey);
+  } else if (!db.prepare('SELECT credentials_key FROM settings WHERE id = 1').get().credentials_key) {
+    // Upgrading a pre-encryption install — generate the key now. Any credentials already
+    // stored in plaintext stay readable (decryptJson falls back to plain JSON) and get
+    // encrypted the next time their instance is saved.
+    db.prepare('UPDATE settings SET credentials_key = ? WHERE id = 1').run(crypto.randomBytes(32).toString('hex'));
   }
 
   // One-time correction for instances that got the old blanket default of 15 minutes before the
@@ -153,6 +160,60 @@ function setCredential(hash, mode) {
 
 function getJwtSecret() {
   return getSettings().jwt_secret;
+}
+
+// Encrypts service_instances.credentials at rest (AES-256-GCM, random IV + auth tag per write)
+// with a key generated once per install and never derived from the JWT secret, so rotating
+// sessions (e.g. token revocation) never breaks stored credentials.
+const ENC_PREFIX = 'enc:v1:';
+
+function encryptJson(obj) {
+  const key = Buffer.from(getSettings().credentials_key, 'hex');
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const ciphertext = Buffer.concat([cipher.update(JSON.stringify(obj ?? {}), 'utf8'), cipher.final()]);
+  return ENC_PREFIX + Buffer.concat([iv, cipher.getAuthTag(), ciphertext]).toString('base64');
+}
+
+// Pre-encryption installs have plaintext JSON in this column — read it as-is (it gets
+// encrypted the next time its instance is saved) instead of failing to decrypt.
+function decryptJson(value) {
+  if (typeof value !== 'string' || !value.startsWith(ENC_PREFIX)) {
+    try { return JSON.parse(value || '{}'); } catch { return {}; }
+  }
+  try {
+    const raw = Buffer.from(value.slice(ENC_PREFIX.length), 'base64');
+    const key = Buffer.from(getSettings().credentials_key, 'hex');
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, raw.subarray(0, 12));
+    decipher.setAuthTag(raw.subarray(12, 28));
+    const plaintext = Buffer.concat([decipher.update(raw.subarray(28)), decipher.final()]);
+    return JSON.parse(plaintext.toString('utf8'));
+  } catch {
+    return {};
+  }
+}
+
+// JWTs are otherwise valid for their full 30-day life with no way to invalidate a leaked/stolen
+// one short of rotating the signing secret (which logs out every session at once). Instead, a
+// token is rejected once its `iat` (issued-at, in seconds) predates either the global or the
+// per-user revocation floor — so "sign out everywhere" or a password change can kill just the
+// sessions that existed before it, without touching sessions issued after.
+function bumpTokenValidAfter() {
+  getDb().prepare('UPDATE settings SET token_valid_after = ? WHERE id = 1').run(Math.floor(Date.now() / 1000));
+}
+
+function bumpUserTokenValidAfter(userId) {
+  getDb().prepare('UPDATE users SET token_valid_after = ? WHERE id = ?').run(Math.floor(Date.now() / 1000), userId);
+}
+
+function isTokenRevoked(payload) {
+  const iat = payload?.iat || 0;
+  if (iat < (getSettings().token_valid_after || 0)) return true;
+  if (payload?.userId) {
+    const user = getUserById(payload.userId);
+    if (user && iat < (user.token_valid_after || 0)) return true;
+  }
+  return false;
 }
 
 // Brute-force lockout on the shared credential (login and change-credential's "current"
@@ -255,7 +316,7 @@ function parseInstance(row) {
   if (!row) return row;
   return {
     ...row,
-    credentials: JSON.parse(row.credentials || '{}'),
+    credentials: decryptJson(row.credentials),
     custom_headers: JSON.parse(row.custom_headers || '{}'),
   };
 }
@@ -271,8 +332,8 @@ function getServiceInstance(id) {
 function createServiceInstance(data) {
   const stmt = getDb().prepare(`
     INSERT INTO service_instances
-      (service_id, display_name, auth_type, local_url, remote_url, preferred_mode, credentials, custom_headers, wol_mac, wol_broadcast, favorite, sort_order, enabled, refresh_interval_minutes, ignore_cert_errors)
-    VALUES (@service_id, @display_name, @auth_type, @local_url, @remote_url, @preferred_mode, @credentials, @custom_headers, @wol_mac, @wol_broadcast, @favorite, @sort_order, @enabled, @refresh_interval_minutes, @ignore_cert_errors)
+      (service_id, display_name, auth_type, local_url, remote_url, preferred_mode, credentials, custom_headers, favorite, sort_order, enabled, refresh_interval_minutes, ignore_cert_errors)
+    VALUES (@service_id, @display_name, @auth_type, @local_url, @remote_url, @preferred_mode, @credentials, @custom_headers, @favorite, @sort_order, @enabled, @refresh_interval_minutes, @ignore_cert_errors)
   `);
   const result = stmt.run({
     service_id: data.serviceId,
@@ -281,10 +342,8 @@ function createServiceInstance(data) {
     local_url: data.localUrl || null,
     remote_url: data.remoteUrl || null,
     preferred_mode: data.preferredMode || 'auto',
-    credentials: JSON.stringify(data.credentials || {}),
+    credentials: encryptJson(data.credentials || {}),
     custom_headers: JSON.stringify(data.customHeaders || {}),
-    wol_mac: data.wolMac || null,
-    wol_broadcast: data.wolBroadcast || null,
     favorite: data.favorite ? 1 : 0,
     sort_order: data.sortOrder || 0,
     enabled: data.enabled === false ? 0 : 1,
@@ -303,10 +362,8 @@ function updateServiceInstance(id, data) {
     local_url: data.localUrl ?? existing.local_url,
     remote_url: data.remoteUrl ?? existing.remote_url,
     preferred_mode: data.preferredMode ?? existing.preferred_mode,
-    credentials: JSON.stringify(data.credentials ?? existing.credentials),
+    credentials: data.credentials !== undefined ? encryptJson(data.credentials) : encryptJson(existing.credentials),
     custom_headers: JSON.stringify(data.customHeaders ?? existing.custom_headers),
-    wol_mac: data.wolMac ?? existing.wol_mac,
-    wol_broadcast: data.wolBroadcast ?? existing.wol_broadcast,
     favorite: data.favorite !== undefined ? (data.favorite ? 1 : 0) : existing.favorite,
     sort_order: data.sortOrder ?? existing.sort_order,
     enabled: data.enabled !== undefined ? (data.enabled ? 1 : 0) : existing.enabled,
@@ -319,8 +376,8 @@ function updateServiceInstance(id, data) {
   getDb().prepare(`
     UPDATE service_instances SET
       display_name = @display_name, auth_type = @auth_type, local_url = @local_url, remote_url = @remote_url,
-      preferred_mode = @preferred_mode, credentials = @credentials, custom_headers = @custom_headers, wol_mac = @wol_mac,
-      wol_broadcast = @wol_broadcast, favorite = @favorite, sort_order = @sort_order,
+      preferred_mode = @preferred_mode, credentials = @credentials, custom_headers = @custom_headers,
+      favorite = @favorite, sort_order = @sort_order,
       enabled = @enabled, refresh_interval_minutes = @refresh_interval_minutes, ignore_cert_errors = @ignore_cert_errors,
       updated_at = unixepoch()
     WHERE id = @id
@@ -548,6 +605,7 @@ function deleteAccessRole(id) {
 
 module.exports = {
   initDb, getDb, getSettings, setCredential, getJwtSecret,
+  bumpTokenValidAfter, bumpUserTokenValidAfter, isTokenRevoked,
   recordFailedLogin, resetFailedLogins, getLockoutSeconds,
   closeDb, backupTo, restoreFrom, DB_PATH,
   listServiceInstances, getServiceInstance, createServiceInstance, updateServiceInstance, deleteServiceInstance,

@@ -171,6 +171,23 @@ router.post('/change-credential', requireAuth, credentialLimiter, async (req, re
   if (validationError) return res.status(400).json({ error: validationError });
   const hash = await bcrypt.hash(newCredential, 12);
   db.setCredential(hash, newMode);
+  // Invalidate every session signed under the old credential, then immediately reissue the
+  // caller's own — otherwise the person who just changed it would get logged out by their own
+  // request.
+  db.bumpTokenValidAfter();
+  setAuthCookie(res, req);
+  res.json({ ok: true });
+});
+
+// Kills every existing session (including, briefly, the caller's own — reissued below) by
+// moving the revocation floor to now. In multi-user mode this is admin-only since it signs
+// every member out, not just the caller.
+router.post('/revoke-sessions', requireAuth, (req, res) => {
+  if (db.isMultiUser() && req.user?.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  db.bumpTokenValidAfter();
+  setAuthCookie(res, req, db.isMultiUser() ? { userId: req.user.userId, role: req.user.role } : undefined);
   res.json({ ok: true });
 });
 

@@ -17,8 +17,6 @@ function serialize(instance, navAllowed = true, calendarAllowed = true) {
     preferredMode: instance.preferred_mode,
     credentials: instance.credentials,
     customHeaders: instance.custom_headers,
-    wolMac: instance.wol_mac,
-    wolBroadcast: instance.wol_broadcast,
     favorite: !!instance.favorite,
     sortOrder: instance.sort_order,
     enabled: !!instance.enabled,

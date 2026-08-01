@@ -9,6 +9,17 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Remotarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.19.0',
+    notes: [
+      'Removed Wake-on-LAN — a leftover feature that let any signed-in member send a magic packet to any address with no permission check',
+      'Service API keys and passwords are now encrypted at rest (AES-256-GCM) instead of stored as plain JSON',
+      'The backend proxy now resolves DNS itself and refuses to connect to loopback, link-local, or cloud metadata addresses — including through a redirect',
+      'Added session revocation: Settings > Security has a "Sign out everywhere else" action, and a password/PIN change now signs out every existing session automatically',
+      'Bumped a few backend dependencies to their latest patched versions',
+      'The Docker container now runs read-only, drops all Linux capabilities, and sets no-new-privileges',
+    ],
+  },
+  {
     version: '0.18.2',
     notes: [
       'The "Search Seerr" dashboard widget now searches automatically as you type instead of needing a button press, and shows the real error when the Seerr instance is unreachable instead of a misleading "No results"',

@@ -210,7 +210,7 @@ function SettingsServices() {
                   {editing.existing ? `Edit ${editing.existing.displayName}` : `Add ${editing.definition.displayName}`}
                 </DialogTitle>
                 <DialogDescription>
-                  {editing.definition.helpText ?? 'Local URL is required; remote URL and Wake-on-LAN are optional.'}
+                  {editing.definition.helpText ?? 'Local URL is required; remote URL is optional.'}
                 </DialogDescription>
               </DialogHeader>
               <ServiceInstanceForm definition={editing.definition} existing={editing.existing} onDone={() => setEditing(null)} />

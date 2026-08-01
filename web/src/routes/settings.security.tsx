@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Hash, KeyRound, Users, Cloud, ExternalLink } from 'lucide-react';
+import { Hash, KeyRound, Users, Cloud, ExternalLink, ShieldOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -143,6 +143,40 @@ function CloudflareTunnelCard() {
   );
 }
 
+function RevokeSessionsCard() {
+  const [busy, setBusy] = useState(false);
+
+  async function handleRevoke() {
+    setBusy(true);
+    try {
+      await authApi.revokeSessions();
+      toast.success('Every other signed-in session has been signed out');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to sign out other sessions');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className="max-w-md">
+      <CardContent className="p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <ShieldOff className="h-4 w-4 text-muted-foreground" />
+          <p className="text-sm font-semibold">Sessions</p>
+        </div>
+        <p className="mb-3 text-sm text-muted-foreground">
+          Signs every browser currently signed in — including anywhere a session cookie may have leaked — back out. You'll stay signed in
+          here.
+        </p>
+        <Button variant="outline" disabled={busy} onClick={handleRevoke}>
+          Sign out everywhere else
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 function SettingsSecurity() {
   const { data } = useAuthStatus();
   const isAdmin = useIsSettingsAdmin();
@@ -191,7 +225,8 @@ function SettingsSecurity() {
           <span className="font-medium text-foreground">Settings → Users</span>.
         </p>
         {isAdmin && (
-          <div className="mt-6">
+          <div className="mt-6 flex flex-col gap-6">
+            <RevokeSessionsCard />
             <CloudflareTunnelCard />
           </div>
         )}
@@ -272,6 +307,7 @@ function SettingsSecurity() {
       </Card>
 
       <div className="mt-6 flex max-w-md flex-col gap-6">
+        <RevokeSessionsCard />
         <EnableMultiUserCard />
         {isAdmin && <CloudflareTunnelCard />}
       </div>

@@ -5,7 +5,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { WolButton } from '@/components/shared/WolButton';
 import { useServiceProxy } from '@/lib/queries';
 import { getServiceIcon } from '@/lib/serviceIcons';
 import { cn } from '@/lib/utils';
@@ -109,7 +108,6 @@ export function OverseerrScreen({ instance }: { instance: ServiceInstance }) {
           <h1 className="text-2xl font-bold tracking-tight">{instance.displayName}</h1>
           <p className="text-sm text-muted-foreground">{status === 'offline' ? 'Unreachable' : 'Requests & discovery'}</p>
         </div>
-        <WolButton wolMac={instance.wolMac} wolBroadcast={instance.wolBroadcast} className="ml-auto" />
       </div>
 
       <div className="mb-4 flex gap-1.5">

@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { WolButton } from '@/components/shared/WolButton';
 import { getServiceIcon } from '@/lib/serviceIcons';
 import { cn } from '@/lib/utils';
 import { useResetScrollOnChange } from '@/lib/useResetScrollOnChange';
@@ -34,7 +33,6 @@ export function TracearrScreen({ instance }: { instance: ServiceInstance }) {
           <h1 className="text-2xl font-bold tracking-tight">{instance.displayName}</h1>
           <p className="text-sm text-muted-foreground">Streaming access manager</p>
         </div>
-        <WolButton wolMac={instance.wolMac} wolBroadcast={instance.wolBroadcast} className="ml-auto" />
       </div>
 
       <div className="mb-4 flex gap-1.5 overflow-x-auto no-scrollbar">

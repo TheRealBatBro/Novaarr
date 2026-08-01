@@ -9,7 +9,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Sparkline } from '@/components/shared/Sparkline';
 import { TorrentRow } from '@/components/shared/TorrentRow';
 import { StatusDot, type ServiceStatus } from '@/components/dashboard/StatusDot';
-import { WolButton } from '@/components/shared/WolButton';
 import { useServiceProxy } from '@/lib/queries';
 import { useRollingHistory } from '@/lib/useRollingHistory';
 import { getServiceIcon } from '@/lib/serviceIcons';
@@ -146,7 +145,6 @@ export function SabnzbdScreen({ instance }: { instance: ServiceInstance }) {
             {queue ? `${queue.status} · ${speedMBs!.toFixed(1)} MB/s` : status === 'offline' ? 'Unreachable' : 'Connecting…'}
           </p>
         </div>
-        <WolButton wolMac={instance.wolMac} wolBroadcast={instance.wolBroadcast} className="ml-auto" />
       </div>
 
       <div className="mb-4 flex items-center justify-between gap-2">

@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ProgressBar } from '@/components/shared/ProgressBar';
 import { StatusDot, type ServiceStatus } from '@/components/dashboard/StatusDot';
-import { WolButton } from '@/components/shared/WolButton';
 import { ArrLibraryGrid } from './ArrLibraryGrid';
 import { ArrHistoryScreen } from './ArrHistoryScreen';
 import { ArrOverviewScreen } from './ArrOverviewScreen';
@@ -122,7 +121,6 @@ export function ArrQueueScreen({
           </div>
           <p className="text-sm text-muted-foreground">{status === 'offline' ? 'Unreachable' : 'Download queue'}</p>
         </div>
-        <WolButton wolMac={instance.wolMac} wolBroadcast={instance.wolBroadcast} className="ml-auto" />
       </div>
 
       <div className="mb-4 flex gap-1.5">

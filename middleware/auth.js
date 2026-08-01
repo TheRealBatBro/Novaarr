@@ -41,7 +41,12 @@ function requireAuth(req, res, next) {
   const token = req.cookies[COOKIE];
   if (!token) return res.status(401).json({ error: 'Not authenticated' });
   try {
-    req.user = jwt.verify(token, db.getJwtSecret());
+    const decoded = jwt.verify(token, db.getJwtSecret());
+    if (db.isTokenRevoked(decoded)) {
+      clearAuthCookie(res);
+      return res.status(401).json({ error: 'Session expired' });
+    }
+    req.user = decoded;
     next();
   } catch {
     clearAuthCookie(res);

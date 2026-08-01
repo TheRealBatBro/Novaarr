@@ -4,6 +4,7 @@ const db = require('../db');
 const { requireAuth, requireServiceAccess } = require('../middleware/auth');
 const { buildMethodCall, parseMethodResponse } = require('../rtorrentXmlRpc');
 const { certDispatcher } = require('../lib/certOptions');
+const { isBlockedTarget } = require('../lib/ssrf');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -373,18 +374,6 @@ const adapters = {
     return res;
   },
 };
-
-function isBlockedTarget(urlStr) {
-  try {
-    const u = new URL(urlStr);
-    if (u.hostname === '169.254.169.254') return true;
-    const ownPort = String(process.env.PORT || '3000');
-    if (['localhost', '127.0.0.1', '0.0.0.0'].includes(u.hostname) && (u.port || '80') === ownPort) return true;
-    return false;
-  } catch {
-    return true;
-  }
-}
 
 router.post('/:instanceId', async (req, res) => {
   const instance = db.getServiceInstance(req.params.instanceId);

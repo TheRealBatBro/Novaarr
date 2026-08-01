@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatusDot, type ServiceStatus } from '@/components/dashboard/StatusDot';
-import { WolButton } from '@/components/shared/WolButton';
 import { useServiceProxy } from '@/lib/queries';
 import { getServiceIcon } from '@/lib/serviceIcons';
 import { cn } from '@/lib/utils';
@@ -68,7 +67,6 @@ export function SickbeardScreen({ instance }: { instance: ServiceInstance }) {
             {denied ? 'API key rejected or API disabled in Sick Beard' : status === 'offline' ? 'Unreachable' : `${shows.length} shows`}
           </p>
         </div>
-        <WolButton wolMac={instance.wolMac} wolBroadcast={instance.wolBroadcast} className="ml-auto" />
       </div>
 
       <div className="mb-4 flex gap-1.5">

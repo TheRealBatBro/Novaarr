@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { StatusDot, type ServiceStatus } from '@/components/dashboard/StatusDot';
-import { WolButton } from '@/components/shared/WolButton';
 import { useServiceProxy } from '@/lib/queries';
 import { getServiceIcon } from '@/lib/serviceIcons';
 import { cn } from '@/lib/utils';
@@ -130,7 +129,6 @@ export function OmbiScreen({ instance }: { instance: ServiceInstance }) {
             {status === 'offline' ? 'Unreachable' : count ? `${count.pending} pending · ${count.available} available` : 'Requests & discovery'}
           </p>
         </div>
-        <WolButton wolMac={instance.wolMac} wolBroadcast={instance.wolBroadcast} className="ml-auto" />
       </div>
 
       <div className="mb-4 flex gap-1.5">

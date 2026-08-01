@@ -8,7 +8,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { StatusDot, type ServiceStatus } from '@/components/dashboard/StatusDot';
 import { TorrentRow } from '@/components/shared/TorrentRow';
 import { AddTorrentDialog } from '@/components/shared/AddTorrentDialog';
-import { WolButton } from '@/components/shared/WolButton';
 import { Sparkline } from '@/components/shared/Sparkline';
 import { useServiceProxy } from '@/lib/queries';
 import { useRollingHistory } from '@/lib/useRollingHistory';
@@ -77,7 +76,6 @@ export function QBittorrentScreen({ instance }: { instance: ServiceInstance }) {
           </div>
           <p className="text-sm text-muted-foreground">{status === 'offline' ? 'Unreachable' : 'Torrents'}</p>
         </div>
-        <WolButton wolMac={instance.wolMac} wolBroadcast={instance.wolBroadcast} className="ml-auto" />
         <Button size="sm" onClick={() => setAddOpen(true)}>
           <Plus className="h-3.5 w-3.5" /> Add
         </Button>

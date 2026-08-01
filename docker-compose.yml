@@ -3,6 +3,17 @@ services:
     build: .
     container_name: remotarr
     restart: unless-stopped
+    # Extra container hardening: the image already runs as a non-root user (see Dockerfile) —
+    # these deny it anything beyond that even if a dependency were ever compromised. read_only
+    # means the whole filesystem except /data and /tmp (below) is immutable; the app never
+    # writes anywhere else (SQLite lives in /data, uploads are handled in memory).
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
     ports:
       - "3210:3000"           # remove/change if using a reverse proxy
     volumes:

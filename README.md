@@ -6,8 +6,7 @@ native app required.
 
 Remotarr talks to the services already running on your network (Sonarr, Radarr,
 SABnzbd, Seerr, Tautulli, and more) through a small backend proxy, so it works
-around browser CORS restrictions and can send Wake-on-LAN packets to boot a sleeping
-server before waking up its services.
+around browser CORS restrictions.
 
 **Remotarr can be the only thing you expose to the internet.** Every request to a
 configured service — Sonarr, Radarr, SABnzbd, whatever you've added — is relayed
@@ -85,7 +84,7 @@ they live in the `remotarr-data` volume, not the container image.
 The included `docker-compose.yml` maps container port `3000` to host port `3210`
 (`http://<host>:3210`) and mounts a named volume, `remotarr-data`, at `/data` for
 the SQLite database — this single file holds your sign-in credential and every service
-you configure (URLs, API keys, Wake-on-LAN settings, dashboard layout).
+you configure (URLs, API keys, dashboard layout).
 
 ## Running behind a reverse proxy
 
@@ -298,16 +297,39 @@ credential stops being checked once you switch).
 ## Data & backups
 
 Everything Remotarr needs to remember — your sign-in credential (or every user account
-and access role, in multi-user mode), every configured service (including API keys and
-Wake-on-LAN details), and each user's dashboard layout — lives in one SQLite file
-inside the `remotarr-data` Docker volume. Back up that volume (or the file at
-`DB_PATH`) to back up your whole setup. Settings > Backup also lets you export/import
-an encrypted snapshot from inside the app itself.
+and access role, in multi-user mode), every configured service (API keys are encrypted
+at rest), and each user's dashboard layout — lives in one SQLite file inside the
+`remotarr-data` Docker volume. Back up that volume (or the file at `DB_PATH`) to back
+up your whole setup. Settings > Backup also lets you export/import an encrypted
+snapshot from inside the app itself.
 
 ```bash
 # Example: copy the DB out of the named volume for a backup
 docker cp remotarr:/data/remotarr.db ./remotarr-backup.db
 ```
+
+## Security
+
+A few things worth knowing about the security model:
+
+- **Credentials at rest**: every service's API key/password is encrypted (AES-256-GCM)
+  in the SQLite database, not stored as plain JSON.
+- **Session revocation**: a leaked or stale session cookie doesn't have to wait out its
+  full 30-day life — Settings > Security has a **Sign out everywhere else** action, a
+  password/PIN change signs out every existing session automatically, and an admin
+  resetting a member's password does the same for that member alone.
+- **SSRF protections on the proxy**: every outbound request the backend makes on your
+  behalf resolves DNS itself and refuses to connect to loopback, link-local, or cloud
+  metadata addresses (e.g. `169.254.169.254`) — including through a redirect, since the
+  same protected resolver is used for the whole redirect chain, not just the first hop.
+  LAN addresses (10/8, 172.16/12, 192.168/16) stay allowed, since reaching your Sonarr/
+  Radarr/etc. on your own network is the whole point.
+- **Container hardening**: the shipped `docker-compose.yml` runs the container
+  read-only (except `/data` and `/tmp`), drops all Linux capabilities, and sets
+  `no-new-privileges` — on top of the image already running as a non-root user.
+- Found something that should be hardened further? Please open a
+  [security-labeled issue](https://github.com/TheRealBatBro/Remotarr/issues/new?labels=security&title=Security%3A%20)
+  rather than a public one if it's a live exploit, and we'll follow up privately.
 
 ## Feature requests & support
 

@@ -82,6 +82,8 @@ export const authApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
     }).then((r) => json<{ ok: true; user: AppUser }>(r)),
+  revokeSessions: () =>
+    fetch(apiUrl('/api/auth/revoke-sessions'), { method: 'POST', credentials: 'same-origin' }).then((r) => json<{ ok: true }>(r)),
 };
 
 export const usersApi = {
@@ -146,8 +148,6 @@ export type ServiceInstance = {
   /** Extra HTTP headers sent with every proxied request to this instance — e.g. a reverse-proxy
    * auth header, or anything a Tailscale Funnel/Serve setup requires beyond the URL itself. */
   customHeaders: Record<string, string>;
-  wolMac: string | null;
-  wolBroadcast: string | null;
   favorite: boolean;
   sortOrder: number;
   enabled: boolean;
@@ -302,14 +302,4 @@ export type CloudflareTunnelStatus = { configured: boolean; connected: boolean; 
 
 export const cloudflareTunnelApi = {
   status: () => fetch(apiUrl('/api/cloudflare-tunnel/status'), { credentials: 'same-origin' }).then((r) => json<CloudflareTunnelStatus>(r)),
-};
-
-export const wolApi = {
-  wake: (mac: string, broadcast?: string) =>
-    fetch(apiUrl('/api/wol'), {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mac, broadcast }),
-    }).then((r) => json<{ ok: true }>(r)),
 };
