@@ -1,5 +1,8 @@
-import { Tv } from 'lucide-react';
+import { Tv, Square } from 'lucide-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Sparkline } from '@/components/shared/Sparkline';
 import { SessionBackdrop, SessionDetails } from '@/components/shared/NowPlayingCard';
@@ -15,15 +18,30 @@ import {
   sessionRemaining,
   type TautulliSession,
 } from './TautulliShared';
-import type { ServiceInstance } from '@/lib/api';
+import { proxyApi, type ServiceInstance } from '@/lib/api';
 
 type TautulliActivity = { response?: { result: string; data?: { stream_count?: string; sessions?: TautulliSession[] } } };
 
 export function TautulliActivityTab({ instance }: { instance: ServiceInstance }) {
+  const qc = useQueryClient();
   const { data, isLoading, dataUpdatedAt } = useServiceProxy<TautulliActivity>(instance, {
     path: '/api/v2',
     query: { cmd: 'get_activity' },
     refetchInterval: 10000,
+  });
+
+  const terminate = useMutation({
+    mutationFn: (sessionKey: string) =>
+      proxyApi.call(instance.id, {
+        path: '/api/v2',
+        query: { cmd: 'terminate_session', session_key: sessionKey, message: 'Stopped from Remotarr' },
+      }),
+    onSuccess: (res) => {
+      if (!res.ok) return toast.error(res.error || 'Failed to stop stream');
+      toast.success('Stream stopped');
+      qc.invalidateQueries({ queryKey: ['proxy', instance.id, '/api/v2', { cmd: 'get_activity' }] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : 'Failed to stop stream'),
   });
 
   const activityOk = data?.ok && data.data?.response?.result === 'success';
@@ -79,6 +97,16 @@ export function TautulliActivityTab({ instance }: { instance: ServiceInstance })
                   remaining={sessionRemaining(s)}
                 />
               </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-2 top-2 z-10 h-7 w-7"
+                title="Stop stream"
+                disabled={terminate.isPending && terminate.variables === s.session_key}
+                onClick={() => terminate.mutate(s.session_key)}
+              >
+                <Square className="h-3.5 w-3.5" />
+              </Button>
             </div>
           ))}
         </CardContent>

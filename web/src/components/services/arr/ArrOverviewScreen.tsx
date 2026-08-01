@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { toast } from 'sonner';
-import { Settings, ExternalLink, RefreshCw, SearchX, BookmarkX, ChevronRight } from 'lucide-react';
+import { Settings, ExternalLink, RefreshCw, SearchX, BookmarkX, ChevronRight, HardDrive, AlertTriangle } from 'lucide-react';
 import { useServiceProxy } from '@/lib/queries';
 import { proxyApi, type ServiceInstance } from '@/lib/api';
 import { getServiceIcon } from '@/lib/serviceIcons';
@@ -20,6 +20,8 @@ type LibraryItem = {
   statistics?: { percentOfEpisodes?: number; sizeOnDisk?: number };
 };
 type SystemStatus = { version?: string };
+type DiskSpaceItem = { path: string; label?: string; freeSpace: number; totalSpace: number };
+type HealthCheck = { source: string; type: 'ok' | 'notice' | 'warning' | 'error'; message: string; wikiUrl?: string };
 
 function formatSize(bytes: number): string {
   if (bytes <= 0) return '0 GB';
@@ -60,6 +62,12 @@ export function ArrOverviewScreen({
   const Icon = getServiceIcon(instance.serviceId);
   const { data: statusResp } = useServiceProxy<SystemStatus>(instance, { path: '/api/v3/system/status', refetchInterval: false });
   const { data: listResp, isLoading } = useServiceProxy<LibraryItem[]>(instance, { path, refetchInterval: 60_000 });
+  const { data: diskResp } = useServiceProxy<DiskSpaceItem[]>(instance, { path: '/api/v3/diskspace', refetchInterval: 300_000 });
+  const { data: healthResp } = useServiceProxy<HealthCheck[]>(instance, { path: '/api/v3/health', refetchInterval: 60_000 });
+
+  const disks = diskResp?.data ?? [];
+  // "ok"/"notice" are routine — only warning/error are worth surfacing as something to act on.
+  const healthIssues = (healthResp?.data ?? []).filter((h) => h.type === 'warning' || h.type === 'error');
 
   const items = listResp?.data ?? [];
   const downloaded = items.filter((i) => isDownloaded(i, kind)).length;
@@ -135,6 +143,49 @@ export function ArrOverviewScreen({
           </div>
         )}
       </div>
+
+      {healthIssues.length > 0 && (
+        <div className="mb-6 flex flex-col gap-2">
+          {healthIssues.map((h, i) => (
+            <div
+              key={i}
+              className="flex items-start gap-2 rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{h.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {disks.length > 0 && (
+        <div className="mb-6 rounded-2xl border border-border bg-card p-4">
+          <p className="mb-3 flex items-center gap-1.5 text-sm font-semibold">
+            <HardDrive className="h-4 w-4 text-muted-foreground" /> Disk space
+          </p>
+          <div className="flex flex-col gap-3">
+            {disks.map((d, i) => {
+              const usedFraction = d.totalSpace > 0 ? 1 - d.freeSpace / d.totalSpace : 0;
+              return (
+                <div key={i}>
+                  <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="truncate">{d.label || d.path}</span>
+                    <span className="shrink-0 tabular-nums">
+                      {formatSize(d.freeSpace)} free of {formatSize(d.totalSpace)}
+                    </span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className={usedFraction > 0.9 ? 'h-full bg-destructive' : 'h-full bg-primary'}
+                      style={{ width: `${Math.min(100, Math.max(0, usedFraction * 100))}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="mb-4 overflow-hidden rounded-2xl border border-border bg-card">
         <ActionRow icon={Settings} label={`${instance.displayName} settings`} onClick={() => navigate({ to: '/settings/services' })} />

@@ -9,6 +9,17 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Remotarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.22.0',
+    notes: [
+      'New "Now Playing (Plex)" dashboard widget — shows active Plex sessions with a stop control, no Tautulli required',
+      'qBittorrent now shows upload speed alongside download speed, plus a toggle for alternative (throttled) speed limits',
+      'Sonarr/Radarr Server tab now shows disk space per root folder and any active health warnings',
+      'Tautulli\'s Now Playing sessions can be stopped directly from Remotarr',
+      'Prowlarr Server tab now breaks indexer stats down per-indexer instead of only an aggregate total',
+      'New "Wanted Subtitles" dashboard widget for Bazarr, showing the total count of movies/episodes missing subtitles',
+    ],
+  },
+  {
     version: '0.21.0',
     notes: [
       'Added optional TOTP two-factor authentication (Settings > Security) — an authenticator-app code required after your PIN/password, with backup codes for recovery',

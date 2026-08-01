@@ -321,4 +321,34 @@ export function useBazarrSeasonAutoSearch(bazarr: ServiceInstance | undefined) {
   });
 }
 
+// Bazarr's wanted endpoints return `{ data: [...], total: N }` — `total` reflects the real
+// count across all pages, so a small page-size request is enough to get the number without
+// pulling every wanted item down.
+type WantedResponse = { data?: unknown[]; total?: number } | unknown[];
+
+function wantedCount(raw: WantedResponse | undefined): number {
+  if (!raw) return 0;
+  if (Array.isArray(raw)) return raw.length;
+  return raw.total ?? (raw.data?.length ?? 0);
+}
+
+/** Total items with at least one missing subtitle language, across movies and series combined. */
+export function useBazarrWantedCount(bazarr: ServiceInstance | undefined) {
+  const episodes = useServiceProxy<WantedResponse>(bazarr, {
+    path: '/api/episodes/wanted',
+    query: { length: '1' },
+    refetchInterval: 300_000,
+    enabled: !!bazarr,
+  });
+  const movies = useServiceProxy<WantedResponse>(bazarr, {
+    path: '/api/movies/wanted',
+    query: { length: '1' },
+    refetchInterval: 300_000,
+    enabled: !!bazarr,
+  });
+  const ok = !!episodes.data?.ok && !!movies.data?.ok;
+  const count = ok ? wantedCount(episodes.data!.data) + wantedCount(movies.data!.data) : undefined;
+  return { count, isLoading: episodes.isLoading || movies.isLoading, ok };
+}
+
 export type { SubtitleTarget };

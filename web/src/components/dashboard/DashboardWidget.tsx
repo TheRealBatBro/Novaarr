@@ -28,6 +28,8 @@ import { DashboardCarousel } from './DashboardCarousel';
 import { SabnzbdStatusWidget } from './SabnzbdStatusWidget';
 import { OverseerrSearchWidget } from './OverseerrSearchWidget';
 import { TautulliStatusWidget } from './TautulliStatusWidget';
+import { PlexNowPlayingWidget } from './PlexNowPlayingWidget';
+import { BazarrWantedWidget } from './BazarrWantedWidget';
 import { TracearrStatusWidget } from './TracearrStatusWidget';
 import { TracearrViolationsWidget } from './TracearrViolationsWidget';
 import { PlexLibraryStatsWidget } from './PlexLibraryStatsWidget';
@@ -238,7 +240,7 @@ export function DashboardWidget({ widgetKey }: { widgetKey: string }) {
     radarr: [], sonarr: [], overseerr: [], trakt: [], mdblist: [], sabnzbd: [], tautulli: [], tracearr: [], plex: [],
     emby: [], jellyfin: [],
     prowlarr: [], nzbhydra2: [], unraid: [], jackett: [], nzbget: [], sickbeard: [], ombi: [], utorrent: [],
-    deluge: [], transmission: [], qbittorrent: [], rutorrent: [],
+    deluge: [], transmission: [], qbittorrent: [], rutorrent: [], bazarr: [],
   };
   for (const i of instances) {
     if (i.serviceId in bySource) bySource[i.serviceId as WidgetSource].push(i);
@@ -251,6 +253,8 @@ export function DashboardWidget({ widgetKey }: { widgetKey: string }) {
   if (def.kind === 'status') {
     if (def.source === 'sabnzbd') return <SabnzbdStatusWidget instance={instance} title={def.title} />;
     if (def.source === 'tautulli') return <TautulliStatusWidget instance={instance} title={def.title} />;
+    if (def.source === 'plex') return <PlexNowPlayingWidget instance={instance} title={def.title} />;
+    if (def.source === 'bazarr') return <BazarrWantedWidget instance={instance} title={def.title} />;
     if (def.source === 'tracearr') return <TracearrStatusWidget instance={instance} title={def.title} />;
     if (def.source === 'prowlarr') return <ProwlarrStatusWidget instance={instance} title={def.title} />;
     if (def.source === 'nzbhydra2') return <NzbHydra2StatusWidget instance={instance} title={def.title} />;

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pause, Play, Trash2, Plus } from 'lucide-react';
+import { Pause, Play, Trash2, Plus, Gauge } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -27,8 +27,26 @@ export function QBittorrentScreen({ instance }: { instance: ServiceInstance }) {
 
   const status: ServiceStatus = isLoading ? 'unknown' : data?.ok ? 'online' : 'offline';
   const torrents = data?.data ?? [];
-  const totalKBs = data?.ok ? torrents.reduce((sum, t) => sum + t.dlspeed, 0) / 1024 : undefined;
-  const history = useRollingHistory(totalKBs, dataUpdatedAt);
+  const totalDownKBs = data?.ok ? torrents.reduce((sum, t) => sum + t.dlspeed, 0) / 1024 : undefined;
+  const totalUpKBs = data?.ok ? torrents.reduce((sum, t) => sum + t.upspeed, 0) / 1024 : undefined;
+  const downHistory = useRollingHistory(totalDownKBs, dataUpdatedAt);
+  const upHistory = useRollingHistory(totalUpKBs, dataUpdatedAt);
+
+  // "1" means the alternative (throttled) speed limits are currently active — qBittorrent
+  // returns this as plain text, not JSON, but the generic proxy already falls back to raw text
+  // for a non-JSON response body.
+  const { data: speedLimitMode } = useServiceProxy<string>(instance, {
+    path: '/api/v2/transfer/speedLimitsMode',
+    refetchInterval: 10000,
+    enabled: status === 'online',
+  });
+  const altLimitsOn = speedLimitMode?.ok && String(speedLimitMode.data).trim() === '1';
+
+  const toggleSpeedLimit = useMutation({
+    mutationFn: () => proxyApi.call(instance.id, { path: '/api/v2/transfer/toggleSpeedLimitsMode', method: 'POST' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['proxy', instance.id, '/api/v2/transfer/speedLimitsMode'] }),
+    onError: (e) => toast.error(e instanceof Error ? e.message : 'Failed to toggle speed limit'),
+  });
 
   const action = useMutation({
     mutationFn: ({ path, hash, extra }: { path: string; hash: string; extra?: Record<string, string> }) =>
@@ -76,18 +94,35 @@ export function QBittorrentScreen({ instance }: { instance: ServiceInstance }) {
           </div>
           <p className="text-sm text-muted-foreground">{status === 'offline' ? 'Unreachable' : 'Torrents'}</p>
         </div>
+        <Button
+          size="sm"
+          variant={altLimitsOn ? 'default' : 'outline'}
+          disabled={toggleSpeedLimit.isPending || status !== 'online'}
+          onClick={() => toggleSpeedLimit.mutate()}
+          title={altLimitsOn ? 'Alternative (throttled) speed limits are active' : 'Alternative speed limits are off'}
+        >
+          <Gauge className="h-3.5 w-3.5" /> {altLimitsOn ? 'Limited' : 'Full speed'}
+        </Button>
         <Button size="sm" onClick={() => setAddOpen(true)}>
           <Plus className="h-3.5 w-3.5" /> Add
         </Button>
       </div>
 
       {status === 'online' && (
-        <Card className="mb-4">
-          <CardContent className="pt-4">
-            <p className="mb-1 text-xs font-medium text-muted-foreground">Total download speed (KB/s)</p>
-            <Sparkline data={history} color="#2f67d8" formatValue={(v) => `${v.toFixed(0)} KB/s`} />
-          </CardContent>
-        </Card>
+        <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Card>
+            <CardContent className="pt-4">
+              <p className="mb-1 text-xs font-medium text-muted-foreground">Total download speed (KB/s)</p>
+              <Sparkline data={downHistory} color="#2f67d8" formatValue={(v) => `${v.toFixed(0)} KB/s`} />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4">
+              <p className="mb-1 text-xs font-medium text-muted-foreground">Total upload speed (KB/s)</p>
+              <Sparkline data={upHistory} color="#e07b39" formatValue={(v) => `${v.toFixed(0)} KB/s`} />
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       <Card>
@@ -110,7 +145,7 @@ export function QBittorrentScreen({ instance }: { instance: ServiceInstance }) {
               <TorrentRow
                 key={t.hash}
                 title={t.name}
-                subtitle={paused ? 'Paused' : formatSpeed(t.dlspeed)}
+                subtitle={paused ? 'Paused' : [formatSpeed(t.dlspeed) && `↓ ${formatSpeed(t.dlspeed)}`, formatSpeed(t.upspeed) && `↑ ${formatSpeed(t.upspeed)}`].filter(Boolean).join('  ')}
                 progress={t.progress * 100}
                 actions={[
                   paused
