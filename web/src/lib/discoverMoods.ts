@@ -91,6 +91,13 @@ export type Popularity = 'popular' | 'hidden-gem' | 'any';
 // Genres a "family-friendly" pick should never surface, regardless of mood/explicit picks.
 const MATURE_GENRE_IDS = new Set([27, 53, 80, 10752]); // Horror, Thriller, Crime, War
 
+// A narrow combination (e.g. two explicit genres + a recent-only era + a mood's high rating
+// floor) can legitimately have very few or zero matching titles. Rather than just reporting
+// "nothing matched," the caller retries at increasing relax levels, each one dropping the next
+// most restrictive constraint: 0 = everything requested, 1 = ignore era, 2 = also ignore the
+// vote-average floor, 3 = also ignore genre entirely (mood's sort order still applies).
+export const MAX_RELAX_LEVEL = 3;
+
 export function buildDiscoverParams(opts: {
   mediaType: 'movie' | 'tv';
   mood: Mood;
@@ -98,27 +105,39 @@ export function buildDiscoverParams(opts: {
   era: Era;
   familyFriendly: boolean;
   page: number;
+  relaxLevel?: number;
 }): Record<string, string> {
-  const { mediaType, mood, explicitGenres, era, familyFriendly, page } = opts;
+  const { mediaType, mood, explicitGenres, era, familyFriendly, page, relaxLevel = 0 } = opts;
   const moodGenres = mediaType === 'movie' ? mood.movieGenres : mood.tvGenres;
   let genres = explicitGenres.length > 0 ? explicitGenres : moodGenres;
   if (familyFriendly) genres = genres.filter((g) => !MATURE_GENRE_IDS.has(g));
 
   const params: Record<string, string> = {
     sortBy: mood.sortBy,
-    voteAverageGte: String(familyFriendly ? Math.max(mood.voteAverageGte, 6.5) : mood.voteAverageGte),
     page: String(page),
   };
-  if (genres.length > 0) params.genre = genres.join(',');
 
-  const now = new Date();
-  const thisYear = now.getUTCFullYear();
-  const dateField = mediaType === 'movie' ? 'primaryReleaseDate' : 'firstAirDate';
-  if (era === 'new') {
-    params[`${dateField}Gte`] = `${thisYear - 2}-01-01`;
-  } else if (era === 'classic') {
-    params[`${dateField}Gte`] = `${thisYear - 40}-01-01`;
-    params[`${dateField}Lte`] = `${thisYear - 10}-01-01`;
+  if (relaxLevel < 2) {
+    params.voteAverageGte = String(familyFriendly ? Math.max(mood.voteAverageGte, 6.5) : mood.voteAverageGte);
+  }
+
+  // TMDB's with_genres (which Overseerr's `genre` param passes straight through) treats a
+  // comma-joined list as AND — "must match every genre" — while a pipe-joined list is OR. Two
+  // explicit picks like "Action or Sci-Fi" are meant to widen the results, not narrow them down
+  // to only titles tagged as both simultaneously (which is often close to nothing), so this
+  // always joins with OR.
+  if (relaxLevel < 3 && genres.length > 0) params.genre = genres.join('|');
+
+  if (relaxLevel < 1) {
+    const now = new Date();
+    const thisYear = now.getUTCFullYear();
+    const dateField = mediaType === 'movie' ? 'primaryReleaseDate' : 'firstAirDate';
+    if (era === 'new') {
+      params[`${dateField}Gte`] = `${thisYear - 2}-01-01`;
+    } else if (era === 'classic') {
+      params[`${dateField}Gte`] = `${thisYear - 40}-01-01`;
+      params[`${dateField}Lte`] = `${thisYear - 10}-01-01`;
+    }
   }
 
   return params;

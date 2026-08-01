@@ -9,6 +9,12 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Remotarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.23.1',
+    notes: [
+      'Fixed Discover returning no results for some mood/genre/era/popularity combinations — genre picks now use "any of these" logic instead of "all of these," and an overly narrow combination now automatically loosens (with a note) instead of coming back empty',
+    ],
+  },
+  {
     version: '0.23.0',
     notes: [
       'New "Discover" page (needs Seerr): a short mood/genre wizard suggests 5 movies and 5 TV shows to watch now',

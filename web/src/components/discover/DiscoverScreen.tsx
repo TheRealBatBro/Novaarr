@@ -7,7 +7,7 @@ import { useServices } from '@/lib/queries';
 import { proxyApi } from '@/lib/api';
 import { TMDB_IMAGE, type OverseerrSearchResult } from '@/components/services/overseerr/OverseerrSearch';
 import { OverseerrRequestDialog } from '@/components/services/overseerr/OverseerrRequestDialog';
-import { GENRE_PICKS, MOODS, buildDiscoverParams, type Era, type Popularity } from '@/lib/discoverMoods';
+import { GENRE_PICKS, MOODS, MAX_RELAX_LEVEL, buildDiscoverParams, type Era, type Popularity } from '@/lib/discoverMoods';
 
 type Step = 'mood' | 'details' | 'loading' | 'results';
 
@@ -113,6 +113,7 @@ export function DiscoverScreen() {
   const [shows, setShows] = useState<DiscoverItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [openRequest, setOpenRequest] = useState<DiscoverItem | null>(null);
+  const [relaxedNote, setRelaxedNote] = useState(false);
 
   const mood = MOODS.find((m) => m.id === moodId);
 
@@ -135,6 +136,7 @@ export function DiscoverScreen() {
     setMovies([]);
     setShows([]);
     setError(null);
+    setRelaxedNote(false);
   }
 
   async function runSearch() {
@@ -146,36 +148,50 @@ export function DiscoverScreen() {
       const explicitMovieGenres = GENRE_PICKS.filter((g) => genres.has(g.movieId)).map((g) => g.movieId);
       const explicitTvGenres = GENRE_PICKS.filter((g) => genres.has(g.movieId)).map((g) => g.tvId);
 
-      async function collect(mediaType: 'movie' | 'tv', explicitGenres: number[]): Promise<{ picked: DiscoverItem[]; lastError?: string }> {
+      async function collect(mediaType: 'movie' | 'tv', explicitGenres: number[]): Promise<{ picked: DiscoverItem[]; lastError?: string; relaxed: boolean }> {
         const picked: DiscoverItem[] = [];
         const seen = new Set<number>();
         let lastError: string | undefined;
         let anySucceeded = false;
-        for (let page = 1; page <= 3 && picked.length < 5; page++) {
-          const params = buildDiscoverParams({ mediaType, mood: mood!, explicitGenres, era, familyFriendly, page });
-          const { items, error: pageError } = await fetchDiscoverPage(overseerr!.id, mediaType, params);
-          if (pageError) {
-            lastError = pageError;
-            continue;
-          }
-          anySucceeded = true;
-          for (const r of items) {
-            if (seen.has(r.id)) continue;
-            seen.add(r.id);
-            // Already available/requested/processing in your library — Overseerr's own signal
-            // for "you already have this," the most reliable exclusion available without a
-            // perfect per-user watch-history match.
-            if (r.mediaInfo?.status !== undefined) continue;
-            const title = r.title ?? r.name ?? '';
-            const year = (r.releaseDate ?? r.firstAirDate)?.slice(0, 4);
-            if (watchedKeys.has(normalizeKey(title, year))) continue;
-            if (popularity === 'hidden-gem' && (r.voteCount ?? 0) > 3000) continue;
-            if (popularity === 'popular' && (r.voteCount ?? 0) < 500) continue;
-            picked.push(r);
-            if (picked.length >= 5) break;
+        let relaxed = false;
+
+        // A narrow combination (recent-only + a mood's high rating floor + "popular hits"'
+        // vote-count floor) can genuinely have very few matches — a brand-new movie rarely has
+        // both a 7+ average and 500+ votes yet. Each relax level drops the next most
+        // restrictive constraint instead of just reporting "nothing matched."
+        for (let relaxLevel = 0; relaxLevel <= MAX_RELAX_LEVEL && picked.length < 5; relaxLevel++) {
+          if (relaxLevel > 0) relaxed = true;
+          for (let page = 1; page <= 2 && picked.length < 5; page++) {
+            const params = buildDiscoverParams({ mediaType, mood: mood!, explicitGenres, era, familyFriendly, page, relaxLevel });
+            const { items, error: pageError } = await fetchDiscoverPage(overseerr!.id, mediaType, params);
+            if (pageError) {
+              lastError = pageError;
+              continue;
+            }
+            anySucceeded = true;
+            for (const r of items) {
+              if (seen.has(r.id)) continue;
+              seen.add(r.id);
+              // Already available/requested/processing in your library — Overseerr's own signal
+              // for "you already have this," the most reliable exclusion available without a
+              // perfect per-user watch-history match.
+              if (r.mediaInfo?.status !== undefined) continue;
+              const title = r.title ?? r.name ?? '';
+              const year = (r.releaseDate ?? r.firstAirDate)?.slice(0, 4);
+              if (watchedKeys.has(normalizeKey(title, year))) continue;
+              // The popularity preference is itself a vote-count floor/ceiling — drop it at the
+              // same relax level as the vote-average floor, since both are "how established does
+              // this need to be" constraints.
+              if (relaxLevel < 2) {
+                if (popularity === 'hidden-gem' && (r.voteCount ?? 0) > 3000) continue;
+                if (popularity === 'popular' && (r.voteCount ?? 0) < 500) continue;
+              }
+              picked.push(r);
+              if (picked.length >= 5) break;
+            }
           }
         }
-        return { picked, lastError: anySucceeded ? undefined : lastError };
+        return { picked, lastError: anySucceeded ? undefined : lastError, relaxed };
       }
 
       const [movieResult, tvResult] = await Promise.all([collect('movie', explicitMovieGenres), collect('tv', explicitTvGenres)]);
@@ -187,6 +203,7 @@ export function DiscoverScreen() {
       }
       setMovies(movieResult.picked);
       setShows(tvResult.picked);
+      setRelaxedNote(movieResult.relaxed || tvResult.relaxed);
       setStep('results');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong');
@@ -350,6 +367,12 @@ export function DiscoverScreen() {
 
       {step === 'results' && (
         <div className="flex flex-col gap-8">
+          {relaxedNote && (
+            <p className="rounded-xl border border-border bg-card p-3 text-sm text-muted-foreground">
+              Your exact filters turned up too few picks, so some were loosened (era, rating, or popularity) to still get you five of
+              each.
+            </p>
+          )}
           <ResultSection title="Movies" items={movies} onPick={setOpenRequest} />
           <ResultSection title="TV Shows" items={shows} onPick={setOpenRequest} />
           <Button variant="outline" onClick={reset}>
