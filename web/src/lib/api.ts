@@ -298,6 +298,27 @@ export const backupApi = {
   },
 };
 
+export type AuditLogEntry = {
+  id: number;
+  createdAt: number;
+  actorUserId: number | null;
+  actorLabel: string;
+  action: string;
+  target: string | null;
+  detail: string | null;
+  ip: string | null;
+};
+
+export const auditLogApi = {
+  list: (opts: { limit?: number; action?: string } = {}) => {
+    const params = new URLSearchParams();
+    if (opts.limit) params.set('limit', String(opts.limit));
+    if (opts.action) params.set('action', opts.action);
+    const qs = params.toString();
+    return fetch(apiUrl(`/api/audit-log${qs ? `?${qs}` : ''}`), { credentials: 'same-origin' }).then((r) => json<AuditLogEntry[]>(r));
+  },
+};
+
 export type CloudflareTunnelStatus = { configured: boolean; connected: boolean; hostname: string | null };
 
 export const cloudflareTunnelApi = {

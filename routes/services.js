@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../db');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { testConnection } = require('./proxy');
+const { logAction } = require('../lib/audit');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -96,17 +97,24 @@ router.post('/', requireAdmin, (req, res) => {
     return res.status(400).json({ error: 'serviceId, displayName, and authType are required' });
   }
   const created = db.createServiceInstance(req.body);
+  logAction(req, 'service.created', { target: `service_instance:${created.id}`, detail: `${created.display_name} (${created.service_id})` });
   res.status(201).json(serialize(created));
 });
 
 router.put('/:id', requireAdmin, (req, res) => {
   const updated = db.updateServiceInstance(req.params.id, req.body || {});
   if (!updated) return res.status(404).json({ error: 'Not found' });
+  // Never logs the credential value itself — just that it changed — since the audit log isn't
+  // an encrypted store and shouldn't become a second place API keys leak from.
+  const detail = req.body?.credentials !== undefined ? `${updated.display_name}: credentials updated` : updated.display_name;
+  logAction(req, 'service.updated', { target: `service_instance:${updated.id}`, detail });
   res.json(serialize(updated));
 });
 
 router.delete('/:id', requireAdmin, (req, res) => {
+  const existing = db.getServiceInstance(req.params.id);
   db.deleteServiceInstance(req.params.id);
+  logAction(req, 'service.deleted', { target: `service_instance:${req.params.id}`, detail: existing?.display_name });
   res.json({ ok: true });
 });
 

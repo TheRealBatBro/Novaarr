@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const db = require('../db');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { logAction } = require('../lib/audit');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -65,6 +66,7 @@ router.post('/', async (req, res) => {
   if (role && role !== 'admin' && role !== 'member') return res.status(400).json({ error: 'role must be "admin" or "member"' });
   const passwordHash = await bcrypt.hash(password, 12);
   const user = db.createUser({ username, passwordHash, role: role || 'member' });
+  logAction(req, 'user.created', { target: `user:${user.id}`, detail: `${user.username} (${user.role})` });
   res.status(201).json(serializeUserOut(user));
 });
 
@@ -99,6 +101,13 @@ router.put('/:id', async (req, res) => {
   // A password reset should kill that user's existing sessions — otherwise a leaked/stolen
   // cookie signed under the old password keeps working right through the reset.
   if (passwordHash) db.bumpUserTokenValidAfter(id);
+  const changes = [
+    username !== undefined && `username → ${username}`,
+    passwordHash && 'password reset',
+    role !== undefined && `role → ${role}`,
+    accessRoleId !== undefined && `access role → ${accessRoleId ?? 'none'}`,
+  ].filter(Boolean);
+  logAction(req, 'user.updated', { target: `user:${id}`, detail: changes.join(', ') || undefined });
   res.json(serializeUserOut(updated));
 });
 
@@ -110,6 +119,7 @@ router.delete('/:id', (req, res) => {
     return res.status(409).json({ error: 'Cannot delete the last remaining admin' });
   }
   db.deleteUser(id);
+  logAction(req, 'user.deleted', { target: `user:${id}`, detail: existing.username });
   res.json({ ok: true });
 });
 

@@ -9,6 +9,12 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Remotarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.20.0',
+    notes: [
+      'Added an admin-only Audit log (Settings > Audit) tracking sign-ins, user management, and service/access-role changes — never logs credential values, only that they changed',
+    ],
+  },
+  {
     version: '0.19.0',
     notes: [
       'Removed Wake-on-LAN — a leftover feature that let any signed-in member send a magic packet to any address with no permission check',

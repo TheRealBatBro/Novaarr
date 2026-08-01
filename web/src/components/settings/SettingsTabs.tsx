@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { Plug, ListOrdered, LayoutDashboard, ShieldCheck, Database, Info, Users, type LucideIcon } from 'lucide-react';
+import { Plug, ListOrdered, LayoutDashboard, ShieldCheck, Database, Info, Users, ScrollText, type LucideIcon } from 'lucide-react';
 import { useAuthStatus, useIsSettingsAdmin } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 
@@ -10,10 +10,15 @@ const TABS: { key: string; label: string; to: string; icon: LucideIcon; adminOnl
   { key: 'security', label: 'Security', to: '/settings/security', icon: ShieldCheck },
   { key: 'users', label: 'Users', to: '/settings/users', icon: Users },
   { key: 'backup', label: 'Backup', to: '/settings/backup', icon: Database, adminOnly: true },
+  { key: 'audit', label: 'Audit', to: '/settings/audit', icon: ScrollText, adminOnly: true },
   { key: 'about', label: 'About', to: '/settings/about', icon: Info },
 ];
 
-export function SettingsTabs({ active }: { active: 'services' | 'menu' | 'dashboard' | 'security' | 'users' | 'backup' | 'about' }) {
+export function SettingsTabs({
+  active,
+}: {
+  active: 'services' | 'menu' | 'dashboard' | 'security' | 'users' | 'backup' | 'audit' | 'about';
+}) {
   // The Users tab only makes sense once a deployment has opted into multi-user mode — hidden
   // entirely in simple mode rather than shown-but-empty. Services/Menu/Backup change shared,
   // deployment-wide state, so a member (non-admin) in multi-user mode doesn't see them at all —

@@ -83,6 +83,21 @@ function initDb() {
       PRIMARY KEY (user_id, instance_id)
     );
 
+    -- Append-only: nothing ever updates or deletes a row here except the retention prune in
+    -- logAudit. actor_label snapshots the username at the time of the action (rather than a
+    -- live join to users) so a since-deleted or renamed user still reads correctly in old
+    -- entries.
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      created_at     INTEGER NOT NULL DEFAULT (unixepoch()),
+      actor_user_id  INTEGER,
+      actor_label    TEXT    NOT NULL,
+      action         TEXT    NOT NULL,
+      target         TEXT,
+      detail         TEXT,
+      ip             TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS service_instances (
       id             INTEGER PRIMARY KEY AUTOINCREMENT,
       service_id     TEXT    NOT NULL,
@@ -214,6 +229,31 @@ function isTokenRevoked(payload) {
     if (user && iat < (user.token_valid_after || 0)) return true;
   }
   return false;
+}
+
+// Retention cap — an unbounded audit log is its own low-grade liability. Whichever limit
+// bites first: row count or age. Pruned opportunistically on write rather than on a timer,
+// since there's no background scheduler in this app to hang it off of.
+const AUDIT_LOG_MAX_ROWS = 5000;
+const AUDIT_LOG_MAX_AGE_SECONDS = 90 * 24 * 60 * 60;
+
+function logAudit({ actorUserId, actorLabel, action, target, detail, ip }) {
+  const db = getDb();
+  db.prepare(
+    'INSERT INTO audit_log (actor_user_id, actor_label, action, target, detail, ip) VALUES (?, ?, ?, ?, ?, ?)',
+  ).run(actorUserId ?? null, actorLabel, action, target ?? null, detail ?? null, ip ?? null);
+  db.prepare('DELETE FROM audit_log WHERE created_at < ?').run(Math.floor(Date.now() / 1000) - AUDIT_LOG_MAX_AGE_SECONDS);
+  db.prepare(
+    'DELETE FROM audit_log WHERE id NOT IN (SELECT id FROM audit_log ORDER BY id DESC LIMIT ?)',
+  ).run(AUDIT_LOG_MAX_ROWS);
+}
+
+function listAuditLog({ limit = 200, action } = {}) {
+  const capped = Math.min(Math.max(Number(limit) || 200, 1), AUDIT_LOG_MAX_ROWS);
+  if (action) {
+    return getDb().prepare('SELECT * FROM audit_log WHERE action = ? ORDER BY id DESC LIMIT ?').all(action, capped);
+  }
+  return getDb().prepare('SELECT * FROM audit_log ORDER BY id DESC LIMIT ?').all(capped);
 }
 
 // Brute-force lockout on the shared credential (login and change-credential's "current"
@@ -606,6 +646,7 @@ function deleteAccessRole(id) {
 module.exports = {
   initDb, getDb, getSettings, setCredential, getJwtSecret,
   bumpTokenValidAfter, bumpUserTokenValidAfter, isTokenRevoked,
+  logAudit, listAuditLog,
   recordFailedLogin, resetFailedLogins, getLockoutSeconds,
   closeDb, backupTo, restoreFrom, DB_PATH,
   listServiceInstances, getServiceInstance, createServiceInstance, updateServiceInstance, deleteServiceInstance,

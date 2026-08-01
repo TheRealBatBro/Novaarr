@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const db = require('../db');
 const { setAuthCookie, clearAuthCookie, requireAuth, COOKIE } = require('../middleware/auth');
 const { rateLimit } = require('../middleware/rateLimit');
+const { logAction } = require('../lib/audit');
 
 const router = express.Router();
 
@@ -101,10 +102,12 @@ router.post('/login', credentialLimiter, async (req, res) => {
     const ok = user && (await bcrypt.compare(password, user.password_hash));
     if (!ok) {
       db.recordFailedLogin();
+      db.logAudit({ actorLabel: username || '(no username)', action: 'auth.login_failed', ip: req.ip });
       return res.status(401).json({ error: 'Incorrect username or password' });
     }
     db.resetFailedLogins();
     setAuthCookie(res, req, { userId: user.id, role: user.role });
+    db.logAudit({ actorUserId: user.id, actorLabel: user.username, action: 'auth.login', ip: req.ip });
     return res.json({ ok: true, user: { id: user.id, username: user.username, role: user.role } });
   }
 
@@ -114,10 +117,12 @@ router.post('/login', credentialLimiter, async (req, res) => {
   const ok = await bcrypt.compare(credential, settings.pin_hash);
   if (!ok) {
     db.recordFailedLogin();
+    db.logAudit({ actorLabel: 'admin', action: 'auth.login_failed', ip: req.ip });
     return res.status(401).json({ error: settings.auth_mode === 'pin' ? 'Incorrect PIN' : 'Incorrect password' });
   }
   db.resetFailedLogins();
   setAuthCookie(res, req);
+  db.logAudit({ actorLabel: 'admin', action: 'auth.login', ip: req.ip });
   res.json({ ok: true });
 });
 
@@ -139,6 +144,7 @@ router.post('/enable-multi-user', requireAuth, async (req, res) => {
   const admin = db.createUser({ username, passwordHash, role: 'admin' });
   db.setMultiUser(true);
   setAuthCookie(res, req, { userId: admin.id, role: admin.role });
+  db.logAudit({ actorUserId: admin.id, actorLabel: admin.username, action: 'auth.multi_user_enabled', ip: req.ip });
   res.status(201).json({ ok: true, user: admin });
 });
 
@@ -176,6 +182,7 @@ router.post('/change-credential', requireAuth, credentialLimiter, async (req, re
   // request.
   db.bumpTokenValidAfter();
   setAuthCookie(res, req);
+  db.logAudit({ actorLabel: 'admin', action: 'auth.credential_changed', detail: `mode: ${newMode}`, ip: req.ip });
   res.json({ ok: true });
 });
 
@@ -188,6 +195,7 @@ router.post('/revoke-sessions', requireAuth, (req, res) => {
   }
   db.bumpTokenValidAfter();
   setAuthCookie(res, req, db.isMultiUser() ? { userId: req.user.userId, role: req.user.role } : undefined);
+  logAction(req, 'auth.sessions_revoked');
   res.json({ ok: true });
 });
 

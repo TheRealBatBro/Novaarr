@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { logAction } = require('../lib/audit');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -46,7 +47,9 @@ router.post('/', (req, res) => {
   if (widgetError) return res.status(400).json({ error: widgetError });
   const calendarError = validateInstanceIds(calendarSourceIds);
   if (calendarError) return res.status(400).json({ error: calendarError });
-  res.status(201).json(db.createAccessRole(name, instanceIds || [], widgets || [], calendarSourceIds || []));
+  const created = db.createAccessRole(name, instanceIds || [], widgets || [], calendarSourceIds || []);
+  logAction(req, 'access_role.created', { target: `access_role:${created.id}`, detail: created.name });
+  res.status(201).json(created);
 });
 
 router.put('/:id', (req, res) => {
@@ -63,13 +66,17 @@ router.put('/:id', (req, res) => {
   if (widgetError) return res.status(400).json({ error: widgetError });
   const calendarError = validateInstanceIds(calendarSourceIds);
   if (calendarError) return res.status(400).json({ error: calendarError });
-  res.json(db.updateAccessRole(id, { name, instanceIds, widgets, calendarSourceIds }));
+  const updated = db.updateAccessRole(id, { name, instanceIds, widgets, calendarSourceIds });
+  logAction(req, 'access_role.updated', { target: `access_role:${id}`, detail: updated.name });
+  res.json(updated);
 });
 
 router.delete('/:id', (req, res) => {
   const id = Number(req.params.id);
-  if (!db.getAccessRoleById(id)) return res.status(404).json({ error: 'Not found' });
+  const existing = db.getAccessRoleById(id);
+  if (!existing) return res.status(404).json({ error: 'Not found' });
   db.deleteAccessRole(id);
+  logAction(req, 'access_role.deleted', { target: `access_role:${id}`, detail: existing.name });
   res.json({ ok: true });
 });
 
