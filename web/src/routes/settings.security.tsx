@@ -52,7 +52,7 @@ function EnableMultiUserCard() {
   }
 
   return (
-    <Card className="max-w-md">
+    <Card>
       <CardContent className="p-4">
         <div className="mb-3 flex items-center gap-2">
           <Users className="h-4 w-4 text-muted-foreground" />
@@ -104,7 +104,7 @@ function CloudflareTunnelCard() {
     state === 'loading' ? 'Checking…' : state === 'connected' ? 'Connected' : state === 'disconnected' ? 'Not connected' : 'Not set up';
 
   return (
-    <Card className="max-w-md">
+    <Card>
       <CardContent className="p-4">
         <div className="mb-3 flex items-center gap-2">
           <Cloud className="h-4 w-4 text-muted-foreground" />
@@ -159,7 +159,7 @@ function RevokeSessionsCard() {
   }
 
   return (
-    <Card className="max-w-md">
+    <Card>
       <CardContent className="p-4">
         <div className="mb-3 flex items-center gap-2">
           <ShieldOff className="h-4 w-4 text-muted-foreground" />
@@ -225,7 +225,7 @@ function SettingsSecurity() {
           <span className="font-medium text-foreground">Settings → Users</span>.
         </p>
         {isAdmin && (
-          <div className="mt-6 flex flex-col gap-6">
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
             <RevokeSessionsCard />
             <CloudflareTunnelCard />
           </div>
@@ -242,71 +242,71 @@ function SettingsSecurity() {
         You currently sign in with a {currentMode === 'pin' ? 'PIN code' : 'password'}. Change it or switch to the other method below.
       </p>
 
-      <Card className="max-w-md">
-        <CardContent className="p-4">
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div className="grid gap-1.5">
-              <Label htmlFor="current">Current {currentMode === 'pin' ? 'PIN' : 'password'}</Label>
-              <Input
-                id="current"
-                type="password"
-                required
-                value={current}
-                onChange={(e) => setCurrent(e.target.value)}
-              />
-            </div>
-
-            <div className="grid gap-1.5">
-              <Label>Sign in with</Label>
-              <div className="flex gap-1.5">
-                {(['pin', 'password'] as const).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setNewMode(m)}
-                    className={cn(
-                      'flex flex-1 items-center justify-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
-                      newMode === m ? 'border-primary bg-primary/15 text-primary' : 'border-border text-muted-foreground hover:bg-accent',
-                    )}
-                  >
-                    {m === 'pin' ? <Hash className="h-3.5 w-3.5" /> : <KeyRound className="h-3.5 w-3.5" />}
-                    {m === 'pin' ? 'PIN code' : 'Password'}
-                  </button>
-                ))}
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+        <Card>
+          <CardContent className="p-4">
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+              <div className="grid gap-1.5">
+                <Label htmlFor="current">Current {currentMode === 'pin' ? 'PIN' : 'password'}</Label>
+                <Input
+                  id="current"
+                  type="password"
+                  required
+                  value={current}
+                  onChange={(e) => setCurrent(e.target.value)}
+                />
               </div>
-            </div>
 
-            <div className="grid gap-1.5">
-              <Label htmlFor="newCredential">New {newMode === 'pin' ? 'PIN' : 'password'}</Label>
-              <Input
-                id="newCredential"
-                type="password"
-                placeholder={newMode === 'pin' ? '4-8 digits' : 'At least 6 characters'}
-                required
-                value={newCredential}
-                onChange={(e) => setNewCredential(e.target.value)}
-              />
-            </div>
+              <div className="grid gap-1.5">
+                <Label>Sign in with</Label>
+                <div className="flex gap-1.5">
+                  {(['pin', 'password'] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setNewMode(m)}
+                      className={cn(
+                        'flex flex-1 items-center justify-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
+                        newMode === m ? 'border-primary bg-primary/15 text-primary' : 'border-border text-muted-foreground hover:bg-accent',
+                      )}
+                    >
+                      {m === 'pin' ? <Hash className="h-3.5 w-3.5" /> : <KeyRound className="h-3.5 w-3.5" />}
+                      {m === 'pin' ? 'PIN code' : 'Password'}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-            <div className="grid gap-1.5">
-              <Label htmlFor="confirmCredential">Confirm new {newMode === 'pin' ? 'PIN' : 'password'}</Label>
-              <Input
-                id="confirmCredential"
-                type="password"
-                required
-                value={confirmCredential}
-                onChange={(e) => setConfirmCredential(e.target.value)}
-              />
-            </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="newCredential">New {newMode === 'pin' ? 'PIN' : 'password'}</Label>
+                <Input
+                  id="newCredential"
+                  type="password"
+                  placeholder={newMode === 'pin' ? '4-8 digits' : 'At least 6 characters'}
+                  required
+                  value={newCredential}
+                  onChange={(e) => setNewCredential(e.target.value)}
+                />
+              </div>
 
-            <Button type="submit" disabled={busy} className="mt-2">
-              Update
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+              <div className="grid gap-1.5">
+                <Label htmlFor="confirmCredential">Confirm new {newMode === 'pin' ? 'PIN' : 'password'}</Label>
+                <Input
+                  id="confirmCredential"
+                  type="password"
+                  required
+                  value={confirmCredential}
+                  onChange={(e) => setConfirmCredential(e.target.value)}
+                />
+              </div>
 
-      <div className="mt-6 flex max-w-md flex-col gap-6">
+              <Button type="submit" disabled={busy} className="mt-2">
+                Update
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
         <RevokeSessionsCard />
         <EnableMultiUserCard />
         {isAdmin && <CloudflareTunnelCard />}

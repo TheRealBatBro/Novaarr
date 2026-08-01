@@ -171,7 +171,7 @@ function SettingsBackup() {
         lives in one file. It's encrypted with a password of your choice before it ever leaves the server.
       </p>
 
-      <div className="grid max-w-md gap-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <Card>
           <CardContent className="flex items-center justify-between gap-4 p-4">
             <div>

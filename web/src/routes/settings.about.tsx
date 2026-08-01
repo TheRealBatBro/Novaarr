@@ -9,6 +9,12 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Remotarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.20.1',
+    notes: [
+      'Settings > Security, Backup, Audit, and About now fill the available width instead of being capped to a narrow column',
+    ],
+  },
+  {
     version: '0.20.0',
     notes: [
       'Added an admin-only Audit log (Settings > Audit) tracking sign-ins, user management, and service/access-role changes — never logs credential values, only that they changed',
@@ -196,7 +202,7 @@ function SettingsAbout() {
       <h1 className="text-2xl font-bold tracking-tight">About Remotarr</h1>
       <p className="mb-6 text-sm text-muted-foreground">Version {CHANGELOG[0].version}</p>
 
-      <div className="mb-8 grid max-w-md gap-3">
+      <div className="mb-8 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <LinkCard
           icon={Lightbulb}
           title="Request a feature"
@@ -212,7 +218,7 @@ function SettingsAbout() {
       </div>
 
       <h2 className="mb-3 text-lg font-bold tracking-tight">What's new</h2>
-      <div className="flex max-w-md flex-col gap-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {CHANGELOG.map((entry) => (
           <div key={entry.version} className="rounded-xl border border-border bg-card p-4">
             <p className="mb-2 font-semibold">v{entry.version}</p>
