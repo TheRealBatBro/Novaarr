@@ -9,6 +9,12 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Remotarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.25.0',
+    notes: [
+      'Added a trailer play button to the request dialog\'s header photo — same as Sonarr/Radarr\'s detail pages — covering Discover, Trakt/MDBList carousels, and Seerr\'s own trending/popular widgets',
+    ],
+  },
+  {
     version: '0.24.0',
     notes: [
       'Discover now lets you filter by language (defaults to English) and toggle "Skip obscure/homemade titles" (on by default) to keep suggestions to real theatrical/studio releases',

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { Play } from 'lucide-react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { Select } from '@/components/ui/select';
@@ -9,6 +10,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useServiceProxy } from '@/lib/queries';
 import { proxyApi, type ServiceInstance } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { useTrailerKey } from '@/components/services/arr/detail/useTrailerKey';
+import { TrailerModal } from '@/components/services/arr/detail/TrailerModal';
 
 const BACKDROP_IMAGE = 'https://image.tmdb.org/t/p/w780';
 const POSTER_IMAGE = 'https://image.tmdb.org/t/p/w200';
@@ -62,6 +65,11 @@ export function OverseerrRequestDialog({
   const [profileId, setProfileId] = useState<number | null>(null);
   const [rootFolder, setRootFolder] = useState<string | null>(null);
   const [tags, setTags] = useState<number[] | null>(null);
+  const [trailerOpen, setTrailerOpen] = useState(false);
+
+  // Same path/instance as the details fetch below, so this rides that same cached request
+  // instead of firing a second one — see useTrailerKey's own comment.
+  const trailerKey = useTrailerKey(instance, tmdbId, mediaType);
 
   const { data: detailsResp, isLoading } = useServiceProxy<TmdbDetails>(instance, { path: `/api/v1/${mediaType}/${tmdbId}`, refetchInterval: false });
   const { data: serviceResp } = useServiceProxy<ServiceInfo>(instance, {
@@ -130,6 +138,7 @@ export function OverseerrRequestDialog({
   const canRequest = mediaType === 'movie' ? !alreadyRequested : selectedSeasons.size > 0;
 
   return (
+    <>
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-xl gap-0 p-0">
         <div className="relative h-36 w-full overflow-hidden rounded-t-xl bg-muted">
@@ -137,6 +146,18 @@ export function OverseerrRequestDialog({
             <img src={details?.backdropPath ? `${BACKDROP_IMAGE}${details.backdropPath}` : fallbackPoster} alt="" className="h-full w-full object-cover" />
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-card via-card/40 to-black/30" />
+          {trailerKey && (
+            <button
+              type="button"
+              onClick={() => setTrailerOpen(true)}
+              aria-label="Play trailer"
+              className="absolute inset-0 flex items-center justify-center"
+            >
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm transition-colors hover:bg-black/60">
+                <Play className="h-5 w-5 translate-x-0.5 fill-white" />
+              </span>
+            </button>
+          )}
         </div>
 
         <div className="relative -mt-10 flex items-end gap-3 px-4">
@@ -254,5 +275,7 @@ export function OverseerrRequestDialog({
         </div>
       </DialogContent>
     </Dialog>
+    {trailerOpen && trailerKey && <TrailerModal youtubeKey={trailerKey} title={title} onClose={() => setTrailerOpen(false)} />}
+    </>
   );
 }
