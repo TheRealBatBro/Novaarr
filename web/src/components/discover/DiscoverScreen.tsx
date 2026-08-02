@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Sparkles, RotateCcw, Loader2, ArrowLeft } from 'lucide-react';
+import { Sparkles, RotateCcw, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Select } from '@/components/ui/select';
@@ -24,13 +23,9 @@ import {
   type Popularity,
 } from '@/lib/discoverMoods';
 
-// One question per screen, in order — mirrors a typical recommendation-wizard flow (mood,
-// occasion, genre, era, popularity, extra interests, then the remaining quiet preferences).
-const WIZARD_STEPS = ['mood', 'occasion', 'genres', 'era', 'popularity', 'interests', 'prefs'] as const;
-type WizardStep = (typeof WIZARD_STEPS)[number];
-type Step = WizardStep | 'loading' | 'results';
+type Step = 'form' | 'loading' | 'results';
 
-// How many picks each results section (and each "similar to watched" row) targets.
+// How many picks each results section targets.
 const RESULT_TARGET = 6;
 
 type DiscoverItem = OverseerrSearchResult & {
@@ -42,19 +37,10 @@ type DiscoverItem = OverseerrSearchResult & {
   originalLanguage?: string;
 };
 type DiscoverResponse = { results?: DiscoverItem[] };
-type TautulliHistoryEntry = {
-  title?: string;
-  full_title?: string;
-  grandparent_title?: string;
-  year?: string | number;
-  watched_status?: number;
-  media_type?: string;
-};
+type TautulliHistoryEntry = { title?: string; full_title?: string; grandparent_title?: string; year?: string | number; watched_status?: number };
 type TautulliHistoryResponse = { response?: { data?: { data?: TautulliHistoryEntry[] } } };
 type TracearrHistoryEntry = { mediaTitle?: string; showTitle?: string | null; year?: number | null; watched: boolean };
 type TracearrHistoryResponse = { data?: TracearrHistoryEntry[] };
-type SearchResponse = { results?: DiscoverItem[] };
-type RecentWatchedItem = { title: string; year?: string };
 
 function normalizeKey(title: string, year?: string | number): string {
   return `${title.trim().toLowerCase()}|${year ?? ''}`;
@@ -107,139 +93,6 @@ async function fetchWatchedTitleKeys(tautulliInstanceId: number | undefined, tra
   return keys;
 }
 
-// Pulls the most recent watched movies and TV shows (up to 10 each) from Tautulli/Tracearr,
-// most-recent-first, for the "Similar to what you've recently watched" section. Best-effort
-// title+year only — neither history API exposes a TMDB id, so resolving one happens later via
-// Overseerr search.
-async function fetchRecentWatchedItems(
-  tautulliInstanceId: number | undefined,
-  tracearrInstanceId: number | undefined,
-): Promise<{ movies: RecentWatchedItem[]; shows: RecentWatchedItem[] }> {
-  const movies: RecentWatchedItem[] = [];
-  const shows: RecentWatchedItem[] = [];
-  const seenMovies = new Set<string>();
-  const seenShows = new Set<string>();
-
-  if (tautulliInstanceId) {
-    try {
-      const res = await proxyApi.call<TautulliHistoryResponse>(tautulliInstanceId, {
-        path: '/api/v2',
-        query: { cmd: 'get_history', length: '200', order_column: 'date', order_dir: 'desc' },
-      });
-      if (res.ok) {
-        for (const r of res.data?.response?.data?.data ?? []) {
-          if (r.watched_status !== undefined && r.watched_status !== 1) continue;
-          const year = r.year !== undefined ? String(r.year) : undefined;
-          if (r.media_type === 'episode') {
-            const title = r.grandparent_title || r.full_title;
-            if (!title) continue;
-            const key = normalizeKey(title, year);
-            if (seenShows.has(key) || shows.length >= 10) continue;
-            seenShows.add(key);
-            shows.push({ title, year });
-          } else if (r.media_type === 'movie') {
-            const title = r.full_title || r.title;
-            if (!title) continue;
-            const key = normalizeKey(title, year);
-            if (seenMovies.has(key) || movies.length >= 10) continue;
-            seenMovies.add(key);
-            movies.push({ title, year });
-          }
-        }
-      }
-    } catch {
-      // Best-effort.
-    }
-  }
-
-  if (tracearrInstanceId && (movies.length < 10 || shows.length < 10)) {
-    try {
-      const startDate = new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000).toISOString();
-      const res = await proxyApi.call<TracearrHistoryResponse>(tracearrInstanceId, {
-        path: '/api/v1/public/history',
-        query: { pageSize: '200', startDate },
-      });
-      if (res.ok) {
-        for (const r of res.data?.data ?? []) {
-          if (!r.watched) continue;
-          const year = r.year !== null && r.year !== undefined ? String(r.year) : undefined;
-          if (r.showTitle) {
-            const key = normalizeKey(r.showTitle, year);
-            if (seenShows.has(key) || shows.length >= 10) continue;
-            seenShows.add(key);
-            shows.push({ title: r.showTitle, year });
-          } else if (r.mediaTitle) {
-            const key = normalizeKey(r.mediaTitle, year);
-            if (seenMovies.has(key) || movies.length >= 10) continue;
-            seenMovies.add(key);
-            movies.push({ title: r.mediaTitle, year });
-          }
-        }
-      }
-    } catch {
-      // Best-effort.
-    }
-  }
-
-  return { movies, shows };
-}
-
-// Resolves a watched title to its TMDB id via Overseerr's own search (nothing else exposes
-// one), preferring a same-media-type result within a year of the watched entry's year.
-async function resolveTmdbId(overseerrId: number, item: RecentWatchedItem, mediaType: 'movie' | 'tv'): Promise<number | undefined> {
-  const res = await proxyApi.call<SearchResponse>(overseerrId, { path: '/api/v1/search', query: { query: item.title, page: '1' } });
-  if (!res.ok) return undefined;
-  const results = res.data?.results ?? [];
-  const wantYear = item.year ? Number(item.year) : undefined;
-  const sameType = results.filter((r) => r.mediaType === mediaType);
-  const pool = sameType.length > 0 ? sameType : results;
-  if (wantYear) {
-    const close = pool.find((r) => {
-      const y = Number((r.releaseDate ?? r.firstAirDate)?.slice(0, 4));
-      return Number.isFinite(y) && Math.abs(y - wantYear) <= 1;
-    });
-    if (close) return close.id;
-  }
-  return pool[0]?.id;
-}
-
-async function fetchSimilarFor(overseerrId: number, tmdbId: number, mediaType: 'movie' | 'tv'): Promise<DiscoverItem[]> {
-  const res = await proxyApi.call<DiscoverResponse>(overseerrId, { path: `/api/v1/${mediaType}/${tmdbId}/similar`, query: { page: '1' } });
-  if (!res.ok) return [];
-  return (res.data?.results ?? []).map((r) => ({ ...r, mediaType }));
-}
-
-// Builds a "similar to recently watched" pool by resolving each of the most recent watched
-// titles (capped at 5 source titles per media type, to bound the fan-out) to similar
-// recommendations via Overseerr's own /similar endpoint, then dedupes and drops anything
-// already watched or already in the library.
-async function fetchSimilarToWatched(
-  overseerrId: number,
-  mediaType: 'movie' | 'tv',
-  sourceItems: RecentWatchedItem[],
-  watchedKeys: Set<string>,
-): Promise<DiscoverItem[]> {
-  const picked: DiscoverItem[] = [];
-  const seen = new Set<number>();
-  for (const source of sourceItems.slice(0, 5)) {
-    if (picked.length >= RESULT_TARGET) break;
-    const tmdbId = await resolveTmdbId(overseerrId, source, mediaType);
-    if (!tmdbId) continue;
-    const similar = await fetchSimilarFor(overseerrId, tmdbId, mediaType);
-    for (const r of similar) {
-      if (picked.length >= RESULT_TARGET) break;
-      if (seen.has(r.id)) continue;
-      seen.add(r.id);
-      if (r.mediaInfo?.status !== undefined) continue;
-      const title = r.title ?? r.name ?? '';
-      const year = (r.releaseDate ?? r.firstAirDate)?.slice(0, 4);
-      if (watchedKeys.has(normalizeKey(title, year))) continue;
-      picked.push(r);
-    }
-  }
-  return picked;
-}
-
 async function fetchDiscoverPage(
   overseerrId: number,
   mediaType: 'movie' | 'tv',
@@ -268,7 +121,7 @@ export function DiscoverScreen() {
   const tautulli = instances.find((i) => i.serviceId === 'tautulli' && i.enabled);
   const tracearr = instances.find((i) => i.serviceId === 'tracearr' && i.enabled);
 
-  const [step, setStep] = useState<Step>('mood');
+  const [step, setStep] = useState<Step>('form');
   const [moodId, setMoodId] = useState<string | null>(null);
   const [occasionId, setOccasionId] = useState<string | null>(null);
   const [genres, setGenres] = useState<Set<number>>(new Set());
@@ -285,15 +138,6 @@ export function DiscoverScreen() {
   const [relaxedNote, setRelaxedNote] = useState(false);
 
   const mood = MOODS.find((m) => m.id === moodId);
-  const wizardIndex = WIZARD_STEPS.indexOf(step as WizardStep);
-
-  function goTo(next: WizardStep) {
-    setStep(next);
-  }
-
-  function back() {
-    if (wizardIndex > 0) setStep(WIZARD_STEPS[wizardIndex - 1]);
-  }
 
   function toggleGenre(movieId: number) {
     setGenres((prev) => {
@@ -314,7 +158,7 @@ export function DiscoverScreen() {
   }
 
   function reset() {
-    setStep('mood');
+    setStep('form');
     setMoodId(null);
     setOccasionId(null);
     setGenres(new Set());
@@ -421,7 +265,7 @@ export function DiscoverScreen() {
       const firstError = movieResult.lastError || tvResult.lastError;
       if (firstError && movieResult.picked.length === 0 && tvResult.picked.length === 0) {
         setError(`Couldn't reach Seerr — ${firstError}`);
-        setStep('prefs');
+        setStep('form');
         return;
       }
       setMovies(movieResult.picked);
@@ -430,7 +274,7 @@ export function DiscoverScreen() {
       setStep('results');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong');
-      setStep('prefs');
+      setStep('form');
     }
   }
 
@@ -446,8 +290,6 @@ export function DiscoverScreen() {
       </div>
     );
   }
-
-  const isWizardStep = WIZARD_STEPS.includes(step as WizardStep);
 
   return (
     <div>
@@ -465,34 +307,17 @@ export function DiscoverScreen() {
         </div>
       </div>
 
-      {step === 'mood' && (
-        <div className="mb-10">
-          <h2 className="mb-3 text-lg font-bold tracking-tight">Similar to what you've recently watched</h2>
-          <SimilarToWatchedSection overseerrId={overseerr.id} tautulliId={tautulli?.id} tracearrId={tracearr?.id} onPick={setOpenRequest} />
-        </div>
-      )}
-
-      {isWizardStep && (
-        <div className={cn(step === 'mood' && 'border-t border-border pt-8')}>
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-bold tracking-tight">What are you in the mood for?</h2>
-            <span className="text-xs text-muted-foreground">
-              Step {wizardIndex + 1} of {WIZARD_STEPS.length}
-            </span>
-          </div>
-
-          {step === 'mood' && (
-            <div className="mx-auto max-w-3xl">
-              <p className="mb-3 text-sm font-semibold">Pick a mood</p>
+      {step === 'form' && (
+        <div className="flex flex-col gap-8">
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+            <div>
+              <p className="mb-3 text-sm font-semibold">What are you in the mood for?</p>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {MOODS.map((m) => (
                   <button
                     key={m.id}
                     type="button"
-                    onClick={() => {
-                      setMoodId(m.id);
-                      goTo('occasion');
-                    }}
+                    onClick={() => setMoodId(m.id)}
                     className={cn(
                       'flex flex-col items-start gap-1 rounded-2xl border p-4 text-left transition-colors',
                       moodId === m.id ? 'border-primary bg-primary/10' : 'border-border bg-card hover:bg-accent',
@@ -505,10 +330,8 @@ export function DiscoverScreen() {
                 ))}
               </div>
             </div>
-          )}
 
-          {step === 'occasion' && (
-            <div className="mx-auto max-w-3xl">
+            <div>
               <p className="mb-3 text-sm font-semibold">What's the occasion?</p>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {OCCASIONS.map((o) => (
@@ -518,7 +341,6 @@ export function DiscoverScreen() {
                     onClick={() => {
                       setOccasionId(o.id);
                       setFamilyFriendly(o.defaultFamilyFriendly);
-                      goTo('genres');
                     }}
                     className={cn(
                       'rounded-xl border px-4 py-3 text-left text-sm font-medium transition-colors',
@@ -529,43 +351,30 @@ export function DiscoverScreen() {
                   </button>
                 ))}
               </div>
-              <div className="mt-6 flex gap-2">
-                <Button variant="outline" onClick={back}>
-                  <ArrowLeft className="h-3.5 w-3.5" /> Back
-                </Button>
-              </div>
             </div>
-          )}
+          </div>
 
-          {step === 'genres' && (
-            <div className="mx-auto max-w-3xl">
-              <p className="mb-3 text-sm font-semibold">Any specific genres? (optional — leave blank to let your mood decide)</p>
-              <div className="flex flex-wrap gap-2">
-                {GENRE_PICKS.map((g) => (
-                  <button
-                    key={g.label}
-                    type="button"
-                    onClick={() => toggleGenre(g.movieId)}
-                    className={cn(
-                      'rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
-                      genres.has(g.movieId) ? 'border-primary bg-primary/15 text-primary' : 'border-border text-muted-foreground hover:bg-accent',
-                    )}
-                  >
-                    {g.label}
-                  </button>
-                ))}
-              </div>
-              <div className="mt-6 flex gap-2">
-                <Button variant="outline" onClick={back}>
-                  <ArrowLeft className="h-3.5 w-3.5" /> Back
-                </Button>
-                <Button onClick={() => goTo('era')}>Next</Button>
-              </div>
+          <div>
+            <p className="mb-3 text-sm font-semibold">Any specific genres? (optional — leave blank to let your mood decide)</p>
+            <div className="flex flex-wrap gap-2">
+              {GENRE_PICKS.map((g) => (
+                <button
+                  key={g.label}
+                  type="button"
+                  onClick={() => toggleGenre(g.movieId)}
+                  className={cn(
+                    'rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
+                    genres.has(g.movieId) ? 'border-primary bg-primary/15 text-primary' : 'border-border text-muted-foreground hover:bg-accent',
+                  )}
+                >
+                  {g.label}
+                </button>
+              ))}
             </div>
-          )}
+          </div>
 
-          {step === 'era' && (
-            <div className="mx-auto max-w-3xl">
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+            <div>
               <p className="mb-3 text-sm font-semibold">How old would you like it to be?</p>
               <div className="flex gap-2">
                 {(
@@ -588,17 +397,9 @@ export function DiscoverScreen() {
                   </button>
                 ))}
               </div>
-              <div className="mt-6 flex gap-2">
-                <Button variant="outline" onClick={back}>
-                  <ArrowLeft className="h-3.5 w-3.5" /> Back
-                </Button>
-                <Button onClick={() => goTo('popularity')}>Next</Button>
-              </div>
             </div>
-          )}
 
-          {step === 'popularity' && (
-            <div className="mx-auto max-w-3xl">
+            <div>
               <p className="mb-3 text-sm font-semibold">Popularity</p>
               <div className="flex gap-2">
                 {(
@@ -621,85 +422,64 @@ export function DiscoverScreen() {
                   </button>
                 ))}
               </div>
-              <div className="mt-6 flex gap-2">
-                <Button variant="outline" onClick={back}>
-                  <ArrowLeft className="h-3.5 w-3.5" /> Back
-                </Button>
-                <Button onClick={() => goTo('interests')}>Next</Button>
-              </div>
             </div>
-          )}
+          </div>
 
-          {step === 'interests' && (
-            <div className="mx-auto max-w-3xl">
-              <p className="mb-1 text-sm font-semibold">Anything else you're after? (optional)</p>
-              <p className="mb-3 text-xs text-muted-foreground">You can pick as many as you like without risking empty results — these just nudge matching picks higher.</p>
-              <div className="flex flex-wrap gap-2">
-                {INTEREST_PICKS.map((p) => (
-                  <button
-                    key={p.label}
-                    type="button"
-                    onClick={() => toggleInterest(p.label)}
-                    className={cn(
-                      'rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
-                      interests.has(p.label) ? 'border-primary bg-primary/15 text-primary' : 'border-border text-muted-foreground hover:bg-accent',
-                    )}
-                  >
-                    {p.label}
-                  </button>
+          <div>
+            <p className="mb-1 text-sm font-semibold">Anything else you're after? (optional)</p>
+            <p className="mb-3 text-xs text-muted-foreground">You can pick as many as you like without risking empty results — these just nudge matching picks higher.</p>
+            <div className="flex flex-wrap gap-2">
+              {INTEREST_PICKS.map((p) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => toggleInterest(p.label)}
+                  className={cn(
+                    'rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
+                    interests.has(p.label) ? 'border-primary bg-primary/15 text-primary' : 'border-border text-muted-foreground hover:bg-accent',
+                  )}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <div>
+              <p className="mb-3 text-sm font-semibold">Language</p>
+              <Select value={language} onChange={(e) => setLanguage(e.target.value)}>
+                <option value="any">Any language</option>
+                {LANGUAGE_PICKS.map((l) => (
+                  <option key={l.code} value={l.code}>
+                    {l.label}
+                  </option>
                 ))}
-              </div>
-              <div className="mt-6 flex gap-2">
-                <Button variant="outline" onClick={back}>
-                  <ArrowLeft className="h-3.5 w-3.5" /> Back
-                </Button>
-                <Button onClick={() => goTo('prefs')}>Next</Button>
-              </div>
+              </Select>
             </div>
-          )}
 
-          {step === 'prefs' && (
-            <div className="mx-auto flex max-w-3xl flex-col gap-6">
+            <label className="flex items-center justify-between rounded-xl border border-border bg-card p-3">
               <div>
-                <p className="mb-3 text-sm font-semibold">Language</p>
-                <Select value={language} onChange={(e) => setLanguage(e.target.value)}>
-                  <option value="any">Any language</option>
-                  {LANGUAGE_PICKS.map((l) => (
-                    <option key={l.code} value={l.code}>
-                      {l.label}
-                    </option>
-                  ))}
-                </Select>
+                <p className="text-sm font-medium">Skip obscure/homemade titles</p>
+                <p className="text-xs text-muted-foreground">Only real, well-tracked productions</p>
               </div>
+              <Switch checked={skipHomemade} onCheckedChange={setSkipHomemade} />
+            </label>
 
-              <label className="flex items-center justify-between rounded-xl border border-border bg-card p-3">
-                <div>
-                  <p className="text-sm font-medium">Skip obscure/homemade titles</p>
-                  <p className="text-xs text-muted-foreground">Only suggests titles with a real audience behind them, not barely-tracked productions</p>
-                </div>
-                <Switch checked={skipHomemade} onCheckedChange={setSkipHomemade} />
-              </label>
-
-              <label className="flex items-center justify-between rounded-xl border border-border bg-card p-3">
-                <div>
-                  <p className="text-sm font-medium">Family-friendly only</p>
-                  <p className="text-xs text-muted-foreground">Excludes horror, thriller, crime, and war picks</p>
-                </div>
-                <Switch checked={familyFriendly} onCheckedChange={setFamilyFriendly} />
-              </label>
-
-              {error && <p className="text-sm text-destructive">{error}</p>}
-
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={back}>
-                  <ArrowLeft className="h-3.5 w-3.5" /> Back
-                </Button>
-                <Button className="flex-1" onClick={runSearch}>
-                  Get recommendations
-                </Button>
+            <label className="flex items-center justify-between rounded-xl border border-border bg-card p-3">
+              <div>
+                <p className="text-sm font-medium">Family-friendly only</p>
+                <p className="text-xs text-muted-foreground">Excludes horror, thriller, crime, war</p>
               </div>
-            </div>
-          )}
+              <Switch checked={familyFriendly} onCheckedChange={setFamilyFriendly} />
+            </label>
+          </div>
+
+          {error && <p className="text-sm text-destructive">{error}</p>}
+
+          <Button disabled={!mood} onClick={runSearch}>
+            Get recommendations
+          </Button>
         </div>
       )}
 
@@ -740,63 +520,10 @@ export function DiscoverScreen() {
   );
 }
 
-// Shown above the wizard on the landing step — recommendations based on the last 10 watched
-// movies and last 10 watched shows (per Tautulli/Tracearr), independent of any mood/filter
-// choices, so it's useful even before the user runs the wizard at all.
-function SimilarToWatchedSection({
-  overseerrId,
-  tautulliId,
-  tracearrId,
-  onPick,
-}: {
-  overseerrId: number;
-  tautulliId: number | undefined;
-  tracearrId: number | undefined;
-  onPick: (item: DiscoverItem) => void;
-}) {
-  const enabled = Boolean(tautulliId || tracearrId);
-  const { data, isLoading } = useQuery({
-    queryKey: ['discover-similar-to-watched', overseerrId, tautulliId, tracearrId],
-    enabled,
-    staleTime: 30 * 60 * 1000,
-    queryFn: async () => {
-      const { movies: recentMovies, shows: recentShows } = await fetchRecentWatchedItems(tautulliId, tracearrId);
-      const watchedKeys = new Set<string>([...recentMovies, ...recentShows].map((r) => normalizeKey(r.title, r.year)));
-      const [movies, shows] = await Promise.all([
-        fetchSimilarToWatched(overseerrId, 'movie', recentMovies, watchedKeys),
-        fetchSimilarToWatched(overseerrId, 'tv', recentShows, watchedKeys),
-      ]);
-      return { movies, shows };
-    },
-  });
-
-  if (!enabled) {
-    return <p className="text-sm text-muted-foreground">Add Tautulli or Tracearr in Settings → Services to see picks based on what you've recently watched.</p>;
-  }
-  if (!isLoading && (!data || (data.movies.length === 0 && data.shows.length === 0))) {
-    return <p className="text-sm text-muted-foreground">Not enough watch history yet to base picks on.</p>;
-  }
-
-  return (
-    <div className="flex flex-col gap-6">
-      {isLoading ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Looking at what you've watched…
-        </div>
-      ) : (
-        <>
-          {data!.movies.length > 0 && <ResultSection title="Movies" items={data!.movies} onPick={onPick} />}
-          {data!.shows.length > 0 && <ResultSection title="TV Shows" items={data!.shows} onPick={onPick} />}
-        </>
-      )}
-    </div>
-  );
-}
-
 function ResultSection({ title, items, onPick }: { title: string; items: DiscoverItem[]; onPick: (item: DiscoverItem) => void }) {
   return (
     <div>
-      <h3 className="mb-3 text-sm font-semibold text-muted-foreground">{title}</h3>
+      <h2 className="mb-3 text-lg font-bold tracking-tight">{title}</h2>
       {items.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nothing matched — try loosening a filter and starting over.</p>
       ) : (

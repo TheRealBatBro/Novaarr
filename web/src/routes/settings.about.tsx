@@ -9,6 +9,13 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Remotarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.28.0',
+    notes: [
+      'Discover\'s wizard is back to a single page — every question (mood, occasion, genres, era, popularity, extra interests, language/homemade/family-friendly) is answered on one screen with no "Next" buttons',
+      'Removed the "Similar to what you\'ve recently watched" section from Discover',
+    ],
+  },
+  {
     version: '0.27.0',
     notes: [
       'Discover\'s wizard is now one question per screen (mood, occasion, genres, era, popularity, extra interests like "heist" or "based on a true story", then language/homemade/family-friendly) instead of one long form, with a step counter',
