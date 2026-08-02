@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Sparkles, RotateCcw, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -15,11 +16,15 @@ import {
   MAX_RELAX_LEVEL,
   MIN_VOTES_FOR_PROPER_PRODUCTION,
   buildDiscoverParams,
+  matchesEra,
   type Era,
   type Popularity,
 } from '@/lib/discoverMoods';
 
 type Step = 'mood' | 'details' | 'loading' | 'results';
+
+// How many picks each results section (and each "because you watched" row) targets.
+const RESULT_TARGET = 6;
 
 type DiscoverItem = OverseerrSearchResult & {
   overview?: string;
@@ -30,10 +35,19 @@ type DiscoverItem = OverseerrSearchResult & {
   originalLanguage?: string;
 };
 type DiscoverResponse = { results?: DiscoverItem[] };
-type TautulliHistoryEntry = { title?: string; full_title?: string; grandparent_title?: string; year?: string | number; watched_status?: number };
+type TautulliHistoryEntry = {
+  title?: string;
+  full_title?: string;
+  grandparent_title?: string;
+  year?: string | number;
+  watched_status?: number;
+  media_type?: string;
+};
 type TautulliHistoryResponse = { response?: { data?: { data?: TautulliHistoryEntry[] } } };
 type TracearrHistoryEntry = { mediaTitle?: string; showTitle?: string | null; year?: number | null; watched: boolean };
 type TracearrHistoryResponse = { data?: TracearrHistoryEntry[] };
+type SearchResponse = { results?: DiscoverItem[] };
+type RecentWatchedItem = { title: string; year?: string };
 
 function normalizeKey(title: string, year?: string | number): string {
   return `${title.trim().toLowerCase()}|${year ?? ''}`;
@@ -84,6 +98,138 @@ async function fetchWatchedTitleKeys(tautulliInstanceId: number | undefined, tra
   }
 
   return keys;
+}
+
+// Pulls the most recent watched movies and TV shows (up to 10 each) from Tautulli/Tracearr,
+// most-recent-first, for the "Because you watched…" section. Best-effort title+year only —
+// neither history API exposes a TMDB id, so resolving one happens later via Overseerr search.
+async function fetchRecentWatchedItems(
+  tautulliInstanceId: number | undefined,
+  tracearrInstanceId: number | undefined,
+): Promise<{ movies: RecentWatchedItem[]; shows: RecentWatchedItem[] }> {
+  const movies: RecentWatchedItem[] = [];
+  const shows: RecentWatchedItem[] = [];
+  const seenMovies = new Set<string>();
+  const seenShows = new Set<string>();
+
+  if (tautulliInstanceId) {
+    try {
+      const res = await proxyApi.call<TautulliHistoryResponse>(tautulliInstanceId, {
+        path: '/api/v2',
+        query: { cmd: 'get_history', length: '200', order_column: 'date', order_dir: 'desc' },
+      });
+      if (res.ok) {
+        for (const r of res.data?.response?.data?.data ?? []) {
+          if (r.watched_status !== undefined && r.watched_status !== 1) continue;
+          const year = r.year !== undefined ? String(r.year) : undefined;
+          if (r.media_type === 'episode') {
+            const title = r.grandparent_title || r.full_title;
+            if (!title) continue;
+            const key = normalizeKey(title, year);
+            if (seenShows.has(key) || shows.length >= 10) continue;
+            seenShows.add(key);
+            shows.push({ title, year });
+          } else if (r.media_type === 'movie') {
+            const title = r.full_title || r.title;
+            if (!title) continue;
+            const key = normalizeKey(title, year);
+            if (seenMovies.has(key) || movies.length >= 10) continue;
+            seenMovies.add(key);
+            movies.push({ title, year });
+          }
+        }
+      }
+    } catch {
+      // Best-effort.
+    }
+  }
+
+  if (tracearrInstanceId && (movies.length < 10 || shows.length < 10)) {
+    try {
+      const startDate = new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000).toISOString();
+      const res = await proxyApi.call<TracearrHistoryResponse>(tracearrInstanceId, {
+        path: '/api/v1/public/history',
+        query: { pageSize: '200', startDate },
+      });
+      if (res.ok) {
+        for (const r of res.data?.data ?? []) {
+          if (!r.watched) continue;
+          const year = r.year !== null && r.year !== undefined ? String(r.year) : undefined;
+          if (r.showTitle) {
+            const key = normalizeKey(r.showTitle, year);
+            if (seenShows.has(key) || shows.length >= 10) continue;
+            seenShows.add(key);
+            shows.push({ title: r.showTitle, year });
+          } else if (r.mediaTitle) {
+            const key = normalizeKey(r.mediaTitle, year);
+            if (seenMovies.has(key) || movies.length >= 10) continue;
+            seenMovies.add(key);
+            movies.push({ title: r.mediaTitle, year });
+          }
+        }
+      }
+    } catch {
+      // Best-effort.
+    }
+  }
+
+  return { movies, shows };
+}
+
+// Resolves a watched title to its TMDB id via Overseerr's own search (nothing else exposes
+// one), preferring a same-media-type result within a year of the watched entry's year.
+async function resolveTmdbId(overseerrId: number, item: RecentWatchedItem, mediaType: 'movie' | 'tv'): Promise<number | undefined> {
+  const res = await proxyApi.call<SearchResponse>(overseerrId, { path: '/api/v1/search', query: { query: item.title, page: '1' } });
+  if (!res.ok) return undefined;
+  const results = res.data?.results ?? [];
+  const wantYear = item.year ? Number(item.year) : undefined;
+  const sameType = results.filter((r) => r.mediaType === mediaType);
+  const pool = sameType.length > 0 ? sameType : results;
+  if (wantYear) {
+    const close = pool.find((r) => {
+      const y = Number((r.releaseDate ?? r.firstAirDate)?.slice(0, 4));
+      return Number.isFinite(y) && Math.abs(y - wantYear) <= 1;
+    });
+    if (close) return close.id;
+  }
+  return pool[0]?.id;
+}
+
+async function fetchSimilarFor(overseerrId: number, tmdbId: number, mediaType: 'movie' | 'tv'): Promise<DiscoverItem[]> {
+  const res = await proxyApi.call<DiscoverResponse>(overseerrId, { path: `/api/v1/${mediaType}/${tmdbId}/similar`, query: { page: '1' } });
+  if (!res.ok) return [];
+  return (res.data?.results ?? []).map((r) => ({ ...r, mediaType }));
+}
+
+// Builds a "Because you watched…" pool by resolving each of the most recent watched titles
+// (capped at 5 source titles per media type, to bound the fan-out) to similar recommendations
+// via Overseerr's own /similar endpoint, then dedupes and drops anything already watched or
+// already in the library.
+async function fetchSimilarToWatched(
+  overseerrId: number,
+  mediaType: 'movie' | 'tv',
+  sourceItems: RecentWatchedItem[],
+  watchedKeys: Set<string>,
+): Promise<DiscoverItem[]> {
+  const picked: DiscoverItem[] = [];
+  const seen = new Set<number>();
+  for (const source of sourceItems.slice(0, 5)) {
+    if (picked.length >= RESULT_TARGET) break;
+    const tmdbId = await resolveTmdbId(overseerrId, source, mediaType);
+    if (!tmdbId) continue;
+    const similar = await fetchSimilarFor(overseerrId, tmdbId, mediaType);
+    for (const r of similar) {
+      if (picked.length >= RESULT_TARGET) break;
+      if (seen.has(r.id)) continue;
+      seen.add(r.id);
+      if (r.mediaInfo?.status !== undefined) continue;
+      const title = r.title ?? r.name ?? '';
+      const year = (r.releaseDate ?? r.firstAirDate)?.slice(0, 4);
+      if (watchedKeys.has(normalizeKey(title, year))) continue;
+      picked.push(r);
+    }
+  }
+  return picked;
 }
 
 async function fetchDiscoverPage(
@@ -174,9 +320,9 @@ export function DiscoverScreen() {
         // vote-count floor) can genuinely have very few matches — a brand-new movie rarely has
         // both a 7+ average and 500+ votes yet. Each relax level drops the next most
         // restrictive constraint instead of just reporting "nothing matched."
-        for (let relaxLevel = 0; relaxLevel <= MAX_RELAX_LEVEL && picked.length < 5; relaxLevel++) {
+        for (let relaxLevel = 0; relaxLevel <= MAX_RELAX_LEVEL && picked.length < RESULT_TARGET; relaxLevel++) {
           if (relaxLevel > 0) relaxed = true;
-          for (let page = 1; page <= 2 && picked.length < 5; page++) {
+          for (let page = 1; page <= 2 && picked.length < RESULT_TARGET; page++) {
             const params = buildDiscoverParams({
               mediaType,
               mood: mood!,
@@ -204,20 +350,21 @@ export function DiscoverScreen() {
               const title = r.title ?? r.name ?? '';
               const year = (r.releaseDate ?? r.firstAirDate)?.slice(0, 4);
               if (watchedKeys.has(normalizeKey(title, year))) continue;
-              // Client-side backstop for language/homemade — belt-and-suspenders alongside the
-              // query params above, since neither depends on trusting an unverified param name,
-              // and it still relaxes at level 3/2 respectively via the params not being sent.
+              // Client-side backstop for era/language/homemade/rating — belt-and-suspenders
+              // alongside the query params above, since none of them depend on trusting an
+              // unverified Overseerr param name (era in particular has been observed being
+              // silently ignored server-side for TV), and each still relaxes at the same level
+              // its query param stops being sent.
+              if (relaxLevel < 4 && !matchesEra(era, r.releaseDate ?? r.firstAirDate)) continue;
               if (relaxLevel < 3 && language !== 'any' && r.originalLanguage && r.originalLanguage !== language) continue;
               if (relaxLevel < 2 && skipHomemade && (r.voteCount ?? 0) < MIN_VOTES_FOR_PROPER_PRODUCTION) continue;
-              // The popularity preference is itself a vote-count floor/ceiling — drop it at the
-              // same relax level as the vote-average floor, since both are "how established does
-              // this need to be" constraints.
-              if (relaxLevel < 2) {
+              if (relaxLevel < 2 && r.voteAverage !== undefined && r.voteAverage < (familyFriendly ? Math.max(mood!.voteAverageGte, 6.5) : mood!.voteAverageGte)) continue;
+              if (relaxLevel < 1) {
                 if (popularity === 'hidden-gem' && (r.voteCount ?? 0) > 3000) continue;
                 if (popularity === 'popular' && (r.voteCount ?? 0) < 500) continue;
               }
               picked.push(r);
-              if (picked.length >= 5) break;
+              if (picked.length >= RESULT_TARGET) break;
             }
           }
         }
@@ -262,13 +409,17 @@ export function DiscoverScreen() {
         </span>
         <div>
           <h1 className="text-2xl font-bold tracking-tight">What should I watch?</h1>
-          <p className="text-sm text-muted-foreground">Answer a few questions for five movie and five show picks.</p>
+          <p className="text-sm text-muted-foreground">Answer a few questions for six movie and six show picks.</p>
           <p className="text-xs text-muted-foreground">
             Skips anything already in your library, plus watched history from{' '}
             {[tautulli && 'Tautulli', tracearr && 'Tracearr'].filter(Boolean).join(' and ') || 'nothing configured — add Tautulli or Tracearr for that'}.
           </p>
         </div>
       </div>
+
+      {step === 'mood' && (
+        <SimilarToWatchedSection overseerrId={overseerr.id} tautulliId={tautulli?.id} tracearrId={tracearr?.id} onPick={setOpenRequest} />
+      )}
 
       {step === 'mood' && (
         <div>
@@ -419,8 +570,8 @@ export function DiscoverScreen() {
         <div className="flex flex-col gap-8">
           {relaxedNote && (
             <p className="rounded-xl border border-border bg-card p-3 text-sm text-muted-foreground">
-              Your exact filters turned up too few picks, so some were loosened (era, rating/popularity, then genre or language as a last
-              resort) to still get you five of each.
+              Your exact filters turned up too few picks, so some were loosened (popularity, then rating, then genre/language, and era only
+              as a last resort) to still get you six of each.
             </p>
           )}
           <ResultSection title="Movies" items={movies} onPick={setOpenRequest} />
@@ -440,6 +591,55 @@ export function DiscoverScreen() {
           fallbackPoster={openRequest.posterPath ? `${TMDB_IMAGE}${openRequest.posterPath}` : undefined}
           onClose={() => setOpenRequest(null)}
         />
+      )}
+    </div>
+  );
+}
+
+// Shown above the wizard on the landing step — recommendations based on the last 10 watched
+// movies and last 10 watched shows (per Tautulli/Tracearr), independent of any mood/filter
+// choices, so it's useful even before the user runs the wizard at all.
+function SimilarToWatchedSection({
+  overseerrId,
+  tautulliId,
+  tracearrId,
+  onPick,
+}: {
+  overseerrId: number;
+  tautulliId: number | undefined;
+  tracearrId: number | undefined;
+  onPick: (item: DiscoverItem) => void;
+}) {
+  const enabled = Boolean(tautulliId || tracearrId);
+  const { data, isLoading } = useQuery({
+    queryKey: ['discover-similar-to-watched', overseerrId, tautulliId, tracearrId],
+    enabled,
+    staleTime: 30 * 60 * 1000,
+    queryFn: async () => {
+      const { movies: recentMovies, shows: recentShows } = await fetchRecentWatchedItems(tautulliId, tracearrId);
+      const watchedKeys = new Set<string>([...recentMovies, ...recentShows].map((r) => normalizeKey(r.title, r.year)));
+      const [movies, shows] = await Promise.all([
+        fetchSimilarToWatched(overseerrId, 'movie', recentMovies, watchedKeys),
+        fetchSimilarToWatched(overseerrId, 'tv', recentShows, watchedKeys),
+      ]);
+      return { movies, shows };
+    },
+  });
+
+  if (!enabled) return null;
+  if (!isLoading && (!data || (data.movies.length === 0 && data.shows.length === 0))) return null;
+
+  return (
+    <div className="mb-8 flex flex-col gap-6">
+      {isLoading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Looking at what you've watched…
+        </div>
+      ) : (
+        <>
+          {data!.movies.length > 0 && <ResultSection title="Because you watched…" items={data!.movies} onPick={onPick} />}
+          {data!.shows.length > 0 && <ResultSection title="More like what you've been watching" items={data!.shows} onPick={onPick} />}
+        </>
       )}
     </div>
   );

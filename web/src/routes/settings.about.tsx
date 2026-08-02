@@ -9,6 +9,14 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Remotarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.26.0',
+    notes: [
+      'Added a "Because you watched…" section to Discover — recommendations based on your last 10 watched movies and last 10 watched shows (via Tautulli/Tracearr), shown before you even run the wizard',
+      'Discover now suggests 6 movies and 6 TV shows instead of 5',
+      'Fixed "New releases" (and other filters) occasionally returning years-old titles — the fallback that loosens overly narrow searches was dropping the era filter first; it now drops popularity/rating/genre/language first and only relaxes era as an absolute last resort, plus era, rating, and language are now double-checked client-side instead of trusting Overseerr\'s filter alone',
+    ],
+  },
+  {
     version: '0.25.0',
     notes: [
       'Added a trailer play button to the request dialog\'s header photo — same as Sonarr/Radarr\'s detail pages — covering Discover, Trakt/MDBList carousels, and Seerr\'s own trending/popular widgets',

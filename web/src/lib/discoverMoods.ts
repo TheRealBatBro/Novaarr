@@ -113,13 +113,16 @@ export const MIN_VOTES_FOR_PROPER_PRODUCTION = 20;
 // A narrow combination (e.g. two explicit genres + a recent-only era + a mood's high rating
 // floor) can legitimately have very few or zero matching titles. Rather than just reporting
 // "nothing matched," the caller retries at increasing relax levels, each one dropping the next
-// most restrictive constraint — weakest signal first, strongest (what you actually asked for —
-// genre and language) last:
+// most restrictive constraint — weakest signal first. Era is deliberately dropped LAST, not
+// first: it's an explicit choice the user made ("new releases"), not a soft quality guardrail
+// like rating/popularity, and letting it go first was exactly what let years-old titles sneak
+// into "new releases" results as soon as any relaxation kicked in:
 //   0 = everything requested
-//   1 = ignore era
+//   1 = ignore the popularity preference (hidden-gem/popular vote-count bounds)
 //   2 = also ignore the vote-average floor and the "skip homemade" vote-count floor
-//   3 = also ignore genre and language entirely (mood's sort order still applies)
-export const MAX_RELAX_LEVEL = 3;
+//   3 = also ignore genre and language
+//   4 = also ignore era (last resort — mood's sort order still applies)
+export const MAX_RELAX_LEVEL = 4;
 
 export function buildDiscoverParams(opts: {
   mediaType: 'movie' | 'tv';
@@ -157,7 +160,7 @@ export function buildDiscoverParams(opts: {
     if (language !== 'any') params.language = language;
   }
 
-  if (relaxLevel < 1) {
+  if (relaxLevel < 4) {
     const now = new Date();
     const thisYear = now.getUTCFullYear();
     const dateField = mediaType === 'movie' ? 'primaryReleaseDate' : 'firstAirDate';
@@ -170,4 +173,19 @@ export function buildDiscoverParams(opts: {
   }
 
   return params;
+}
+
+// Overseerr's discover endpoint doesn't reliably honor primaryReleaseDate/firstAirDate
+// Gte/Lte for TV (a "new releases" query has been observed returning decades-old shows) —
+// the same class of problem as the genre join bug: an unverified param name silently
+// ignored server-side. Rather than keep trusting it, this is enforced again client-side
+// against the actual result's date, exactly like the language/vote-count backstops below.
+export function matchesEra(era: Era, dateStr: string | undefined): boolean {
+  if (era === 'any' || !dateStr) return true;
+  const year = Number(dateStr.slice(0, 4));
+  if (!Number.isFinite(year)) return true;
+  const thisYear = new Date().getUTCFullYear();
+  if (era === 'new') return year >= thisYear - 2;
+  if (era === 'classic') return year >= thisYear - 40 && year <= thisYear - 10;
+  return true;
 }
