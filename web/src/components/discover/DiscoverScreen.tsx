@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Sparkles, RotateCcw, Loader2 } from 'lucide-react';
+import { Sparkles, RotateCcw, Loader2, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Select } from '@/components/ui/select';
@@ -13,17 +13,24 @@ import {
   GENRE_PICKS,
   LANGUAGE_PICKS,
   MOODS,
+  OCCASIONS,
+  INTEREST_PICKS,
   MAX_RELAX_LEVEL,
   MIN_VOTES_FOR_PROPER_PRODUCTION,
   buildDiscoverParams,
   matchesEra,
+  interestMatchScore,
   type Era,
   type Popularity,
 } from '@/lib/discoverMoods';
 
-type Step = 'mood' | 'details' | 'loading' | 'results';
+// One question per screen, in order — mirrors a typical recommendation-wizard flow (mood,
+// occasion, genre, era, popularity, extra interests, then the remaining quiet preferences).
+const WIZARD_STEPS = ['mood', 'occasion', 'genres', 'era', 'popularity', 'interests', 'prefs'] as const;
+type WizardStep = (typeof WIZARD_STEPS)[number];
+type Step = WizardStep | 'loading' | 'results';
 
-// How many picks each results section (and each "because you watched" row) targets.
+// How many picks each results section (and each "similar to watched" row) targets.
 const RESULT_TARGET = 6;
 
 type DiscoverItem = OverseerrSearchResult & {
@@ -101,8 +108,9 @@ async function fetchWatchedTitleKeys(tautulliInstanceId: number | undefined, tra
 }
 
 // Pulls the most recent watched movies and TV shows (up to 10 each) from Tautulli/Tracearr,
-// most-recent-first, for the "Because you watched…" section. Best-effort title+year only —
-// neither history API exposes a TMDB id, so resolving one happens later via Overseerr search.
+// most-recent-first, for the "Similar to what you've recently watched" section. Best-effort
+// title+year only — neither history API exposes a TMDB id, so resolving one happens later via
+// Overseerr search.
 async function fetchRecentWatchedItems(
   tautulliInstanceId: number | undefined,
   tracearrInstanceId: number | undefined,
@@ -201,10 +209,10 @@ async function fetchSimilarFor(overseerrId: number, tmdbId: number, mediaType: '
   return (res.data?.results ?? []).map((r) => ({ ...r, mediaType }));
 }
 
-// Builds a "Because you watched…" pool by resolving each of the most recent watched titles
-// (capped at 5 source titles per media type, to bound the fan-out) to similar recommendations
-// via Overseerr's own /similar endpoint, then dedupes and drops anything already watched or
-// already in the library.
+// Builds a "similar to recently watched" pool by resolving each of the most recent watched
+// titles (capped at 5 source titles per media type, to bound the fan-out) to similar
+// recommendations via Overseerr's own /similar endpoint, then dedupes and drops anything
+// already watched or already in the library.
 async function fetchSimilarToWatched(
   overseerrId: number,
   mediaType: 'movie' | 'tv',
@@ -262,9 +270,11 @@ export function DiscoverScreen() {
 
   const [step, setStep] = useState<Step>('mood');
   const [moodId, setMoodId] = useState<string | null>(null);
+  const [occasionId, setOccasionId] = useState<string | null>(null);
   const [genres, setGenres] = useState<Set<number>>(new Set());
   const [era, setEra] = useState<Era>('any');
   const [popularity, setPopularity] = useState<Popularity>('any');
+  const [interests, setInterests] = useState<Set<string>>(new Set());
   const [language, setLanguage] = useState('en');
   const [skipHomemade, setSkipHomemade] = useState(true);
   const [familyFriendly, setFamilyFriendly] = useState(false);
@@ -275,6 +285,15 @@ export function DiscoverScreen() {
   const [relaxedNote, setRelaxedNote] = useState(false);
 
   const mood = MOODS.find((m) => m.id === moodId);
+  const wizardIndex = WIZARD_STEPS.indexOf(step as WizardStep);
+
+  function goTo(next: WizardStep) {
+    setStep(next);
+  }
+
+  function back() {
+    if (wizardIndex > 0) setStep(WIZARD_STEPS[wizardIndex - 1]);
+  }
 
   function toggleGenre(movieId: number) {
     setGenres((prev) => {
@@ -285,12 +304,23 @@ export function DiscoverScreen() {
     });
   }
 
+  function toggleInterest(label: string) {
+    setInterests((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+  }
+
   function reset() {
     setStep('mood');
     setMoodId(null);
+    setOccasionId(null);
     setGenres(new Set());
     setEra('any');
     setPopularity('any');
+    setInterests(new Set());
     setLanguage('en');
     setSkipHomemade(true);
     setFamilyFriendly(false);
@@ -308,6 +338,11 @@ export function DiscoverScreen() {
       const watchedKeys = await fetchWatchedTitleKeys(tautulli?.id, tracearr?.id);
       const explicitMovieGenres = GENRE_PICKS.filter((g) => genres.has(g.movieId)).map((g) => g.movieId);
       const explicitTvGenres = GENRE_PICKS.filter((g) => genres.has(g.movieId)).map((g) => g.tvId);
+      const selectedInterests = INTEREST_PICKS.filter((p) => interests.has(p.label));
+      // Extra interests never filter results out (that risks the same "zero results" trap
+      // genre/era once had) — they only re-rank an already-fetched pool, so when any are
+      // selected the pool needs to be wider than the final target to have something to sort.
+      const candidatePool = selectedInterests.length > 0 ? RESULT_TARGET * 3 : RESULT_TARGET;
 
       async function collect(mediaType: 'movie' | 'tv', explicitGenres: number[]): Promise<{ picked: DiscoverItem[]; lastError?: string; relaxed: boolean }> {
         const picked: DiscoverItem[] = [];
@@ -320,9 +355,9 @@ export function DiscoverScreen() {
         // vote-count floor) can genuinely have very few matches — a brand-new movie rarely has
         // both a 7+ average and 500+ votes yet. Each relax level drops the next most
         // restrictive constraint instead of just reporting "nothing matched."
-        for (let relaxLevel = 0; relaxLevel <= MAX_RELAX_LEVEL && picked.length < RESULT_TARGET; relaxLevel++) {
+        for (let relaxLevel = 0; relaxLevel <= MAX_RELAX_LEVEL && picked.length < candidatePool; relaxLevel++) {
           if (relaxLevel > 0) relaxed = true;
-          for (let page = 1; page <= 2 && picked.length < RESULT_TARGET; page++) {
+          for (let page = 1; page <= 2 && picked.length < candidatePool; page++) {
             const params = buildDiscoverParams({
               mediaType,
               mood: mood!,
@@ -364,18 +399,29 @@ export function DiscoverScreen() {
                 if (popularity === 'popular' && (r.voteCount ?? 0) < 500) continue;
               }
               picked.push(r);
-              if (picked.length >= RESULT_TARGET) break;
+              if (picked.length >= candidatePool) break;
             }
           }
         }
-        return { picked, lastError: anySucceeded ? undefined : lastError, relaxed };
+
+        // Re-rank by extra-interest match (title+overview), stable sort so ties keep the
+        // mood's own sort order, then trim down to the actual target.
+        if (selectedInterests.length > 0) {
+          picked.sort(
+            (a, b) =>
+              interestMatchScore(`${b.title ?? b.name ?? ''} ${b.overview ?? ''}`, selectedInterests) -
+              interestMatchScore(`${a.title ?? a.name ?? ''} ${a.overview ?? ''}`, selectedInterests),
+          );
+        }
+
+        return { picked: picked.slice(0, RESULT_TARGET), lastError: anySucceeded ? undefined : lastError, relaxed };
       }
 
       const [movieResult, tvResult] = await Promise.all([collect('movie', explicitMovieGenres), collect('tv', explicitTvGenres)]);
       const firstError = movieResult.lastError || tvResult.lastError;
       if (firstError && movieResult.picked.length === 0 && tvResult.picked.length === 0) {
         setError(`Couldn't reach Seerr — ${firstError}`);
-        setStep('details');
+        setStep('prefs');
         return;
       }
       setMovies(movieResult.picked);
@@ -384,7 +430,7 @@ export function DiscoverScreen() {
       setStep('results');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong');
-      setStep('details');
+      setStep('prefs');
     }
   }
 
@@ -401,8 +447,10 @@ export function DiscoverScreen() {
     );
   }
 
+  const isWizardStep = WIZARD_STEPS.includes(step as WizardStep);
+
   return (
-    <div className="mx-auto max-w-3xl">
+    <div>
       <div className="mb-6 flex items-center gap-3">
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-primary">
           <Sparkles className="h-6 w-6" />
@@ -418,144 +466,240 @@ export function DiscoverScreen() {
       </div>
 
       {step === 'mood' && (
-        <SimilarToWatchedSection overseerrId={overseerr.id} tautulliId={tautulli?.id} tracearrId={tracearr?.id} onPick={setOpenRequest} />
-      )}
-
-      {step === 'mood' && (
-        <div>
-          <p className="mb-3 text-sm font-semibold">What are you in the mood for?</p>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {MOODS.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => {
-                  setMoodId(m.id);
-                  setStep('details');
-                }}
-                className={cn(
-                  'flex flex-col items-start gap-1 rounded-2xl border p-4 text-left transition-colors',
-                  moodId === m.id ? 'border-primary bg-primary/10' : 'border-border bg-card hover:bg-accent',
-                )}
-              >
-                <span className="text-2xl">{MOOD_ICONS[m.id]}</span>
-                <span className="font-semibold">{m.label}</span>
-                <span className="text-xs text-muted-foreground">{m.description}</span>
-              </button>
-            ))}
-          </div>
+        <div className="mb-10">
+          <h2 className="mb-3 text-lg font-bold tracking-tight">Similar to what you've recently watched</h2>
+          <SimilarToWatchedSection overseerrId={overseerr.id} tautulliId={tautulli?.id} tracearrId={tracearr?.id} onPick={setOpenRequest} />
         </div>
       )}
 
-      {step === 'details' && mood && (
-        <div className="flex flex-col gap-6">
-          <div>
-            <p className="mb-3 text-sm font-semibold">Any specific genres? (optional — leave blank to let your mood decide)</p>
-            <div className="flex flex-wrap gap-2">
-              {GENRE_PICKS.map((g) => (
-                <button
-                  key={g.label}
-                  type="button"
-                  onClick={() => toggleGenre(g.movieId)}
-                  className={cn(
-                    'rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
-                    genres.has(g.movieId) ? 'border-primary bg-primary/15 text-primary' : 'border-border text-muted-foreground hover:bg-accent',
-                  )}
-                >
-                  {g.label}
-                </button>
-              ))}
-            </div>
+      {isWizardStep && (
+        <div className={cn(step === 'mood' && 'border-t border-border pt-8')}>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-bold tracking-tight">What are you in the mood for?</h2>
+            <span className="text-xs text-muted-foreground">
+              Step {wizardIndex + 1} of {WIZARD_STEPS.length}
+            </span>
           </div>
 
-          <div>
-            <p className="mb-3 text-sm font-semibold">Era</p>
-            <div className="flex gap-2">
-              {(
-                [
-                  ['new', 'New releases'],
-                  ['classic', 'Modern classics'],
-                  ['any', "Doesn't matter"],
-                ] as [Era, string][]
-              ).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setEra(value)}
-                  className={cn(
-                    'flex-1 rounded-xl border px-3 py-2 text-sm font-medium transition-colors',
-                    era === value ? 'border-primary bg-primary/15 text-primary' : 'border-border text-muted-foreground hover:bg-accent',
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
+          {step === 'mood' && (
+            <div className="mx-auto max-w-3xl">
+              <p className="mb-3 text-sm font-semibold">Pick a mood</p>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {MOODS.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => {
+                      setMoodId(m.id);
+                      goTo('occasion');
+                    }}
+                    className={cn(
+                      'flex flex-col items-start gap-1 rounded-2xl border p-4 text-left transition-colors',
+                      moodId === m.id ? 'border-primary bg-primary/10' : 'border-border bg-card hover:bg-accent',
+                    )}
+                  >
+                    <span className="text-2xl">{MOOD_ICONS[m.id]}</span>
+                    <span className="font-semibold">{m.label}</span>
+                    <span className="text-xs text-muted-foreground">{m.description}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
-          <div>
-            <p className="mb-3 text-sm font-semibold">Popularity</p>
-            <div className="flex gap-2">
-              {(
-                [
-                  ['popular', 'Popular hits'],
-                  ['hidden-gem', 'Hidden gems'],
-                  ['any', "Doesn't matter"],
-                ] as [Popularity, string][]
-              ).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setPopularity(value)}
-                  className={cn(
-                    'flex-1 rounded-xl border px-3 py-2 text-sm font-medium transition-colors',
-                    popularity === value ? 'border-primary bg-primary/15 text-primary' : 'border-border text-muted-foreground hover:bg-accent',
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
+          {step === 'occasion' && (
+            <div className="mx-auto max-w-3xl">
+              <p className="mb-3 text-sm font-semibold">What's the occasion?</p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {OCCASIONS.map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => {
+                      setOccasionId(o.id);
+                      setFamilyFriendly(o.defaultFamilyFriendly);
+                      goTo('genres');
+                    }}
+                    className={cn(
+                      'rounded-xl border px-4 py-3 text-left text-sm font-medium transition-colors',
+                      occasionId === o.id ? 'border-primary bg-primary/10 text-primary' : 'border-border text-foreground hover:bg-accent',
+                    )}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-6 flex gap-2">
+                <Button variant="outline" onClick={back}>
+                  <ArrowLeft className="h-3.5 w-3.5" /> Back
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
 
-          <div>
-            <p className="mb-3 text-sm font-semibold">Language</p>
-            <Select value={language} onChange={(e) => setLanguage(e.target.value)}>
-              <option value="any">Any language</option>
-              {LANGUAGE_PICKS.map((l) => (
-                <option key={l.code} value={l.code}>
-                  {l.label}
-                </option>
-              ))}
-            </Select>
-          </div>
-
-          <label className="flex items-center justify-between rounded-xl border border-border bg-card p-3">
-            <div>
-              <p className="text-sm font-medium">Skip obscure/homemade titles</p>
-              <p className="text-xs text-muted-foreground">Only suggests titles with a real audience behind them, not barely-tracked productions</p>
+          {step === 'genres' && (
+            <div className="mx-auto max-w-3xl">
+              <p className="mb-3 text-sm font-semibold">Any specific genres? (optional — leave blank to let your mood decide)</p>
+              <div className="flex flex-wrap gap-2">
+                {GENRE_PICKS.map((g) => (
+                  <button
+                    key={g.label}
+                    type="button"
+                    onClick={() => toggleGenre(g.movieId)}
+                    className={cn(
+                      'rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
+                      genres.has(g.movieId) ? 'border-primary bg-primary/15 text-primary' : 'border-border text-muted-foreground hover:bg-accent',
+                    )}
+                  >
+                    {g.label}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-6 flex gap-2">
+                <Button variant="outline" onClick={back}>
+                  <ArrowLeft className="h-3.5 w-3.5" /> Back
+                </Button>
+                <Button onClick={() => goTo('era')}>Next</Button>
+              </div>
             </div>
-            <Switch checked={skipHomemade} onCheckedChange={setSkipHomemade} />
-          </label>
+          )}
 
-          <label className="flex items-center justify-between rounded-xl border border-border bg-card p-3">
-            <div>
-              <p className="text-sm font-medium">Family-friendly only</p>
-              <p className="text-xs text-muted-foreground">Excludes horror, thriller, crime, and war picks</p>
+          {step === 'era' && (
+            <div className="mx-auto max-w-3xl">
+              <p className="mb-3 text-sm font-semibold">How old would you like it to be?</p>
+              <div className="flex gap-2">
+                {(
+                  [
+                    ['new', 'New releases'],
+                    ['classic', 'Modern classics'],
+                    ['any', "Doesn't matter"],
+                  ] as [Era, string][]
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setEra(value)}
+                    className={cn(
+                      'flex-1 rounded-xl border px-3 py-2 text-sm font-medium transition-colors',
+                      era === value ? 'border-primary bg-primary/15 text-primary' : 'border-border text-muted-foreground hover:bg-accent',
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-6 flex gap-2">
+                <Button variant="outline" onClick={back}>
+                  <ArrowLeft className="h-3.5 w-3.5" /> Back
+                </Button>
+                <Button onClick={() => goTo('popularity')}>Next</Button>
+              </div>
             </div>
-            <Switch checked={familyFriendly} onCheckedChange={setFamilyFriendly} />
-          </label>
+          )}
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {step === 'popularity' && (
+            <div className="mx-auto max-w-3xl">
+              <p className="mb-3 text-sm font-semibold">Popularity</p>
+              <div className="flex gap-2">
+                {(
+                  [
+                    ['popular', 'Popular hits'],
+                    ['hidden-gem', 'Hidden gems'],
+                    ['any', "Doesn't matter"],
+                  ] as [Popularity, string][]
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setPopularity(value)}
+                    className={cn(
+                      'flex-1 rounded-xl border px-3 py-2 text-sm font-medium transition-colors',
+                      popularity === value ? 'border-primary bg-primary/15 text-primary' : 'border-border text-muted-foreground hover:bg-accent',
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-6 flex gap-2">
+                <Button variant="outline" onClick={back}>
+                  <ArrowLeft className="h-3.5 w-3.5" /> Back
+                </Button>
+                <Button onClick={() => goTo('interests')}>Next</Button>
+              </div>
+            </div>
+          )}
 
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setStep('mood')}>
-              Back
-            </Button>
-            <Button className="flex-1" onClick={runSearch}>
-              Get recommendations
-            </Button>
-          </div>
+          {step === 'interests' && (
+            <div className="mx-auto max-w-3xl">
+              <p className="mb-1 text-sm font-semibold">Anything else you're after? (optional)</p>
+              <p className="mb-3 text-xs text-muted-foreground">You can pick as many as you like without risking empty results — these just nudge matching picks higher.</p>
+              <div className="flex flex-wrap gap-2">
+                {INTEREST_PICKS.map((p) => (
+                  <button
+                    key={p.label}
+                    type="button"
+                    onClick={() => toggleInterest(p.label)}
+                    className={cn(
+                      'rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
+                      interests.has(p.label) ? 'border-primary bg-primary/15 text-primary' : 'border-border text-muted-foreground hover:bg-accent',
+                    )}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-6 flex gap-2">
+                <Button variant="outline" onClick={back}>
+                  <ArrowLeft className="h-3.5 w-3.5" /> Back
+                </Button>
+                <Button onClick={() => goTo('prefs')}>Next</Button>
+              </div>
+            </div>
+          )}
+
+          {step === 'prefs' && (
+            <div className="mx-auto flex max-w-3xl flex-col gap-6">
+              <div>
+                <p className="mb-3 text-sm font-semibold">Language</p>
+                <Select value={language} onChange={(e) => setLanguage(e.target.value)}>
+                  <option value="any">Any language</option>
+                  {LANGUAGE_PICKS.map((l) => (
+                    <option key={l.code} value={l.code}>
+                      {l.label}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+
+              <label className="flex items-center justify-between rounded-xl border border-border bg-card p-3">
+                <div>
+                  <p className="text-sm font-medium">Skip obscure/homemade titles</p>
+                  <p className="text-xs text-muted-foreground">Only suggests titles with a real audience behind them, not barely-tracked productions</p>
+                </div>
+                <Switch checked={skipHomemade} onCheckedChange={setSkipHomemade} />
+              </label>
+
+              <label className="flex items-center justify-between rounded-xl border border-border bg-card p-3">
+                <div>
+                  <p className="text-sm font-medium">Family-friendly only</p>
+                  <p className="text-xs text-muted-foreground">Excludes horror, thriller, crime, and war picks</p>
+                </div>
+                <Switch checked={familyFriendly} onCheckedChange={setFamilyFriendly} />
+              </label>
+
+              {error && <p className="text-sm text-destructive">{error}</p>}
+
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={back}>
+                  <ArrowLeft className="h-3.5 w-3.5" /> Back
+                </Button>
+                <Button className="flex-1" onClick={runSearch}>
+                  Get recommendations
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -626,19 +770,23 @@ function SimilarToWatchedSection({
     },
   });
 
-  if (!enabled) return null;
-  if (!isLoading && (!data || (data.movies.length === 0 && data.shows.length === 0))) return null;
+  if (!enabled) {
+    return <p className="text-sm text-muted-foreground">Add Tautulli or Tracearr in Settings → Services to see picks based on what you've recently watched.</p>;
+  }
+  if (!isLoading && (!data || (data.movies.length === 0 && data.shows.length === 0))) {
+    return <p className="text-sm text-muted-foreground">Not enough watch history yet to base picks on.</p>;
+  }
 
   return (
-    <div className="mb-8 flex flex-col gap-6">
+    <div className="flex flex-col gap-6">
       {isLoading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" /> Looking at what you've watched…
         </div>
       ) : (
         <>
-          {data!.movies.length > 0 && <ResultSection title="Because you watched…" items={data!.movies} onPick={onPick} />}
-          {data!.shows.length > 0 && <ResultSection title="More like what you've been watching" items={data!.shows} onPick={onPick} />}
+          {data!.movies.length > 0 && <ResultSection title="Movies" items={data!.movies} onPick={onPick} />}
+          {data!.shows.length > 0 && <ResultSection title="TV Shows" items={data!.shows} onPick={onPick} />}
         </>
       )}
     </div>
@@ -648,11 +796,11 @@ function SimilarToWatchedSection({
 function ResultSection({ title, items, onPick }: { title: string; items: DiscoverItem[]; onPick: (item: DiscoverItem) => void }) {
   return (
     <div>
-      <h2 className="mb-3 text-lg font-bold tracking-tight">{title}</h2>
+      <h3 className="mb-3 text-sm font-semibold text-muted-foreground">{title}</h3>
       {items.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nothing matched — try loosening a filter and starting over.</p>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6">
           {items.map((item) => {
             const displayTitle = item.title ?? item.name ?? 'Untitled';
             const year = (item.releaseDate ?? item.firstAirDate)?.slice(0, 4);

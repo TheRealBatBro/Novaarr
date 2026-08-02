@@ -9,6 +9,14 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Remotarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.27.0',
+    notes: [
+      'Discover\'s wizard is now one question per screen (mood, occasion, genres, era, popularity, extra interests like "heist" or "based on a true story", then language/homemade/family-friendly) instead of one long form, with a step counter',
+      'Discover now spans the full page width, matching Calendar and the Dashboard',
+      'Renamed the recently-watched recommendations to "Similar to what you\'ve recently watched" with clear "Movies"/"TV Shows" sub-labels, and split it from the mood wizard into its own clearly divided section',
+    ],
+  },
+  {
     version: '0.26.0',
     notes: [
       'Added a "Because you watched…" section to Discover — recommendations based on your last 10 watched movies and last 10 watched shows (via Tautulli/Tracearr), shown before you even run the wizard',

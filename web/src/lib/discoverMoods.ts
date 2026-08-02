@@ -88,6 +88,51 @@ export const MOODS: Mood[] = [
 export type Era = 'new' | 'classic' | 'any';
 export type Popularity = 'popular' | 'hidden-gem' | 'any';
 
+// Who you're watching with — mostly a shortcut for "should family-friendly default on,"
+// but kept as its own wizard step since occasion is a more natural question to ask than
+// a raw toggle, and it's a real signal on its own (a solo pick doesn't need to please anyone
+// else; a group pick benefits from a broader popularity floor).
+export type OccasionPick = { id: string; label: string; defaultFamilyFriendly: boolean };
+
+export const OCCASIONS: OccasionPick[] = [
+  { id: 'solo', label: 'Just watching by myself', defaultFamilyFriendly: false },
+  { id: 'date', label: 'Movie date', defaultFamilyFriendly: false },
+  { id: 'friends', label: 'Movie night with friends', defaultFamilyFriendly: false },
+  { id: 'partner', label: 'Date night with my partner', defaultFamilyFriendly: false },
+  { id: 'family', label: 'Watching with family or relatives', defaultFamilyFriendly: true },
+];
+
+// A loose "anything else you're after" pick list — unlike genre/era/language, these aren't
+// backed by a TMDB filter param, so they're never used to exclude a result (that would risk
+// the same "zero results" trap the genre/era bugs caused). Instead they only re-rank an
+// already-fetched pool, nudging title/overview matches earlier without ever shrinking it.
+export type InterestPick = { label: string; terms: string[] };
+
+export const INTEREST_PICKS: InterestPick[] = [
+  { label: 'Based on a true story', terms: ['true story', 'based on the true', 'based on a true'] },
+  { label: 'Thought-provoking', terms: ['thought-provoking', 'change the way', 'makes you think'] },
+  { label: 'Heist', terms: ['heist', 'con artist', 'con man', 'robbery'] },
+  { label: 'Spy / espionage', terms: ['spy', 'espionage', 'secret agent', 'cia', 'mi6'] },
+  { label: 'Set in space', terms: ['space', 'astronaut', 'galaxy', 'spacecraft'] },
+  { label: 'Wedding', terms: ['wedding', 'bride', 'groom'] },
+  { label: 'Based on a book', terms: ['based on the novel', 'based on the book', "based on the best-selling"] },
+  { label: 'Racing', terms: ['race car', 'racing', 'formula 1', 'street racing'] },
+  { label: 'Strong female lead', terms: ['she must', 'her fight', 'a woman who', 'young woman'] },
+  { label: 'Part of a series', terms: ['sequel', 'saga', 'trilogy', 'chapter'] },
+];
+
+// Counts how many of the selected interest picks' terms show up in a result's title+overview.
+// Used only to sort an already-fetched, already-filtered pool — never to drop a result.
+export function interestMatchScore(text: string, picks: InterestPick[]): number {
+  if (picks.length === 0) return 0;
+  const haystack = text.toLowerCase();
+  let score = 0;
+  for (const pick of picks) {
+    if (pick.terms.some((t) => haystack.includes(t))) score++;
+  }
+  return score;
+}
+
 // ISO 639-1 codes — what TMDB's own `original_language` filter (and Overseerr's `language`
 // param, which passes it straight through) expects.
 export const LANGUAGE_PICKS: { code: string; label: string }[] = [
