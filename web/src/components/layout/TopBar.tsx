@@ -2,6 +2,7 @@ import { Menu, Moon, Search, Sun } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import { useUiStore } from '@/stores/useUiStore';
+import { BASE_PATH } from '@/lib/api';
 
 export function TopBar() {
   const { theme, setTheme, setPaletteOpen, setDrawerOpen } = useUiStore();
@@ -14,7 +15,7 @@ export function TopBar() {
           <Menu className="h-5 w-5" />
         </Button>
         <button type="button" onClick={() => navigate({ to: '/' })} className="ml-1 flex items-center gap-2 text-lg font-bold tracking-tight hover:text-primary">
-          <img src="/icon.png" alt="" className="h-6 w-6 rounded-md" />
+          <img src={`${BASE_PATH}/icon.png`} alt="" className="h-6 w-6 rounded-md" />
           Novaarr
         </button>
       </div>

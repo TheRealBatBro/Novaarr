@@ -9,6 +9,12 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Novaarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.32.1',
+    notes: [
+      'Fixed the favicon/app icon and manifest links being absolute ("/icon.png") instead of relative to the app\'s actual mount point — broke "Add to Home Screen" for any deployment using BASE_PATH to host at a sub-path',
+    ],
+  },
+  {
     version: '0.32.0',
     notes: [
       'Proper PWA icon set for "Add to Home Screen" — a 192×192 icon plus a padded maskable variant (Android crops icons to a circle/squircle and only guarantees the inner ~80%, so the plain icon\'s orbit ring and sparkle would\'ve been clipped without it)',
