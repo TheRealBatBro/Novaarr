@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sparkles, RotateCcw, Loader2 } from 'lucide-react';
+import { Sparkles, RotateCcw, Loader2, Check, Wand2, CalendarClock, TrendingUp, Users, Tags, Globe2, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Select } from '@/components/ui/select';
@@ -114,6 +114,53 @@ const MOOD_ICONS: Record<string, string> = {
   mindbending: '🌀',
   nostalgic: '📼',
 };
+
+const MOOD_GLOWS: Record<string, string> = {
+  fun: 'from-pink-500/20 to-rose-500/5',
+  intense: 'from-orange-500/20 to-red-500/5',
+  scary: 'from-violet-500/20 to-purple-500/5',
+  feelgood: 'from-amber-400/20 to-yellow-500/5',
+  mindbending: 'from-cyan-500/20 to-blue-500/5',
+  nostalgic: 'from-indigo-500/20 to-slate-500/5',
+};
+
+// A consistently styled question card — every group on the form shares the same rounded
+// border/background/padding so the page reads as a coherent set of sections rather than a
+// loose stack of controls.
+function Section({ icon, title, subtitle, children }: { icon: React.ReactNode; title: string; subtitle?: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-2xl border border-border bg-card/60 p-5 shadow-sm sm:p-6">
+      <div className="mb-4 flex items-start gap-2.5">
+        <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">{icon}</span>
+        <div>
+          <h2 className="text-sm font-semibold tracking-tight">{title}</h2>
+          {subtitle && <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>}
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+// Shared pill styling for the chip-style multi/single-select buttons (genres, era, popularity,
+// occasion, interests) — a checkmark on selection instead of relying on color alone.
+function Chip({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-all',
+        selected
+          ? 'border-primary bg-primary text-primary-foreground shadow-sm shadow-primary/30'
+          : 'border-border bg-background/40 text-muted-foreground hover:border-primary/40 hover:bg-accent hover:text-foreground',
+      )}
+    >
+      {selected && <Check className="h-3.5 w-3.5" />}
+      {children}
+    </button>
+  );
+}
 
 export function DiscoverScreen() {
   const { data: instances = [] } = useServices();
@@ -293,14 +340,14 @@ export function DiscoverScreen() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center gap-3">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-primary">
-          <Sparkles className="h-6 w-6" />
+      <div className="mb-8 flex items-center gap-4 rounded-3xl border border-border bg-gradient-to-br from-primary/10 via-card to-card p-6">
+        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-primary shadow-inner">
+          <Sparkles className="h-7 w-7" />
         </span>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">What should I watch?</h1>
-          <p className="text-sm text-muted-foreground">Answer a few questions for six movie and six show picks.</p>
-          <p className="text-xs text-muted-foreground">
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">What should I watch?</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Answer a few questions for six movie and six show picks.</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
             Skips anything already in your library, plus watched history from{' '}
             {[tautulli && 'Tautulli', tracearr && 'Tracearr'].filter(Boolean).join(' and ') || 'nothing configured — add Tautulli or Tracearr for that'}.
           </p>
@@ -308,10 +355,9 @@ export function DiscoverScreen() {
       </div>
 
       {step === 'form' && (
-        <div className="flex flex-col gap-8">
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-            <div>
-              <p className="mb-3 text-sm font-semibold">What are you in the mood for?</p>
+        <div className="flex flex-col gap-6">
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[2fr_1fr]">
+            <Section icon={<Wand2 className="h-4 w-4" />} title="What are you in the mood for?">
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {MOODS.map((m) => (
                   <button
@@ -319,21 +365,28 @@ export function DiscoverScreen() {
                     type="button"
                     onClick={() => setMoodId(m.id)}
                     className={cn(
-                      'flex flex-col items-start gap-1 rounded-2xl border p-4 text-left transition-colors',
-                      moodId === m.id ? 'border-primary bg-primary/10' : 'border-border bg-card hover:bg-accent',
+                      'group relative flex flex-col items-start gap-1.5 overflow-hidden rounded-2xl border p-4 text-left transition-all',
+                      moodId === m.id
+                        ? 'border-primary bg-primary/10 shadow-md shadow-primary/10'
+                        : 'border-border bg-background/40 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md',
                     )}
                   >
-                    <span className="text-2xl">{MOOD_ICONS[m.id]}</span>
-                    <span className="font-semibold">{m.label}</span>
-                    <span className="text-xs text-muted-foreground">{m.description}</span>
+                    <div className={cn('absolute inset-0 bg-gradient-to-br opacity-0 transition-opacity group-hover:opacity-100', MOOD_GLOWS[m.id])} />
+                    {moodId === m.id && (
+                      <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                        <Check className="h-3 w-3" />
+                      </span>
+                    )}
+                    <span className="relative text-2xl">{MOOD_ICONS[m.id]}</span>
+                    <span className="relative font-semibold">{m.label}</span>
+                    <span className="relative text-xs text-muted-foreground">{m.description}</span>
                   </button>
                 ))}
               </div>
-            </div>
+            </Section>
 
-            <div>
-              <p className="mb-3 text-sm font-semibold">What's the occasion?</p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Section icon={<Users className="h-4 w-4" />} title="What's the occasion?">
+              <div className="flex flex-col gap-2">
                 {OCCASIONS.map((o) => (
                   <button
                     key={o.id}
@@ -343,39 +396,32 @@ export function DiscoverScreen() {
                       setFamilyFriendly(o.defaultFamilyFriendly);
                     }}
                     className={cn(
-                      'rounded-xl border px-4 py-3 text-left text-sm font-medium transition-colors',
-                      occasionId === o.id ? 'border-primary bg-primary/10 text-primary' : 'border-border text-foreground hover:bg-accent',
+                      'flex items-center justify-between rounded-xl border px-4 py-2.5 text-left text-sm font-medium transition-all',
+                      occasionId === o.id
+                        ? 'border-primary bg-primary/10 text-primary shadow-sm'
+                        : 'border-border bg-background/40 text-foreground hover:border-primary/30 hover:bg-accent',
                     )}
                   >
                     {o.label}
+                    {occasionId === o.id && <Check className="h-4 w-4 shrink-0" />}
                   </button>
                 ))}
               </div>
-            </div>
+            </Section>
           </div>
 
-          <div>
-            <p className="mb-3 text-sm font-semibold">Any specific genres? (optional — leave blank to let your mood decide)</p>
+          <Section icon={<Tags className="h-4 w-4" />} title="Any specific genres?" subtitle="Optional — leave blank to let your mood decide">
             <div className="flex flex-wrap gap-2">
               {GENRE_PICKS.map((g) => (
-                <button
-                  key={g.label}
-                  type="button"
-                  onClick={() => toggleGenre(g.movieId)}
-                  className={cn(
-                    'rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
-                    genres.has(g.movieId) ? 'border-primary bg-primary/15 text-primary' : 'border-border text-muted-foreground hover:bg-accent',
-                  )}
-                >
+                <Chip key={g.label} selected={genres.has(g.movieId)} onClick={() => toggleGenre(g.movieId)}>
                   {g.label}
-                </button>
+                </Chip>
               ))}
             </div>
-          </div>
+          </Section>
 
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-            <div>
-              <p className="mb-3 text-sm font-semibold">How old would you like it to be?</p>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <Section icon={<CalendarClock className="h-4 w-4" />} title="How old would you like it to be?">
               <div className="flex gap-2">
                 {(
                   [
@@ -389,18 +435,19 @@ export function DiscoverScreen() {
                     type="button"
                     onClick={() => setEra(value)}
                     className={cn(
-                      'flex-1 rounded-xl border px-3 py-2 text-sm font-medium transition-colors',
-                      era === value ? 'border-primary bg-primary/15 text-primary' : 'border-border text-muted-foreground hover:bg-accent',
+                      'flex-1 rounded-xl border px-3 py-2.5 text-sm font-medium transition-all',
+                      era === value
+                        ? 'border-primary bg-primary text-primary-foreground shadow-sm shadow-primary/30'
+                        : 'border-border bg-background/40 text-muted-foreground hover:border-primary/30 hover:bg-accent hover:text-foreground',
                     )}
                   >
                     {label}
                   </button>
                 ))}
               </div>
-            </div>
+            </Section>
 
-            <div>
-              <p className="mb-3 text-sm font-semibold">Popularity</p>
+            <Section icon={<TrendingUp className="h-4 w-4" />} title="Popularity">
               <div className="flex gap-2">
                 {(
                   [
@@ -414,40 +461,35 @@ export function DiscoverScreen() {
                     type="button"
                     onClick={() => setPopularity(value)}
                     className={cn(
-                      'flex-1 rounded-xl border px-3 py-2 text-sm font-medium transition-colors',
-                      popularity === value ? 'border-primary bg-primary/15 text-primary' : 'border-border text-muted-foreground hover:bg-accent',
+                      'flex-1 rounded-xl border px-3 py-2.5 text-sm font-medium transition-all',
+                      popularity === value
+                        ? 'border-primary bg-primary text-primary-foreground shadow-sm shadow-primary/30'
+                        : 'border-border bg-background/40 text-muted-foreground hover:border-primary/30 hover:bg-accent hover:text-foreground',
                     )}
                   >
                     {label}
                   </button>
                 ))}
               </div>
-            </div>
+            </Section>
           </div>
 
-          <div>
-            <p className="mb-1 text-sm font-semibold">Anything else you're after? (optional)</p>
-            <p className="mb-3 text-xs text-muted-foreground">You can pick as many as you like without risking empty results — these just nudge matching picks higher.</p>
+          <Section
+            icon={<Sparkles className="h-4 w-4" />}
+            title="Anything else you're after?"
+            subtitle="Optional — pick as many as you like without risking empty results, these just nudge matching picks higher"
+          >
             <div className="flex flex-wrap gap-2">
               {INTEREST_PICKS.map((p) => (
-                <button
-                  key={p.label}
-                  type="button"
-                  onClick={() => toggleInterest(p.label)}
-                  className={cn(
-                    'rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
-                    interests.has(p.label) ? 'border-primary bg-primary/15 text-primary' : 'border-border text-muted-foreground hover:bg-accent',
-                  )}
-                >
+                <Chip key={p.label} selected={interests.has(p.label)} onClick={() => toggleInterest(p.label)}>
                   {p.label}
-                </button>
+                </Chip>
               ))}
             </div>
-          </div>
+          </Section>
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <div>
-              <p className="mb-3 text-sm font-semibold">Language</p>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <Section icon={<Globe2 className="h-4 w-4" />} title="Language">
               <Select value={language} onChange={(e) => setLanguage(e.target.value)}>
                 <option value="any">Any language</option>
                 {LANGUAGE_PICKS.map((l) => (
@@ -456,20 +498,30 @@ export function DiscoverScreen() {
                   </option>
                 ))}
               </Select>
-            </div>
+            </Section>
 
-            <label className="flex items-center justify-between rounded-xl border border-border bg-card p-3">
-              <div>
-                <p className="text-sm font-medium">Skip obscure/homemade titles</p>
-                <p className="text-xs text-muted-foreground">Only real, well-tracked productions</p>
+            <label className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-border bg-card/60 p-5 shadow-sm sm:p-6">
+              <div className="flex items-start gap-2.5">
+                <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <ShieldCheck className="h-4 w-4" />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold tracking-tight">Skip homemade titles</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">Only real, well-tracked productions</p>
+                </div>
               </div>
               <Switch checked={skipHomemade} onCheckedChange={setSkipHomemade} />
             </label>
 
-            <label className="flex items-center justify-between rounded-xl border border-border bg-card p-3">
-              <div>
-                <p className="text-sm font-medium">Family-friendly only</p>
-                <p className="text-xs text-muted-foreground">Excludes horror, thriller, crime, war</p>
+            <label className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-border bg-card/60 p-5 shadow-sm sm:p-6">
+              <div className="flex items-start gap-2.5">
+                <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <ShieldCheck className="h-4 w-4" />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold tracking-tight">Family-friendly only</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">Excludes horror, thriller, crime, war</p>
+                </div>
               </div>
               <Switch checked={familyFriendly} onCheckedChange={setFamilyFriendly} />
             </label>
@@ -477,14 +529,14 @@ export function DiscoverScreen() {
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
-          <Button disabled={!mood} onClick={runSearch}>
-            Get recommendations
+          <Button size="lg" className="h-12 text-base shadow-lg shadow-primary/20" disabled={!mood} onClick={runSearch}>
+            <Sparkles className="h-4 w-4" /> Get recommendations
           </Button>
         </div>
       )}
 
       {step === 'loading' && (
-        <div className="flex flex-col items-center justify-center gap-3 py-24">
+        <div className="flex flex-col items-center justify-center gap-3 rounded-3xl border border-border bg-card/40 py-24">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="text-sm text-muted-foreground">Finding something good…</p>
         </div>
@@ -493,7 +545,7 @@ export function DiscoverScreen() {
       {step === 'results' && (
         <div className="flex flex-col gap-8">
           {relaxedNote && (
-            <p className="rounded-xl border border-border bg-card p-3 text-sm text-muted-foreground">
+            <p className="rounded-2xl border border-border bg-card/60 p-3.5 text-sm text-muted-foreground">
               Your exact filters turned up too few picks, so some were loosened (popularity, then rating, then genre/language, and era only
               as a last resort) to still get you six of each.
             </p>
@@ -527,7 +579,7 @@ function ResultSection({ title, items, onPick }: { title: string; items: Discove
       {items.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nothing matched — try loosening a filter and starting over.</p>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6">
           {items.map((item) => {
             const displayTitle = item.title ?? item.name ?? 'Untitled';
             const year = (item.releaseDate ?? item.firstAirDate)?.slice(0, 4);
@@ -536,18 +588,24 @@ function ResultSection({ title, items, onPick }: { title: string; items: Discove
                 key={item.id}
                 type="button"
                 onClick={() => onPick(item)}
-                className="flex flex-col overflow-hidden rounded-xl border border-border bg-card text-left shadow-sm transition-colors hover:border-primary"
+                className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card text-left shadow-sm transition-all hover:-translate-y-1 hover:border-primary hover:shadow-lg hover:shadow-primary/10"
               >
-                <div className="aspect-[2/3] w-full overflow-hidden bg-muted">
+                <div className="relative aspect-[2/3] w-full overflow-hidden bg-muted">
                   {item.posterPath ? (
-                    <img src={`${TMDB_IMAGE}${item.posterPath}`} alt={displayTitle} loading="lazy" className="h-full w-full object-cover" />
+                    <img
+                      src={`${TMDB_IMAGE}${item.posterPath}`}
+                      alt={displayTitle}
+                      loading="lazy"
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center p-2 text-center text-xs text-muted-foreground">{displayTitle}</div>
                   )}
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
                 </div>
-                <div className="p-2">
+                <div className="p-2.5">
                   <p className="truncate text-sm font-semibold leading-tight">{displayTitle}</p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="mt-0.5 text-xs text-muted-foreground">
                     {[year, item.voteAverage ? `★ ${item.voteAverage.toFixed(1)}` : undefined].filter(Boolean).join(' · ')}
                   </p>
                 </div>

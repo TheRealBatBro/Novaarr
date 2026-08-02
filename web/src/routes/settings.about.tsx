@@ -9,6 +9,13 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Remotarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.29.0',
+    notes: [
+      'Redesigned Discover\'s form with a proper visual pass — a gradient header card, each question grouped into its own bordered card with an icon, checkmark badges on selected mood/occasion/chips, and a bigger gradient "Get recommendations" button',
+      'Result posters now lift and get a hover glow, with a subtle gradient overlay on hover',
+    ],
+  },
+  {
     version: '0.28.0',
     notes: [
       'Discover\'s wizard is back to a single page — every question (mood, occasion, genres, era, popularity, extra interests, language/homemade/family-friendly) is answered on one screen with no "Next" buttons',
