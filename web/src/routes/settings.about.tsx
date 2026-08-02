@@ -9,6 +9,12 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Remotarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.24.0',
+    notes: [
+      'Discover now lets you filter by language (defaults to English) and toggle "Skip obscure/homemade titles" (on by default) to keep suggestions to real theatrical/studio releases',
+    ],
+  },
+  {
     version: '0.23.1',
     notes: [
       'Fixed Discover returning no results for some mood/genre/era/popularity combinations — genre picks now use "any of these" logic instead of "all of these," and an overly narrow combination now automatically loosens (with a note) instead of coming back empty',

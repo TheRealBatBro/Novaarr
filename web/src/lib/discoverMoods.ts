@@ -88,14 +88,37 @@ export const MOODS: Mood[] = [
 export type Era = 'new' | 'classic' | 'any';
 export type Popularity = 'popular' | 'hidden-gem' | 'any';
 
+// ISO 639-1 codes — what TMDB's own `original_language` filter (and Overseerr's `language`
+// param, which passes it straight through) expects.
+export const LANGUAGE_PICKS: { code: string; label: string }[] = [
+  { code: 'en', label: 'English' },
+  { code: 'da', label: 'Danish' },
+  { code: 'es', label: 'Spanish' },
+  { code: 'fr', label: 'French' },
+  { code: 'de', label: 'German' },
+  { code: 'ja', label: 'Japanese' },
+  { code: 'ko', label: 'Korean' },
+  { code: 'hi', label: 'Hindi' },
+];
+
 // Genres a "family-friendly" pick should never surface, regardless of mood/explicit picks.
 const MATURE_GENRE_IDS = new Set([27, 53, 80, 10752]); // Horror, Thriller, Crime, War
+
+// A low-budget/homemade title on TMDB reliably has very few votes, regardless of genre or
+// rating — a real theatrical/studio release almost always clears this within weeks of adding
+// any metadata at all. Applied both as a query param attempt and a client-side backstop, since
+// it's cheap either way and doesn't depend on trusting an unverified Overseerr param name.
+export const MIN_VOTES_FOR_PROPER_PRODUCTION = 20;
 
 // A narrow combination (e.g. two explicit genres + a recent-only era + a mood's high rating
 // floor) can legitimately have very few or zero matching titles. Rather than just reporting
 // "nothing matched," the caller retries at increasing relax levels, each one dropping the next
-// most restrictive constraint: 0 = everything requested, 1 = ignore era, 2 = also ignore the
-// vote-average floor, 3 = also ignore genre entirely (mood's sort order still applies).
+// most restrictive constraint — weakest signal first, strongest (what you actually asked for —
+// genre and language) last:
+//   0 = everything requested
+//   1 = ignore era
+//   2 = also ignore the vote-average floor and the "skip homemade" vote-count floor
+//   3 = also ignore genre and language entirely (mood's sort order still applies)
 export const MAX_RELAX_LEVEL = 3;
 
 export function buildDiscoverParams(opts: {
@@ -103,11 +126,13 @@ export function buildDiscoverParams(opts: {
   mood: Mood;
   explicitGenres: number[];
   era: Era;
+  language: string; // ISO 639-1 code, or 'any'
+  skipHomemade: boolean;
   familyFriendly: boolean;
   page: number;
   relaxLevel?: number;
 }): Record<string, string> {
-  const { mediaType, mood, explicitGenres, era, familyFriendly, page, relaxLevel = 0 } = opts;
+  const { mediaType, mood, explicitGenres, era, language, skipHomemade, familyFriendly, page, relaxLevel = 0 } = opts;
   const moodGenres = mediaType === 'movie' ? mood.movieGenres : mood.tvGenres;
   let genres = explicitGenres.length > 0 ? explicitGenres : moodGenres;
   if (familyFriendly) genres = genres.filter((g) => !MATURE_GENRE_IDS.has(g));
@@ -119,6 +144,7 @@ export function buildDiscoverParams(opts: {
 
   if (relaxLevel < 2) {
     params.voteAverageGte = String(familyFriendly ? Math.max(mood.voteAverageGte, 6.5) : mood.voteAverageGte);
+    if (skipHomemade) params.voteCountGte = String(MIN_VOTES_FOR_PROPER_PRODUCTION);
   }
 
   // TMDB's with_genres (which Overseerr's `genre` param passes straight through) treats a
@@ -126,7 +152,10 @@ export function buildDiscoverParams(opts: {
   // explicit picks like "Action or Sci-Fi" are meant to widen the results, not narrow them down
   // to only titles tagged as both simultaneously (which is often close to nothing), so this
   // always joins with OR.
-  if (relaxLevel < 3 && genres.length > 0) params.genre = genres.join('|');
+  if (relaxLevel < 3) {
+    if (genres.length > 0) params.genre = genres.join('|');
+    if (language !== 'any') params.language = language;
+  }
 
   if (relaxLevel < 1) {
     const now = new Date();

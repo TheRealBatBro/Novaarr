@@ -2,12 +2,22 @@ import { useState } from 'react';
 import { Sparkles, RotateCcw, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { Select } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { useServices } from '@/lib/queries';
 import { proxyApi } from '@/lib/api';
 import { TMDB_IMAGE, type OverseerrSearchResult } from '@/components/services/overseerr/OverseerrSearch';
 import { OverseerrRequestDialog } from '@/components/services/overseerr/OverseerrRequestDialog';
-import { GENRE_PICKS, MOODS, MAX_RELAX_LEVEL, buildDiscoverParams, type Era, type Popularity } from '@/lib/discoverMoods';
+import {
+  GENRE_PICKS,
+  LANGUAGE_PICKS,
+  MOODS,
+  MAX_RELAX_LEVEL,
+  MIN_VOTES_FOR_PROPER_PRODUCTION,
+  buildDiscoverParams,
+  type Era,
+  type Popularity,
+} from '@/lib/discoverMoods';
 
 type Step = 'mood' | 'details' | 'loading' | 'results';
 
@@ -17,6 +27,7 @@ type DiscoverItem = OverseerrSearchResult & {
   voteCount?: number;
   releaseDate?: string;
   firstAirDate?: string;
+  originalLanguage?: string;
 };
 type DiscoverResponse = { results?: DiscoverItem[] };
 type TautulliHistoryEntry = { title?: string; full_title?: string; grandparent_title?: string; year?: string | number; watched_status?: number };
@@ -108,6 +119,8 @@ export function DiscoverScreen() {
   const [genres, setGenres] = useState<Set<number>>(new Set());
   const [era, setEra] = useState<Era>('any');
   const [popularity, setPopularity] = useState<Popularity>('any');
+  const [language, setLanguage] = useState('en');
+  const [skipHomemade, setSkipHomemade] = useState(true);
   const [familyFriendly, setFamilyFriendly] = useState(false);
   const [movies, setMovies] = useState<DiscoverItem[]>([]);
   const [shows, setShows] = useState<DiscoverItem[]>([]);
@@ -132,6 +145,8 @@ export function DiscoverScreen() {
     setGenres(new Set());
     setEra('any');
     setPopularity('any');
+    setLanguage('en');
+    setSkipHomemade(true);
     setFamilyFriendly(false);
     setMovies([]);
     setShows([]);
@@ -162,7 +177,17 @@ export function DiscoverScreen() {
         for (let relaxLevel = 0; relaxLevel <= MAX_RELAX_LEVEL && picked.length < 5; relaxLevel++) {
           if (relaxLevel > 0) relaxed = true;
           for (let page = 1; page <= 2 && picked.length < 5; page++) {
-            const params = buildDiscoverParams({ mediaType, mood: mood!, explicitGenres, era, familyFriendly, page, relaxLevel });
+            const params = buildDiscoverParams({
+              mediaType,
+              mood: mood!,
+              explicitGenres,
+              era,
+              language,
+              skipHomemade,
+              familyFriendly,
+              page,
+              relaxLevel,
+            });
             const { items, error: pageError } = await fetchDiscoverPage(overseerr!.id, mediaType, params);
             if (pageError) {
               lastError = pageError;
@@ -179,6 +204,11 @@ export function DiscoverScreen() {
               const title = r.title ?? r.name ?? '';
               const year = (r.releaseDate ?? r.firstAirDate)?.slice(0, 4);
               if (watchedKeys.has(normalizeKey(title, year))) continue;
+              // Client-side backstop for language/homemade — belt-and-suspenders alongside the
+              // query params above, since neither depends on trusting an unverified param name,
+              // and it still relaxes at level 3/2 respectively via the params not being sent.
+              if (relaxLevel < 3 && language !== 'any' && r.originalLanguage && r.originalLanguage !== language) continue;
+              if (relaxLevel < 2 && skipHomemade && (r.voteCount ?? 0) < MIN_VOTES_FOR_PROPER_PRODUCTION) continue;
               // The popularity preference is itself a vote-count floor/ceiling — drop it at the
               // same relax level as the vote-average floor, since both are "how established does
               // this need to be" constraints.
@@ -337,6 +367,26 @@ export function DiscoverScreen() {
             </div>
           </div>
 
+          <div>
+            <p className="mb-3 text-sm font-semibold">Language</p>
+            <Select value={language} onChange={(e) => setLanguage(e.target.value)}>
+              <option value="any">Any language</option>
+              {LANGUAGE_PICKS.map((l) => (
+                <option key={l.code} value={l.code}>
+                  {l.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          <label className="flex items-center justify-between rounded-xl border border-border bg-card p-3">
+            <div>
+              <p className="text-sm font-medium">Skip obscure/homemade titles</p>
+              <p className="text-xs text-muted-foreground">Only suggests titles with a real audience behind them, not barely-tracked productions</p>
+            </div>
+            <Switch checked={skipHomemade} onCheckedChange={setSkipHomemade} />
+          </label>
+
           <label className="flex items-center justify-between rounded-xl border border-border bg-card p-3">
             <div>
               <p className="text-sm font-medium">Family-friendly only</p>
@@ -369,8 +419,8 @@ export function DiscoverScreen() {
         <div className="flex flex-col gap-8">
           {relaxedNote && (
             <p className="rounded-xl border border-border bg-card p-3 text-sm text-muted-foreground">
-              Your exact filters turned up too few picks, so some were loosened (era, rating, or popularity) to still get you five of
-              each.
+              Your exact filters turned up too few picks, so some were loosened (era, rating/popularity, then genre or language as a last
+              resort) to still get you five of each.
             </p>
           )}
           <ResultSection title="Movies" items={movies} onPick={setOpenRequest} />
