@@ -815,6 +815,177 @@ export function usePlexRecommendationsCarousel(
   };
 }
 
+export type SplitCarouselResult = {
+  movies: CarouselItem[];
+  shows: CarouselItem[];
+  isLoading: boolean;
+  error?: string;
+  movieSeed?: { title: string; extraCount: number };
+  showSeed?: { title: string; extraCount: number };
+  refetch: () => Promise<void>;
+};
+
+const EXPANDED_SEED_COUNT = 10;
+const EXPANDED_RESULT_TARGET = 10;
+
+// Discover's "similar to what you've recently watched" — an expansion of the dashboard's
+// usePlexRecommendationsCarousel above, not a copy: instead of one carousel seeded from the top
+// 3 mixed watches, this keeps movies and shows separate and widens each to the last 10 distinct
+// watches of that type, so a heavy TV watcher's movie recommendations aren't crowded out by
+// their show history and vice versa. Same underlying engine otherwise — Tautulli history →
+// TMDB id via get_metadata's GUID → Overseerr's /recommendations for each seed.
+export function useExpandedWatchRecommendations(
+  tautulli: ServiceInstance | undefined,
+  overseerr: ServiceInstance | undefined,
+  userId?: string,
+  refreshMinutes = 240,
+): SplitCarouselResult {
+  const ms = clampRecRefreshMinutes(refreshMinutes) * 60_000;
+  const historyQuery = useServiceProxy<TautulliHistoryResponse>(tautulli, {
+    path: '/api/v2',
+    query: { cmd: 'get_history', order_column: 'date', order_dir: 'desc', length: '150', ...(userId ? { user_id: userId } : {}) },
+    refetchInterval: ms,
+    staleTime: ms,
+    enabled: !!tautulli,
+  });
+  const rawRows = historyQuery.data?.ok ? historyQuery.data.data?.response?.data?.data : undefined;
+  const rows = Array.isArray(rawRows) ? rawRows : [];
+
+  const movieSeeds: RecSeed[] = [];
+  const showSeeds: RecSeed[] = [];
+  const seenMovieKeys = new Set<string>();
+  const seenShowKeys = new Set<string>();
+  for (const r of rows) {
+    if (movieSeeds.length >= EXPANDED_SEED_COUNT && showSeeds.length >= EXPANDED_SEED_COUNT) break;
+    if (r.media_type === 'movie' && movieSeeds.length < EXPANDED_SEED_COUNT) {
+      if (!r.rating_key) continue;
+      const key = String(r.rating_key);
+      if (seenMovieKeys.has(key)) continue;
+      seenMovieKeys.add(key);
+      movieSeeds.push({ mediaType: 'movie', ratingKey: key, title: r.title || r.full_title || 'Untitled' });
+    } else if (r.media_type === 'episode' && showSeeds.length < EXPANDED_SEED_COUNT) {
+      if (!r.grandparent_rating_key) continue;
+      const key = String(r.grandparent_rating_key);
+      if (seenShowKeys.has(key)) continue;
+      seenShowKeys.add(key);
+      showSeeds.push({ mediaType: 'tv', ratingKey: key, title: r.grandparent_title || r.full_title || 'Untitled' });
+    }
+  }
+  const allSeeds = [...movieSeeds, ...showSeeds];
+  const seedKey = allSeeds.map((s) => s.ratingKey).join(',');
+
+  const metadataQuery = useQuery({
+    queryKey: ['expanded-rec-metadata', tautulli?.id, seedKey],
+    queryFn: async () => {
+      let failCount = 0;
+      const entries = await Promise.all(
+        allSeeds.map(async (s) => {
+          try {
+            const res = await proxyApi.call<TautulliMetadataResponse>(tautulli!.id, {
+              path: '/api/v2',
+              query: { cmd: 'get_metadata', rating_key: s.ratingKey },
+              timeoutMs: 10_000,
+            });
+            if (!res.ok) failCount++;
+            return [s.ratingKey, res.ok ? extractTmdbId(res.data?.response) : undefined] as const;
+          } catch {
+            failCount++;
+            return [s.ratingKey, undefined] as const;
+          }
+        }),
+      );
+      return { tmdbIds: Object.fromEntries(entries) as Record<string, number | undefined>, failCount };
+    },
+    enabled: !!tautulli && allSeeds.length > 0,
+    staleTime: 10 * 60_000,
+    retry: 1,
+  });
+  const metadataFailedCompletely = allSeeds.length > 0 && metadataQuery.data?.failCount === allSeeds.length;
+
+  const withTmdb = (seeds: RecSeed[]) =>
+    seeds.map((s) => ({ ...s, tmdbId: metadataQuery.data?.tmdbIds?.[s.ratingKey] })).filter((s): s is RecSeed & { tmdbId: number } => s.tmdbId !== undefined);
+  const movieSeedsWithTmdb = withTmdb(movieSeeds);
+  const showSeedsWithTmdb = withTmdb(showSeeds);
+  const seedTmdbKey = [...movieSeedsWithTmdb, ...showSeedsWithTmdb].map((s) => `${s.mediaType}-${s.tmdbId}`).join(',');
+  const totalSeedsWithTmdb = movieSeedsWithTmdb.length + showSeedsWithTmdb.length;
+
+  const recsQuery = useQuery({
+    queryKey: ['expanded-recommendations', overseerr?.id, seedTmdbKey],
+    queryFn: async () => {
+      let failCount = 0;
+      async function fetchFor(seeds: (RecSeed & { tmdbId: number })[]) {
+        const entries = await Promise.all(
+          seeds.map(async (s) => {
+            try {
+              const res = await proxyApi.call<OverseerrDiscoverResponse>(overseerr!.id, {
+                path: `/api/v1/${s.mediaType}/${s.tmdbId}/recommendations`,
+                timeoutMs: 15_000,
+              });
+              if (!res.ok) failCount++;
+              return res.ok ? res.data?.results ?? [] : [];
+            } catch {
+              failCount++;
+              return [];
+            }
+          }),
+        );
+        return entries.flat();
+      }
+      const [movieResults, showResults] = await Promise.all([fetchFor(movieSeedsWithTmdb), fetchFor(showSeedsWithTmdb)]);
+      return { movieResults, showResults, failCount };
+    },
+    enabled: !!overseerr && totalSeedsWithTmdb > 0,
+    refetchInterval: ms,
+    staleTime: ms,
+    retry: 1,
+  });
+  const recsFailedCompletely = totalSeedsWithTmdb > 0 && recsQuery.data?.failCount === totalSeedsWithTmdb;
+
+  function dedupeAndConvert(results: OverseerrDiscoverItem[] | undefined, seedsWithTmdb: (RecSeed & { tmdbId: number })[], fallbackMediaType: 'movie' | 'tv'): CarouselItem[] {
+    const seedKeys = new Set(seedsWithTmdb.map((s) => `${s.mediaType}-${s.tmdbId}`));
+    const seen = new Set<string>();
+    const deduped: OverseerrDiscoverItem[] = [];
+    for (const r of results ?? []) {
+      const mediaType = r.mediaType ?? fallbackMediaType;
+      const key = `${mediaType}-${r.id}`;
+      if (seedKeys.has(key) || seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(r);
+    }
+    return deduped.slice(0, EXPANDED_RESULT_TARGET).map((r) => {
+      const date = r.releaseDate || r.firstAirDate;
+      const mediaType = r.mediaType ?? fallbackMediaType;
+      return {
+        id: `${mediaType}-${r.id}`,
+        title: r.title ?? r.name ?? 'Untitled',
+        subtitle: date ? date.slice(0, 4) : undefined,
+        imageUrl: r.posterPath ? `${TMDB_IMAGE}${r.posterPath}` : undefined,
+        rating: r.voteAverage ? Math.round(r.voteAverage * 10) / 10 : undefined,
+        status: tmdbStatus(r),
+        overseerrDetail: { mediaType, tmdbId: r.id },
+        to: { serviceId: 'overseerr' },
+      };
+    });
+  }
+
+  return {
+    movies: dedupeAndConvert(recsQuery.data?.movieResults, movieSeedsWithTmdb, 'movie'),
+    shows: dedupeAndConvert(recsQuery.data?.showResults, showSeedsWithTmdb, 'tv'),
+    isLoading: historyQuery.isLoading || (allSeeds.length > 0 && metadataQuery.isLoading) || (totalSeedsWithTmdb > 0 && recsQuery.isLoading),
+    error:
+      proxyError(historyQuery.data) ||
+      (metadataFailedCompletely ? 'Could not look up watched titles' : undefined) ||
+      (recsFailedCompletely ? 'Could not fetch recommendations' : undefined),
+    movieSeed: movieSeeds[0] ? { title: movieSeeds[0].title, extraCount: movieSeeds.length - 1 } : undefined,
+    showSeed: showSeeds[0] ? { title: showSeeds[0].title, extraCount: showSeeds.length - 1 } : undefined,
+    refetch: async () => {
+      await historyQuery.refetch();
+      await metadataQuery.refetch();
+      await recsQuery.refetch();
+    },
+  };
+}
+
 // --- Plex (direct) ---
 // Built against Plex's long-stable, well-documented REST API (MediaContainer JSON envelope,
 // X-Plex-Token auth) but not verified against a live Plex server in this session — no instance

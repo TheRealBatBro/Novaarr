@@ -47,7 +47,7 @@ import { TransmissionStatusWidget } from './TransmissionStatusWidget';
 import { QBittorrentStatusWidget } from './QBittorrentStatusWidget';
 import { RutorrentStatusWidget } from './RutorrentStatusWidget';
 
-type SourceProps = {
+export type SourceProps = {
   instance: ServiceInstance;
   overseerr?: ServiceInstance;
   sourceId: string;
@@ -144,7 +144,7 @@ function EmbyfinCollections({ instance, sourceId, title, sourceLabel, sourceColo
   const result = useEmbyfinCollectionsCarousel(instance, sourceId as EmbyfinKind);
   return <DashboardCarousel title={title} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} {...result} />;
 }
-function TautulliRecommendations({ instance, overseerr, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
+export function TautulliRecommendations({ instance, overseerr, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
   const users = useTautulliUsers(instance);
   const { plexRecommendationUserId, setPlexRecommendationUserId, plexRecommendationRefreshMinutes } = useUiStore();
   const { data: authStatus } = useAuthStatus();

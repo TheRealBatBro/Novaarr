@@ -1,4 +1,3 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { DiscoverScreen } from '@/components/discover/DiscoverScreen';
+import { createFileRoute, Outlet } from '@tanstack/react-router';
 
-export const Route = createFileRoute('/discover')({ component: DiscoverScreen });
+export const Route = createFileRoute('/discover')({ component: () => <Outlet /> });

@@ -9,6 +9,13 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Remotarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.30.0',
+    notes: [
+      'Moved the "What should I watch?" mood wizard to its own page at Discover → What should I watch?, linked from the main Discover page',
+      'Discover\'s main page is now "Similar to what you\'ve recently watched," using the same recommendation engine as the dashboard\'s "Because you watched" widget — expanded to seed from your last 10 watched movies and last 10 watched shows separately (instead of the widget\'s single mixed row of 3), shown as two 5-per-row grids of up to 10 picks each, and defaulting to your own linked Plex history',
+    ],
+  },
+  {
     version: '0.29.0',
     notes: [
       'Redesigned Discover\'s form with a proper visual pass — a gradient header card, each question grouped into its own bordered card with an icon, checkmark badges on selected mood/occasion/chips, and a bigger gradient "Get recommendations" button',
