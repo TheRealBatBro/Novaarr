@@ -1,7 +1,7 @@
 services:
-  remotarr:
+  novaarr:
     build: .
-    container_name: remotarr
+    container_name: novaarr
     restart: unless-stopped
     # Extra container hardening: the image already runs as a non-root user (see Dockerfile) —
     # these deny it anything beyond that even if a dependency were ever compromised. read_only
@@ -17,14 +17,14 @@ services:
     ports:
       - "3210:3000"           # remove/change if using a reverse proxy
     volumes:
-      - remotarr-data:/data   # SQLite database (your PIN + service configs) persists here
+      - novaarr-data:/data    # SQLite database (your PIN + service configs) persists here
     environment:
       NODE_ENV: production
       PORT: 3000
-      # Set to a sub-path if hosting at e.g. https://myserver.local/remotarr
+      # Set to a sub-path if hosting at e.g. https://myserver.local/novaarr
       # Leave empty ("") to serve from root
       BASE_PATH: ""
-      DB_PATH: /data/remotarr.db
+      DB_PATH: /data/novaarr.db
       # true: menu shows every known service regardless of enabled state (handy while you're
       #   still setting things up). false: menu only shows services you've enabled in Settings.
       # Flip to "false" once you're done configuring and want the tidied-up production menu.
@@ -35,10 +35,10 @@ services:
       # Optional: shown as the clickable link in Settings > Security's Cloudflare Tunnel status
       # card once you've set up the cloudflared sidecar below. Purely cosmetic — the app has no
       # way to read this back from Cloudflare itself, so it's just what you tell it.
-      # CLOUDFLARE_TUNNEL_HOSTNAME: "remotarr.example.com"
+      # CLOUDFLARE_TUNNEL_HOSTNAME: "novaarr.example.com"
       # Optional: enables signing in via Cloudflare Access instead of (or alongside) the app's
       # own PIN/password/2FA — Cloudflare's own login becomes the auth boundary for anyone
-      # reaching Remotarr through this Access application. Both must be set together. See
+      # reaching Novaarr through this Access application. Both must be set together. See
       # "Cloudflare Access" in README.md for the one-time setup on Cloudflare's side and how to
       # link an email to a specific user in multi-user mode.
       # CF_ACCESS_TEAM_DOMAIN: "yourteam.cloudflareaccess.com"
@@ -48,24 +48,24 @@ services:
     # networks:
     #   - proxy
 
-  # Optional: exposes Remotarr to the internet through a Cloudflare Tunnel instead of port-
+  # Optional: exposes Novaarr to the internet through a Cloudflare Tunnel instead of port-
   # forwarding or a separate reverse proxy. Setup (one-time, on Cloudflare's side):
   #   1. one.dash.cloudflare.com > Zero Trust > Networks > Tunnels > Create a tunnel
-  #   2. Add a public hostname pointing at http://remotarr:3000 (this container, by its
+  #   2. Add a public hostname pointing at http://novaarr:3000 (this container, by its
   #      Compose service name — reachable from cloudflared over the shared Compose network)
   #   3. Copy the tunnel token from the install step and paste it below
   # Uncomment this whole block, set CLOUDFLARE_TUNNEL_HOSTNAME above to match step 2, and
   # Settings > Security will show the tunnel's live connection status.
   # cloudflared:
   #   image: cloudflare/cloudflared:latest
-  #   container_name: remotarr-cloudflared
+  #   container_name: novaarr-cloudflared
   #   restart: unless-stopped
-  #   # --metrics on 0.0.0.0 (not the image's 127.0.0.1 default) so the remotarr container can
+  #   # --metrics on 0.0.0.0 (not the image's 127.0.0.1 default) so the novaarr container can
   #   # reach /ready across the Compose network to report status — never exposed outside it.
   #   command: tunnel --no-autoupdate --metrics 0.0.0.0:2000 run --token YOUR_TUNNEL_TOKEN_HERE
 
 volumes:
-  remotarr-data:
+  novaarr-data:
 
 # networks:
 #   proxy:

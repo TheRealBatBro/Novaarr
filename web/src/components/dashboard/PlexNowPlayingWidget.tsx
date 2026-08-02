@@ -35,7 +35,7 @@ export function PlexNowPlayingWidget({ instance, title }: { instance: ServiceIns
     mutationFn: (sessionId: string) =>
       proxyApi.call(instance.id, {
         path: '/status/sessions/terminate',
-        query: { sessionId, reason: 'Stopped from Remotarr' },
+        query: { sessionId, reason: 'Stopped from Novaarr' },
       }),
     onSuccess: (res) => {
       if (!res.ok) return toast.error(res.error || 'Failed to stop stream');

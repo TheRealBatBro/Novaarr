@@ -6,8 +6,8 @@
 //   given movie/show doesn't change once fetched (same goes for same-origin service icons), so
 //   there's no reason to make every load wait on a round-trip to TMDB/TVDB/the arr server before
 //   showing something already sitting in cache.
-const SHELL_CACHE = 'remotarr-shell-v1';
-const IMAGE_CACHE = 'remotarr-images-v1';
+const SHELL_CACHE = 'novaarr-shell-v1';
+const IMAGE_CACHE = 'novaarr-images-v1';
 
 self.addEventListener('install', () => {
   self.skipWaiting();
@@ -52,7 +52,7 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
   // A substring check (not startsWith) so this still matches when the app is served from a
-  // reverse-proxy sub-path, e.g. "/remotarr/api/...".
+  // reverse-proxy sub-path, e.g. "/novaarr/api/...".
   if (url.pathname.includes('/api/')) return;
 
   event.respondWith(

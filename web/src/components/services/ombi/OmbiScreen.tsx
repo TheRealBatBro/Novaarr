@@ -80,7 +80,7 @@ export function OmbiScreen({ instance }: { instance: ServiceInstance }) {
         return proxyApi.call(instance.id, {
           path: isMovie ? '/api/v1/Request/movie/deny' : '/api/v1/Request/tv/deny',
           method: 'PUT',
-          body: isMovie ? { id: req.id, is4K: false, reason: 'Denied via Remotarr' } : { id: req.id, reason: 'Denied via Remotarr' },
+          body: isMovie ? { id: req.id, is4K: false, reason: 'Denied via Novaarr' } : { id: req.id, reason: 'Denied via Novaarr' },
         });
       }
       return proxyApi.call(instance.id, {

@@ -60,7 +60,7 @@ app.use(cookieParser());
 // fall through to it and get served the app shell as their "content" (that's what happened
 // before: a scanner requesting /robots.txt got Cloudflare's injected bot rules followed by raw
 // index.html markup, since nothing more specific matched first).
-// Remotarr is a private, login-gated dashboard, not public content — there's no upside to
+// Novaarr is a private, login-gated dashboard, not public content — there's no upside to
 // being indexed and a small downside (search results surfacing that the URL exists at all).
 app.get('/robots.txt', (_req, res) => {
   res.type('text/plain').send('User-agent: *\nDisallow: /\n');
@@ -70,7 +70,7 @@ app.get('/.well-known/security.txt', (req, res) => {
   const canonical = `${req.protocol}://${req.get('host')}/.well-known/security.txt`;
   res.type('text/plain').send(
     [
-      'Contact: https://github.com/TheRealBatBro/Remotarr/issues/new?labels=security',
+      'Contact: https://github.com/TheRealBatBro/Novaarr/issues/new?labels=security',
       `Expires: ${expires}`,
       'Preferred-Languages: en',
       `Canonical: ${canonical}`,
@@ -150,5 +150,5 @@ if (BASE !== '') {
 
 initDb();
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Remotarr listening on port ${PORT} (base path: "${BASE || '/'}")`);
+  console.log(`Novaarr listening on port ${PORT} (base path: "${BASE || '/'}")`);
 });

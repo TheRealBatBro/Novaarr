@@ -30,11 +30,11 @@ jobs:
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF#refs/tags/}"
-            TAGS="therealbatbro/remotarr:latest,therealbatbro/remotarr:${VERSION}"
+            TAGS="therealbatbro/novaarr:latest,therealbatbro/novaarr:${VERSION}"
           else
-            TAGS="therealbatbro/remotarr:development"
+            TAGS="therealbatbro/novaarr:development"
           fi
-          TAGS="${TAGS},therealbatbro/remotarr:${GITHUB_SHA}"
+          TAGS="${TAGS},therealbatbro/novaarr:${GITHUB_SHA}"
           echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
@@ -57,7 +57,7 @@ jobs:
         with:
           # Scans the already-pushed image straight from Docker Hub by its SHA tag — no local
           # `docker load` involved, so this can't affect what actually got published above.
-          image-ref: therealbatbro/remotarr:${{ github.sha }}
+          image-ref: therealbatbro/novaarr:${{ github.sha }}
           format: table
           # Report-only, never blocks a release: npm's own transitive tree (better-sqlite3's
           # native-build toolchain pulls in tar/glob/minimatch/etc. as install-time
@@ -74,6 +74,6 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: therealbatbro/remotarr
+          repository: therealbatbro/novaarr
           readme-filepath: ./DOCKERHUB.md
           short-description: Self-hosted web dashboard for Sonarr, Radarr, Plex, and more

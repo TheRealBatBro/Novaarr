@@ -5,9 +5,16 @@ import { SettingsTabs } from '@/components/settings/SettingsTabs';
 
 export const Route = createFileRoute('/settings/about')({ component: SettingsAbout });
 
-const REPO_URL = 'https://github.com/TheRealBatBro/Remotarr';
+const REPO_URL = 'https://github.com/TheRealBatBro/Novaarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
+  {
+    version: '0.31.0',
+    notes: [
+      'Renamed the project from Remotarr to Novaarr, with a new logo — same app, same data. Existing installs migrate automatically: the database, session, and saved UI preferences all carry over on upgrade',
+      'New GitHub repo: github.com/TheRealBatBro/Novaarr. New Docker Hub image: therealbatbro/novaarr',
+    ],
+  },
   {
     version: '0.30.0',
     notes: [
@@ -283,7 +290,7 @@ function SettingsAbout() {
   return (
     <div>
       <SettingsTabs active="about" />
-      <h1 className="text-2xl font-bold tracking-tight">About Remotarr</h1>
+      <h1 className="text-2xl font-bold tracking-tight">About Novaarr</h1>
       <p className="mb-6 text-sm text-muted-foreground">Version {CHANGELOG[0].version}</p>
 
       <div className="mb-8 grid gap-3 md:grid-cols-2 xl:grid-cols-3">

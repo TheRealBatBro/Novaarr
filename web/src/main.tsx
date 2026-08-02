@@ -9,8 +9,9 @@ import { queryPersister, PERSIST_MAX_AGE, shouldDehydrateQuery } from './lib/per
 import { BASE_PATH } from './lib/api';
 import './styles.css';
 
-// Dark-first by default; only an explicit "light" preference opts out.
-const savedTheme = localStorage.getItem('remotarr:theme');
+// Dark-first by default; only an explicit "light" preference opts out. Falls back to the
+// pre-rename key so an upgrading user's saved preference doesn't silently reset.
+const savedTheme = localStorage.getItem('novaarr:theme') ?? localStorage.getItem('remotarr:theme');
 document.documentElement.classList.toggle('dark', savedTheme !== 'light');
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {

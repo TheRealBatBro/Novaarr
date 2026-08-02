@@ -12,9 +12,9 @@ import { OverseerrRequestDialog } from '@/components/services/overseerr/Overseer
 // underlying engine (Tautulli watch history → TMDB id → Overseerr's /recommendations), but
 // widened from the widget's single mixed carousel (top 3 watches) to two separate pools of up
 // to 10 recommendations each, seeded from the last 10 distinct watched movies and last 10
-// distinct watched shows. Defaults to the Remotarr account's own linked Plex history rather
+// distinct watched shows. Defaults to the Novaarr account's own linked Plex history rather
 // than "everyone's," since this is a personal discovery page, not a shared dashboard widget —
-// still overridable via the picker for a household member without their own Remotarr login.
+// still overridable via the picker for a household member without their own Novaarr login.
 export function DiscoverScreen() {
   const { data: instances = [] } = useServices();
   const overseerr = instances.find((i) => i.serviceId === 'overseerr' && i.enabled);

@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 const db = require('../db');
 const cloudflareAccess = require('../lib/cloudflareAccess');
 
-const COOKIE = 'remotarr_session';
+const COOKIE = 'novaarr_session';
 const MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 // DISABLE_AUTH=true skips the sign-in lock entirely, both here and in AppLockGate — for local
@@ -37,7 +37,7 @@ function clearAuthCookie(res) {
   res.clearCookie(COOKIE, { path: '/' });
 }
 
-// Resolves a verified Cloudflare Access email to a Remotarr identity. Simple mode has only one
+// Resolves a verified Cloudflare Access email to a Novaarr identity. Simple mode has only one
 // identity, so any verified Access login is that identity. Multi-user mode needs an explicit
 // admin-configured link (users.cf_access_email) — there's no safe way to auto-provision a role
 // from an email alone, so an unmatched email is refused rather than guessed at.
@@ -48,10 +48,10 @@ function resolveCloudflareAccessUser(email) {
 }
 
 // Verifies a Cf-Access-Jwt-Assertion header (if Cloudflare Access is configured and the header
-// is present) and resolves it to a Remotarr identity. Returns null — never throws — on any
+// is present) and resolves it to a Novaarr identity. Returns null — never throws — on any
 // failure (not configured, no header, invalid/expired JWT, or no matching account), so callers
 // can always fall back to the app's own cookie-based check without special-casing errors.
-// `denied` distinguishes "a valid Access login with no linked Remotarr account" (worth a 403
+// `denied` distinguishes "a valid Access login with no linked Novaarr account" (worth a 403
 // with a clear message) from "Access isn't in play for this request at all" (silently fall
 // through) — both resolve to a falsy `user`, but only one should short-circuit with an error.
 async function tryCloudflareAccess(req) {
@@ -72,7 +72,7 @@ async function requireAuth(req, res, next) {
 
   const access = await tryCloudflareAccess(req);
   if (access.denied) {
-    return res.status(403).json({ error: `No Remotarr account is linked to ${access.email}. Ask an admin to link it in Settings > Users.` });
+    return res.status(403).json({ error: `No Novaarr account is linked to ${access.email}. Ask an admin to link it in Settings > Users.` });
   }
   if (access.user) {
     req.user = access.user;

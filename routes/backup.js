@@ -65,12 +65,12 @@ router.post('/export', async (req, res) => {
   const { password } = req.body || {};
   if (!password || password.length < 6) return res.status(400).json({ error: 'Backup password must be at least 6 characters' });
 
-  const snapshot = tempPath('remotarr-export');
+  const snapshot = tempPath('novaarr-export');
   try {
     db.backupTo(snapshot);
     const plaintext = fs.readFileSync(snapshot);
     const encrypted = await encrypt(plaintext, password);
-    const filename = `remotarr-backup-${new Date().toISOString().slice(0, 10)}.rtbackup`;
+    const filename = `novaarr-backup-${new Date().toISOString().slice(0, 10)}.rtbackup`;
     res.set('Content-Disposition', `attachment; filename="${filename}"`);
     res.set('Content-Type', 'application/octet-stream');
     res.send(encrypted);
@@ -91,7 +91,7 @@ router.post('/import', upload.single('file'), async (req, res) => {
     plaintext = await decrypt(req.file.buffer, password);
   } catch (e) {
     if (e.message === 'NOT_ENCRYPTED_BACKUP') {
-      return res.status(400).json({ error: "This doesn't look like an encrypted Remotarr backup" });
+      return res.status(400).json({ error: "This doesn't look like an encrypted Novaarr backup" });
     }
     return res.status(400).json({ error: 'Incorrect password, or the backup file is corrupted' });
   }
@@ -100,7 +100,7 @@ router.post('/import', upload.single('file'), async (req, res) => {
     return res.status(400).json({ error: 'Decrypted file is not a valid database' });
   }
 
-  const staged = tempPath('remotarr-import');
+  const staged = tempPath('novaarr-import');
   try {
     fs.writeFileSync(staged, plaintext);
 
@@ -108,7 +108,7 @@ router.post('/import', upload.single('file'), async (req, res) => {
     const cols = check.prepare('PRAGMA table_info(settings)').all();
     check.close();
     if (!cols.some((c) => c.name === 'pin_hash')) {
-      return res.status(400).json({ error: "This file doesn't look like a Remotarr backup" });
+      return res.status(400).json({ error: "This file doesn't look like a Novaarr backup" });
     }
 
     const { credentialPreserved } = db.restoreFrom(staged);

@@ -37,7 +37,7 @@ router.post('/setup', async (req, res) => {
   const ctx = currentRecord(req);
   if (!ctx) return res.status(404).json({ error: 'Not found' });
   const secret = totp.generateSecret();
-  const label = ctx.kind === 'user' ? ctx.row.username : 'Remotarr';
+  const label = ctx.kind === 'user' ? ctx.row.username : 'Novaarr';
   const uri = totp.keyUri(secret, label);
   const qr = await totp.qrDataUrl(uri);
   if (ctx.kind === 'user') db.setUserTotpPending(ctx.id, secret);

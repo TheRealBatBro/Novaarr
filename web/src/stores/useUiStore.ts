@@ -1,6 +1,14 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+// One-time migration for the Remotarr -> Novaarr rename: carry over UI prefs saved under the
+// old localStorage key before zustand's persist middleware reads from the new one, so an
+// upgrading user doesn't see their theme/dashboard prefs silently reset to defaults.
+if (typeof localStorage !== 'undefined' && !localStorage.getItem('novaarr:ui')) {
+  const legacy = localStorage.getItem('remotarr:ui');
+  if (legacy) localStorage.setItem('novaarr:ui', legacy);
+}
+
 type UiState = {
   theme: 'dark' | 'light';
   setTheme: (theme: 'dark' | 'light') => void;
@@ -30,7 +38,7 @@ export const useUiStore = create<UiState>()(
       theme: 'dark',
       setTheme: (theme) => {
         document.documentElement.classList.toggle('dark', theme === 'dark');
-        localStorage.setItem('remotarr:theme', theme);
+        localStorage.setItem('novaarr:theme', theme);
         set({ theme });
       },
       paletteOpen: false,
@@ -45,7 +53,7 @@ export const useUiStore = create<UiState>()(
       setPlexRecommendationRefreshMinutes: (plexRecommendationRefreshMinutes) => set({ plexRecommendationRefreshMinutes }),
     }),
     {
-      name: 'remotarr:ui',
+      name: 'novaarr:ui',
       partialize: (state) => ({
         theme: state.theme,
         devShowAllServices: state.devShowAllServices,

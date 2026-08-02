@@ -3,7 +3,24 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data', 'remotarr.db');
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data', 'novaarr.db');
+
+// One-time migration for the Remotarr -> Novaarr rename: an existing deployment's data volume
+// still has the database at the old filename. If DB_PATH's target doesn't exist yet but the old
+// name does (same directory), move it over instead of silently initializing an empty database —
+// otherwise the app would look like it forgot every configured service.
+function migrateLegacyDbPath() {
+  if (fs.existsSync(DB_PATH)) return;
+  const dir = path.dirname(DB_PATH);
+  const legacyPath = path.join(dir, 'remotarr.db');
+  if (!fs.existsSync(legacyPath)) return;
+  for (const suffix of ['', '-wal', '-shm']) {
+    const from = legacyPath + suffix;
+    const to = DB_PATH + suffix;
+    if (fs.existsSync(from)) fs.renameSync(from, to);
+  }
+  console.log('Migrated database from', legacyPath, 'to', DB_PATH);
+}
 
 let _db = null;
 
@@ -11,6 +28,7 @@ function getDb() {
   if (!_db) {
     const dir = path.dirname(DB_PATH);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    migrateLegacyDbPath();
     _db = new Database(DB_PATH);
     _db.pragma('journal_mode = WAL');
   }

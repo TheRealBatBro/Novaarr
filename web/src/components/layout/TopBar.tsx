@@ -13,8 +13,9 @@ export function TopBar() {
         <Button variant="ghost" size="icon" onClick={() => setDrawerOpen(true)} aria-label="Open menu" className="lg:hidden">
           <Menu className="h-5 w-5" />
         </Button>
-        <button type="button" onClick={() => navigate({ to: '/' })} className="ml-1 text-lg font-bold tracking-tight hover:text-primary">
-          Remotarr
+        <button type="button" onClick={() => navigate({ to: '/' })} className="ml-1 flex items-center gap-2 text-lg font-bold tracking-tight hover:text-primary">
+          <img src="/icon.png" alt="" className="h-6 w-6 rounded-md" />
+          Novaarr
         </button>
       </div>
       <div className="flex items-center gap-1">

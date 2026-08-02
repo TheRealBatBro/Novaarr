@@ -91,8 +91,8 @@ export function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <>
       <button type="button" onClick={() => go('/')} className="flex items-center gap-3 border-b border-border p-4 text-left hover:bg-accent">
-        <img src={`${BASE_PATH}/icon.svg`} alt="" className="h-10 w-10 rounded-xl" />
-        <p className="min-w-0 flex-1 truncate font-bold leading-tight">Remotarr</p>
+        <img src={`${BASE_PATH}/icon.png`} alt="" className="h-10 w-10 rounded-xl" />
+        <p className="min-w-0 flex-1 truncate font-bold leading-tight">Novaarr</p>
       </button>
 
       <div className="flex-1 overflow-y-auto p-2">

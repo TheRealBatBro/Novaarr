@@ -34,7 +34,7 @@ export function TautulliActivityTab({ instance }: { instance: ServiceInstance })
     mutationFn: (sessionKey: string) =>
       proxyApi.call(instance.id, {
         path: '/api/v2',
-        query: { cmd: 'terminate_session', session_key: sessionKey, message: 'Stopped from Remotarr' },
+        query: { cmd: 'terminate_session', session_key: sessionKey, message: 'Stopped from Novaarr' },
       }),
     onSuccess: (res) => {
       if (!res.ok) return toast.error(res.error || 'Failed to stop stream');

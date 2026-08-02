@@ -1,6 +1,6 @@
 {
-  "name": "remotarr",
-  "version": "0.30.0",
+  "name": "novaarr",
+  "version": "0.31.0",
   "description": "Self-hosted remote dashboard for your download/media stack",
   "main": "server.js",
   "scripts": {

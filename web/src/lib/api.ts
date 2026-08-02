@@ -1,4 +1,4 @@
-// Sub-path this app is served from behind a reverse proxy (e.g. "/remotarr"), injected by
+// Sub-path this app is served from behind a reverse proxy (e.g. "/novaarr"), injected by
 // server.js from BASE_PATH — see web/src/lib/visibility.ts for the Window type declaration.
 // Every request to OUR OWN backend must go through this, since the browser only knows the
 // domain root, not whatever path a proxy mounted us at. Paths passed to the /api/proxy/:id

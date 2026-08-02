@@ -7,7 +7,7 @@ import { defaultShouldDehydrateQuery, type Query } from '@tanstack/react-query';
 // quota in some browsers. IndexedDB's quota is a large share of free disk space instead.
 export const queryPersister = createAsyncStoragePersister({
   storage: { getItem: get, setItem: set, removeItem: del },
-  key: 'remotarr-query-cache',
+  key: 'novaarr-query-cache',
   throttleTime: 1000,
 });
 

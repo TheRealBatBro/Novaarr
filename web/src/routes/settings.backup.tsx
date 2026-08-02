@@ -35,7 +35,7 @@ function ExportDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (op
     setBusy(true);
     try {
       const blob = await backupApi.export(password);
-      triggerDownload(blob, `remotarr-backup-${new Date().toISOString().slice(0, 10)}.rtbackup`);
+      triggerDownload(blob, `novaarr-backup-${new Date().toISOString().slice(0, 10)}.rtbackup`);
       toast.success('Backup downloaded');
       onOpenChange(false);
       setPassword('');
@@ -54,7 +54,7 @@ function ExportDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (op
           <DialogTitle>Encrypt this backup</DialogTitle>
           <DialogDescription>
             The backup contains every service's API keys and tokens in the clear, so it's encrypted with a password of
-            your choice before download. You'll need this exact password to restore it later — Remotarr doesn't store
+            your choice before download. You'll need this exact password to restore it later — Novaarr doesn't store
             it anywhere.
           </DialogDescription>
         </DialogHeader>
@@ -167,7 +167,7 @@ function SettingsBackup() {
       <SettingsTabs active="backup" />
       <h1 className="text-2xl font-bold tracking-tight">Backup & restore</h1>
       <p className="mb-6 text-sm text-muted-foreground">
-        Everything Remotarr remembers — configured services, API keys, dashboard layout, and your sign-in credential —
+        Everything Novaarr remembers — configured services, API keys, dashboard layout, and your sign-in credential —
         lives in one file. It's encrypted with a password of your choice before it ever leaves the server.
       </p>
 
