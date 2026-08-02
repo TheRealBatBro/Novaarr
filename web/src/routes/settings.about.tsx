@@ -9,6 +9,12 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Novaarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.32.0',
+    notes: [
+      'Proper PWA icon set for "Add to Home Screen" — a 192×192 icon plus a padded maskable variant (Android crops icons to a circle/squircle and only guarantees the inner ~80%, so the plain icon\'s orbit ring and sparkle would\'ve been clipped without it)',
+    ],
+  },
+  {
     version: '0.31.0',
     notes: [
       'Renamed the project from Remotarr to Novaarr, with a new logo — same app, same data. Existing installs migrate automatically: the database, session, and saved UI preferences all carry over on upgrade',
