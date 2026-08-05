@@ -199,7 +199,8 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     brandColor: '#3e5c76',
     authType: 'apikey-header',
     fields: [apiKeyField],
-    hideFromNav: true,
+    hasDetailScreen: true,
+    healthCheck: { path: '/api/system/status' },
   },
   {
     id: 'sickbeard',

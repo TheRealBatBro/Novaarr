@@ -9,6 +9,13 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Novaarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.34.0',
+    notes: [
+      'Bazarr now has its own page (was previously embedded-only, with no page of its own) — Wanted (search/auto-search missing subtitles for movies and episodes), History, Blacklist, and Providers (throttle status + reset), all reachable from the nav',
+      'Subtitle sync: from Bazarr\'s History tab, sync a downloaded subtitle\'s timing to the actual video — the one thing you asked about that wasn\'t possible from Novaarr before',
+    ],
+  },
+  {
     version: '0.33.0',
     notes: [
       'Fixed SABnzbd showing "NaN MB/s" — the header speed was parsing SABnzbd\'s human-formatted "speed" field (e.g. "1.2 M") as a number instead of the raw numeric "kbpersec" field',

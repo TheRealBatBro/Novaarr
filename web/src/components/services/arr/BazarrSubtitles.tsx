@@ -25,7 +25,7 @@ export type BazarrEpisodeSubtitleInfo = { missing: BazarrTrack[]; subtitles: Baz
 type RawEpisode = { sonarrEpisodeId?: number; missing_subtitles?: BazarrTrack[]; subtitles?: BazarrTrack[] };
 type RawMovie = { radarrId?: number; missing_subtitles?: BazarrTrack[]; subtitles?: BazarrTrack[] };
 
-function unwrapList<T>(raw: unknown): T[] {
+export function unwrapList<T>(raw: unknown): T[] {
   if (Array.isArray(raw)) return raw as T[];
   if (Array.isArray((raw as { data?: unknown })?.data)) return (raw as { data: T[] }).data;
   return [];
