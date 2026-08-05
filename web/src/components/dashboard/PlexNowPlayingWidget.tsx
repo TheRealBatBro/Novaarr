@@ -6,6 +6,7 @@ import { SessionBackdrop, SessionDetails } from '@/components/shared/NowPlayingC
 import { getServiceIcon } from '@/lib/serviceIcons';
 import { getServiceDefinition } from '@/lib/serviceRegistry';
 import { useServiceProxy } from '@/lib/queries';
+import { cn } from '@/lib/utils';
 import { proxyApi, type ServiceInstance } from '@/lib/api';
 import {
   plexImageUrl,
@@ -73,7 +74,10 @@ export function PlexNowPlayingWidget({ instance, title }: { instance: ServiceIns
           return (
             <div key={s.ratingKey} className="relative overflow-hidden rounded-xl border border-border bg-card p-3">
               <SessionBackdrop url={plexImageUrl(instance, s.art || s.grandparentThumb || s.thumb)} />
-              <div className="relative z-10">
+              {/* The stop button below sits absolutely over this corner — without this padding,
+                  a session's state badge ("PLAYING"/"PAUSED") or a long title runs right under
+                  it instead of stopping short. */}
+              <div className={cn('relative z-10', sessionId && 'pr-9')}>
                 <SessionDetails
                   size="sm"
                   posterUrl={plexImageUrl(instance, s.grandparentThumb || s.thumb)}

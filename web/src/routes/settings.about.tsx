@@ -9,6 +9,12 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Novaarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.34.2',
+    notes: [
+      'Fixed the "Stop stream" button overlapping the title/state text on the dashboard\'s Now Playing (Plex) widget and Tautulli\'s Now Playing tab',
+    ],
+  },
+  {
     version: '0.34.1',
     notes: [
       'Fixed Bazarr\'s History tab crashing outright ("g.toLowerCase is not a function") — the code assumed the history row\'s action/timestamp fields were always plain strings, which isn\'t true for every Bazarr version',

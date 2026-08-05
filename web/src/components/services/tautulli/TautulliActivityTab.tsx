@@ -85,7 +85,9 @@ export function TautulliActivityTab({ instance }: { instance: ServiceInstance })
           {sessions.map((s) => (
             <div key={s.session_key} className="relative overflow-hidden rounded-xl border border-border bg-card p-3">
               <SessionBackdrop url={sessionBackdrop(instance, s)} />
-              <div className="relative z-10">
+              {/* The stop button below sits absolutely over this corner — without this padding,
+                  a session's state badge or a long title runs right under it. */}
+              <div className="relative z-10 pr-9">
                 <SessionDetails
                   posterUrl={sessionPoster(instance, s)}
                   title={historyDisplayTitle(s)}
