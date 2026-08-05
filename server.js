@@ -131,7 +131,11 @@ function serveIndex(_req, res) {
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' https: data:",
       "connect-src 'self'",
-      'frame-src https://www.youtube-nocookie.com',
+      // Same reasoning as img-src above — a service's own local/remote URL (what the "open in
+      // frame" button on a service page embeds directly, browser-to-service, no proxy involved)
+      // is whatever the user configured, on any host/port/scheme they run it at. youtube-nocookie
+      // stays explicit for clarity even though https: already covers it.
+      'frame-src https: http: https://www.youtube-nocookie.com',
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",

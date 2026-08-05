@@ -21,6 +21,7 @@ import { OmbiScreen } from '@/components/services/ombi/OmbiScreen';
 import { UtorrentScreen } from '@/components/services/utorrent/UtorrentScreen';
 import { RutorrentScreen } from '@/components/services/rutorrent/RutorrentScreen';
 import { BazarrScreen } from '@/components/services/bazarr/BazarrScreen';
+import { OpenInFrameButton } from '@/components/services/OpenInFrameButton';
 
 export const Route = createFileRoute('/service/$serviceId')({ component: ServiceDetail });
 
@@ -55,28 +56,37 @@ function ServiceDetail() {
     );
   }
 
-  if (instance && definition.hasDetailScreen) {
-    if (definition.id === 'sabnzbd') return <SabnzbdScreen instance={instance} />;
-    if (definition.id === 'nzbget') return <NzbgetScreen instance={instance} />;
-    if (definition.id === 'qbittorrent') return <QBittorrentScreen instance={instance} />;
-    if (definition.id === 'transmission') return <TransmissionScreen instance={instance} />;
-    if (definition.id === 'deluge') return <DelugeScreen instance={instance} />;
-    if (definition.id === 'overseerr') return <OverseerrScreen instance={instance} />;
-    if (definition.id === 'tautulli') return <TautulliScreen instance={instance} />;
-    if (definition.id === 'tracearr') return <TracearrScreen instance={instance} />;
-    if (definition.id === 'prowlarr') return <ProwlarrScreen instance={instance} />;
-    if (definition.id === 'nzbhydra2') return <NzbHydra2Screen instance={instance} />;
-    if (definition.id === 'unraid') return <UnraidScreen instance={instance} />;
-    if (definition.id === 'jackett') return <JackettScreen instance={instance} />;
-    if (definition.id === 'sickbeard') return <SickbeardScreen instance={instance} />;
-    if (definition.id === 'ombi') return <OmbiScreen instance={instance} />;
-    if (definition.id === 'utorrent') return <UtorrentScreen instance={instance} />;
-    if (definition.id === 'rutorrent') return <RutorrentScreen instance={instance} />;
-    if (definition.id === 'bazarr') return <BazarrScreen instance={instance} />;
-    if (ARR_V3.has(definition.id)) return <ArrQueueScreen definition={definition} instance={instance} apiVersion="v3" />;
-    if (ARR_V1.has(definition.id)) return <ArrQueueScreen definition={definition} instance={instance} apiVersion="v1" />;
-    if (TORZNAB.has(definition.id)) return <IndexerSearchScreen definition={definition} instance={instance} />;
-  }
+  const screen = resolveScreen();
+  return (
+    <>
+      {screen}
+      {instance && <OpenInFrameButton instance={instance} />}
+    </>
+  );
 
-  return <GenericServiceScreen definition={definition} instance={instance} />;
+  function resolveScreen() {
+    if (instance && definition.hasDetailScreen) {
+      if (definition.id === 'sabnzbd') return <SabnzbdScreen instance={instance} />;
+      if (definition.id === 'nzbget') return <NzbgetScreen instance={instance} />;
+      if (definition.id === 'qbittorrent') return <QBittorrentScreen instance={instance} />;
+      if (definition.id === 'transmission') return <TransmissionScreen instance={instance} />;
+      if (definition.id === 'deluge') return <DelugeScreen instance={instance} />;
+      if (definition.id === 'overseerr') return <OverseerrScreen instance={instance} />;
+      if (definition.id === 'tautulli') return <TautulliScreen instance={instance} />;
+      if (definition.id === 'tracearr') return <TracearrScreen instance={instance} />;
+      if (definition.id === 'prowlarr') return <ProwlarrScreen instance={instance} />;
+      if (definition.id === 'nzbhydra2') return <NzbHydra2Screen instance={instance} />;
+      if (definition.id === 'unraid') return <UnraidScreen instance={instance} />;
+      if (definition.id === 'jackett') return <JackettScreen instance={instance} />;
+      if (definition.id === 'sickbeard') return <SickbeardScreen instance={instance} />;
+      if (definition.id === 'ombi') return <OmbiScreen instance={instance} />;
+      if (definition.id === 'utorrent') return <UtorrentScreen instance={instance} />;
+      if (definition.id === 'rutorrent') return <RutorrentScreen instance={instance} />;
+      if (definition.id === 'bazarr') return <BazarrScreen instance={instance} />;
+      if (ARR_V3.has(definition.id)) return <ArrQueueScreen definition={definition} instance={instance} apiVersion="v3" />;
+      if (ARR_V1.has(definition.id)) return <ArrQueueScreen definition={definition} instance={instance} apiVersion="v1" />;
+      if (TORZNAB.has(definition.id)) return <IndexerSearchScreen definition={definition} instance={instance} />;
+    }
+    return <GenericServiceScreen definition={definition} instance={instance} />;
+  }
 }

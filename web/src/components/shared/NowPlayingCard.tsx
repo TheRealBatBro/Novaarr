@@ -28,7 +28,12 @@ export function SessionBackdrop({ url, blurred }: { url?: string; blurred?: bool
       ) : (
         <div className="h-full w-full bg-gradient-to-br from-muted/50 to-card" />
       )}
-      <div className="absolute inset-0 bg-gradient-to-r from-card via-card/85 to-card/25" />
+      {/* Percentage-based stops meant the "solid enough to read" zone shrank to almost nothing
+          on a wide card (e.g. the full-width dashboard widget) — text sitting in the first
+          ~150px was still mostly see-through backdrop. Front-load the opacity instead: nearly
+          solid through the first third (where the poster+text always live regardless of the
+          card's total width), then fade out for the decorative right side. */}
+      <div className="absolute inset-0 bg-gradient-to-r from-card from-0% via-card/95 via-35% to-card/10" />
     </div>
   );
 }

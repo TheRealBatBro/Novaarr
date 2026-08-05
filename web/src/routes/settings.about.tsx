@@ -9,6 +9,13 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Novaarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.35.0',
+    notes: [
+      'Fixed Now Playing cards still being hard to read on a wide card — the backdrop scrim\'s fade was tuned as a percentage of the card\'s width, so it barely covered anything on the full-width dashboard widget. It now stays solid through a fixed early portion regardless of card width',
+      'Every service page now has a small button (top right) that opens that service\'s own native web interface in a modal, for anything Novaarr doesn\'t have a dedicated screen for. Some services (Plex is a known one) refuse to be embedded in a frame at all — a "New tab" link inside the modal covers that case',
+    ],
+  },
+  {
     version: '0.34.2',
     notes: [
       'Fixed the "Stop stream" button overlapping the title/state text on the dashboard\'s Now Playing (Plex) widget and Tautulli\'s Now Playing tab',
