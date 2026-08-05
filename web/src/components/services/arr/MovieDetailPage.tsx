@@ -20,9 +20,23 @@ import { useTrailerKey } from './detail/useTrailerKey';
 import { daysUntil, countdownLabel } from './ArrLibraryGrid';
 import { useBazarrInstance, useBazarrMovieSubtitles, SubtitleLanguageChips, BazarrSubtitleControls } from './BazarrSubtitles';
 
+type RadarrMediaInfo = {
+  audioCodec?: string;
+  audioChannels?: number;
+  /** Slash-separated (e.g. "eng/dan") per Radarr's own MediaInfo scan — split for display. */
+  audioLanguages?: string;
+  subtitles?: string;
+  videoCodec?: string;
+  videoDynamicRangeType?: string;
+  resolution?: string;
+  runTime?: string;
+  videoFps?: number;
+};
+
 type RadarrMovieFull = Record<string, unknown> & {
   id: number;
   title: string;
+  originalTitle?: string;
   year?: number;
   overview?: string;
   runtime?: number;
@@ -42,9 +56,24 @@ type RadarrMovieFull = Record<string, unknown> & {
   digitalRelease?: string;
   tmdbId?: number;
   ratings?: { tmdb?: { value?: number }; imdb?: { value?: number } };
-  movieFile?: { id: number; quality?: { quality?: { name?: string } } };
+  movieFile?: {
+    id: number;
+    relativePath?: string;
+    releaseGroup?: string;
+    edition?: string;
+    quality?: { quality?: { name?: string } };
+    mediaInfo?: RadarrMediaInfo;
+  };
   images?: { coverType: string; remoteUrl?: string; url?: string }[];
 };
+
+// Radarr scans the actual file with MediaInfo and reports its languages as ISO 639 codes
+// (sometimes full names, depending on version) slash- or comma-separated — normalized here
+// into a plain list rather than a raw "eng/dan" string.
+function splitList(s?: string): string[] {
+  if (!s) return [];
+  return s.split(/[/,]/).map((v) => v.trim()).filter(Boolean);
+}
 type Profile = { id: number; name: string };
 type RootFolder = { id: number; path: string };
 type Tag = { id: number; label: string };
@@ -241,13 +270,73 @@ export function MovieDetailPage({
       )}
 
       {movie.hasFile && movie.movieFile && (
-        <div className="mb-6 flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-3 text-sm">
-          <span className="text-muted-foreground">
-            {movie.movieFile.quality?.quality?.name ?? 'Unknown quality'} · {formatSize(movie.sizeOnDisk)}
-          </span>
-          <Button variant="outline" size="sm" disabled={deleteFile.isPending} onClick={() => deleteFile.mutate(movie.movieFile!.id)}>
-            <Trash2 className="h-3.5 w-3.5" /> Delete file
-          </Button>
+        <div className="mb-6 rounded-xl border border-border bg-card p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-lg font-bold tracking-tight">File</h2>
+            <Button variant="outline" size="sm" disabled={deleteFile.isPending} onClick={() => deleteFile.mutate(movie.movieFile!.id)}>
+              <Trash2 className="h-3.5 w-3.5" /> Delete file
+            </Button>
+          </div>
+          {movie.originalTitle && movie.originalTitle !== movie.title && (
+            <DetailRow icon={Clapperboard} label="Original title">
+              {movie.originalTitle}
+            </DetailRow>
+          )}
+          <DetailRow icon={Disc} label="Quality">
+            {movie.movieFile.quality?.quality?.name ?? 'Unknown'} · {formatSize(movie.sizeOnDisk)}
+          </DetailRow>
+          {movie.movieFile.releaseGroup && (
+            <DetailRow icon={Building2} label="Release group">
+              {movie.movieFile.releaseGroup}
+            </DetailRow>
+          )}
+          {movie.movieFile.edition && (
+            <DetailRow icon={Disc} label="Edition">
+              {movie.movieFile.edition}
+            </DetailRow>
+          )}
+          {movie.movieFile.mediaInfo?.resolution && (
+            <DetailRow icon={Disc} label="Video">
+              {[movie.movieFile.mediaInfo.resolution, movie.movieFile.mediaInfo.videoCodec, movie.movieFile.mediaInfo.videoDynamicRangeType]
+                .filter(Boolean)
+                .join(' · ')}
+            </DetailRow>
+          )}
+          {movie.movieFile.mediaInfo?.audioCodec && (
+            <DetailRow icon={Disc} label="Audio">
+              {[movie.movieFile.mediaInfo.audioCodec, movie.movieFile.mediaInfo.audioChannels ? `${movie.movieFile.mediaInfo.audioChannels}ch` : undefined]
+                .filter(Boolean)
+                .join(' · ')}
+            </DetailRow>
+          )}
+          {splitList(movie.movieFile.mediaInfo?.audioLanguages).length > 0 && (
+            <div className="flex items-center justify-between gap-3 border-b border-border py-2.5 text-sm last:border-b-0">
+              <span className="flex items-center gap-2 text-muted-foreground">
+                <Disc className="h-4 w-4" /> Audio languages
+              </span>
+              <div className="flex flex-wrap justify-end gap-1">
+                {splitList(movie.movieFile.mediaInfo?.audioLanguages).map((lang) => (
+                  <span key={lang} className="rounded-full border border-border px-2 py-0.5 text-xs font-medium">
+                    {lang}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {splitList(movie.movieFile.mediaInfo?.subtitles).length > 0 && (
+            <div className="flex items-center justify-between gap-3 py-2.5 text-sm">
+              <span className="flex items-center gap-2 text-muted-foreground">
+                <Disc className="h-4 w-4" /> Subtitles in file
+              </span>
+              <div className="flex flex-wrap justify-end gap-1">
+                {splitList(movie.movieFile.mediaInfo?.subtitles).map((lang) => (
+                  <span key={lang} className="rounded-full border border-border px-2 py-0.5 text-xs font-medium">
+                    {lang}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

@@ -26,16 +26,26 @@ type SabnzbdSlot = {
   status: string;
   percentage: string;
   timeleft: string;
+  eta?: string;
+  priority?: string;
   cat?: string;
   mb?: string;
   mbleft?: string;
+  size?: string;
+  sizeleft?: string;
+  avg_age?: string;
 };
 
 type SabnzbdQueue = {
   queue?: {
     status: string;
+    /** Human-formatted (e.g. "1.2 M") — not safely parseable as a number. Use kbpersec instead. */
     speed: string;
+    /** Raw KB/s as a plain numeric string — what the speed sparkline/header actually compute from. */
+    kbpersec?: string;
     speedlimit?: string;
+    paused?: boolean;
+    noofslots?: number;
     slots: SabnzbdSlot[];
   };
 };
@@ -44,6 +54,35 @@ type SabnzbdHistory = { history?: { slots?: SabnzbdHistorySlot[] } };
 
 const TABS = ['queue', 'history'] as const;
 type Tab = (typeof TABS)[number];
+
+// SABnzbd reports these as a queue slot's `status` while it's actively being handled, not just
+// "Downloading" — post-processing (repair/extract/verify) can take as long as the download
+// itself for a large multi-part archive, and previously showed as a stalled-looking progress bar
+// stuck at 100% with no indication anything was still happening.
+const ACTIVE_STATUS_META: Record<string, { label: string; color: string }> = {
+  Downloading: { label: 'Downloading', color: 'text-primary' },
+  Queued: { label: 'Queued', color: 'text-muted-foreground' },
+  Paused: { label: 'Paused', color: 'text-muted-foreground' },
+  Checking: { label: 'Checking…', color: 'text-amber-500' },
+  QuickCheck: { label: 'Quick-checking…', color: 'text-amber-500' },
+  Verifying: { label: 'Verifying…', color: 'text-amber-500' },
+  Repairing: { label: 'Repairing…', color: 'text-amber-500' },
+  Extracting: { label: 'Extracting…', color: 'text-amber-500' },
+  Moving: { label: 'Moving…', color: 'text-amber-500' },
+  Running: { label: 'Running script…', color: 'text-amber-500' },
+  Fetching: { label: 'Fetching NZB…', color: 'text-muted-foreground' },
+};
+// Anything not "downloading a payload" in the normal sense (queued/paused included) gets an
+// indeterminate bar instead of a percentage — SABnzbd's own percentage field freezes at 100
+// during these phases, which otherwise reads as the job having silently stalled.
+const INDETERMINATE_STATUSES = new Set(['Checking', 'QuickCheck', 'Verifying', 'Repairing', 'Extracting', 'Moving', 'Running', 'Fetching']);
+
+function formatMb(mb?: string): string | undefined {
+  if (mb === undefined) return undefined;
+  const n = Number(mb);
+  if (!Number.isFinite(n)) return undefined;
+  return n >= 1024 ? `${(n / 1024).toFixed(1)} GB` : `${n.toFixed(0)} MB`;
+}
 
 function relativeTime(unixSeconds?: number): string {
   if (!unixSeconds) return '';
@@ -83,7 +122,9 @@ export function SabnzbdScreen({ instance }: { instance: ServiceInstance }) {
   const queue = data?.data?.queue;
   const slots = queue?.slots ?? [];
   const historySlots = historyResp?.data?.history?.slots ?? [];
-  const speedMBs = queue ? Number(queue.speed) / 1024 : undefined;
+  // `speed` is human-formatted text (e.g. "1.2 M") and was never safely parseable as a number —
+  // that's what produced "NaN MB/s" in the header. `kbpersec` is the raw numeric KB/s value.
+  const speedMBs = queue ? (Number(queue.kbpersec) || 0) / 1024 : undefined;
   const history = useRollingHistory(speedMBs, dataUpdatedAt);
   const paused = queue?.status === 'Paused';
   const [speedLimit, setSpeedLimit] = useState<number | null>(null);
@@ -248,14 +289,25 @@ export function SabnzbdScreen({ instance }: { instance: ServiceInstance }) {
               {slots.length === 0 && <p className="text-sm text-muted-foreground">Nothing in the queue right now.</p>}
               {slots.map((slot) => {
                 const slotPaused = slot.status === 'Paused';
+                const meta = ACTIVE_STATUS_META[slot.status];
+                const indeterminate = INDETERMINATE_STATUSES.has(slot.status);
                 const pct = Number(slot.percentage) || 0;
+                const downloaded = formatMb(slot.mb && slot.mbleft ? String(Number(slot.mb) - Number(slot.mbleft)) : undefined);
+                const total = formatMb(slot.mb);
+                const sizeInfo = downloaded && total ? `${downloaded} of ${total}` : total;
+                const subtitle = slotPaused
+                  ? 'Paused'
+                  : meta && indeterminate
+                    ? meta.label
+                    : [slot.timeleft, sizeInfo].filter(Boolean).join(' · ');
                 const busy = action.isPending && action.variables?.value === slot.nzo_id;
                 return (
                   <TorrentRow
                     key={slot.nzo_id}
                     title={slot.filename}
-                    subtitle={slotPaused ? 'Paused' : slot.timeleft}
-                    progress={pct}
+                    subtitle={subtitle}
+                    progress={indeterminate ? undefined : pct}
+                    indeterminate={indeterminate}
                     selectable={selectMode}
                     selected={selected.has(slot.nzo_id)}
                     onToggleSelect={() => toggleSelected(slot.nzo_id)}
@@ -357,16 +409,35 @@ export function SabnzbdScreen({ instance }: { instance: ServiceInstance }) {
             <div className="flex flex-col gap-2 text-sm">
               <div className="flex items-center justify-between border-b border-border py-2">
                 <span className="text-muted-foreground">Status</span>
-                <span className="font-medium">{queueDetail.status}</span>
+                <span className="font-medium">{ACTIVE_STATUS_META[queueDetail.status]?.label ?? queueDetail.status}</span>
               </div>
               <div className="flex items-center justify-between border-b border-border py-2">
                 <span className="text-muted-foreground">Progress</span>
                 <span className="font-medium">{queueDetail.percentage}%</span>
               </div>
               <div className="flex items-center justify-between border-b border-border py-2">
-                <span className="text-muted-foreground">Time left</span>
-                <span className="font-medium">{queueDetail.timeleft}</span>
+                <span className="text-muted-foreground">Downloaded</span>
+                <span className="font-medium">
+                  {formatMb(queueDetail.mb && queueDetail.mbleft ? String(Number(queueDetail.mb) - Number(queueDetail.mbleft)) : undefined) ?? '—'}
+                  {formatMb(queueDetail.mb) ? ` of ${formatMb(queueDetail.mb)}` : ''}
+                </span>
               </div>
+              <div className="flex items-center justify-between border-b border-border py-2">
+                <span className="text-muted-foreground">Time left</span>
+                <span className="font-medium">{queueDetail.timeleft || '—'}</span>
+              </div>
+              {queueDetail.eta && (
+                <div className="flex items-center justify-between border-b border-border py-2">
+                  <span className="text-muted-foreground">ETA</span>
+                  <span className="font-medium">{queueDetail.eta}</span>
+                </div>
+              )}
+              {queueDetail.priority && (
+                <div className="flex items-center justify-between border-b border-border py-2">
+                  <span className="text-muted-foreground">Priority</span>
+                  <span className="font-medium">{queueDetail.priority}</span>
+                </div>
+              )}
               {queueDetail.cat && (
                 <div className="flex items-center justify-between py-2">
                   <span className="text-muted-foreground">Category</span>

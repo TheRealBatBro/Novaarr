@@ -9,6 +9,14 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Novaarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.33.0',
+    notes: [
+      'Fixed SABnzbd showing "NaN MB/s" — the header speed was parsing SABnzbd\'s human-formatted "speed" field (e.g. "1.2 M") as a number instead of the raw numeric "kbpersec" field',
+      'SABnzbd queue items now show live Repairing/Extracting/Verifying/Moving status (with an indeterminate progress bar) instead of looking stalled at 100%, plus downloaded/total size, ETA, and priority in the detail view',
+      'Radarr/Sonarr movie detail pages now show the file\'s original title, release group, edition, video/audio codec and resolution, audio languages, and embedded subtitle languages — all already present in Radarr\'s own API response, just not surfaced before',
+    ],
+  },
+  {
     version: '0.32.1',
     notes: [
       'Fixed the favicon/app icon and manifest links being absolute ("/icon.png") instead of relative to the app\'s actual mount point — broke "Add to Home Screen" for any deployment using BASE_PATH to host at a sub-path',

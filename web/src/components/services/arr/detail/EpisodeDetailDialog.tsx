@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Search, Trash2 } from 'lucide-react';
+import { Search, Trash2, Volume2, Captions } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -21,18 +21,33 @@ type EpisodeFull = {
   episodeFileId?: number;
   images?: { coverType: string; remoteUrl?: string; url?: string }[];
 };
+type EpisodeMediaInfo = {
+  audioCodec?: string;
+  audioChannels?: number;
+  audioLanguages?: string;
+  subtitles?: string;
+  videoCodec?: string;
+  resolution?: string;
+};
 type EpisodeFile = {
   id: number;
   sceneName?: string;
   relativePath?: string;
   size?: number;
+  releaseGroup?: string;
   quality?: { quality?: { name?: string } };
+  mediaInfo?: EpisodeMediaInfo;
 };
 
 function formatSize(bytes?: number): string {
   if (!bytes) return '';
   const gb = bytes / 1024 / 1024 / 1024;
   return gb >= 1 ? `${gb.toFixed(1)} GB` : `${(bytes / 1024 / 1024).toFixed(0)} MB`;
+}
+
+function splitList(s?: string): string[] {
+  if (!s) return [];
+  return s.split(/[/,]/).map((v) => v.trim()).filter(Boolean);
 }
 
 function formatAirDate(iso?: string): string {
@@ -139,7 +154,29 @@ export function EpisodeDetailDialog({
             <p className="mt-1 text-xs text-muted-foreground">
               {file?.quality?.quality?.name ?? 'Unknown quality'}
               {formatSize(file?.size) ? ` · ${formatSize(file?.size)}` : ''}
+              {file?.releaseGroup ? ` · ${file.releaseGroup}` : ''}
             </p>
+            {(file?.mediaInfo?.videoCodec || file?.mediaInfo?.audioCodec) && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                {[file?.mediaInfo?.resolution, file?.mediaInfo?.videoCodec].filter(Boolean).join(' · ')}
+                {file?.mediaInfo?.audioCodec ? ` · ${file.mediaInfo.audioCodec}` : ''}
+                {file?.mediaInfo?.audioChannels ? ` ${file.mediaInfo.audioChannels}ch` : ''}
+              </p>
+            )}
+            {splitList(file?.mediaInfo?.audioLanguages).length > 0 && (
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {splitList(file?.mediaInfo?.audioLanguages).map((lang) => (
+                  <span key={`a-${lang}`} className="flex items-center gap-1 rounded-full border border-border px-1.5 py-0.5 text-[10px] font-medium">
+                    <Volume2 className="h-2.5 w-2.5" /> {lang}
+                  </span>
+                ))}
+                {splitList(file?.mediaInfo?.subtitles).map((lang) => (
+                  <span key={`s-${lang}`} className="flex items-center gap-1 rounded-full border border-border px-1.5 py-0.5 text-[10px] font-medium">
+                    <Captions className="h-2.5 w-2.5" /> {lang}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
