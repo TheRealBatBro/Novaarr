@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Wand2, Captions, Download, Loader2 } from 'lucide-react';
+import { Wand2, Captions, Download, Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -20,7 +20,12 @@ export function useBazarrInstance(): ServiceInstance | undefined {
   return instances.find((i) => i.serviceId === 'bazarr');
 }
 
-export type BazarrTrack = { name: string; code2: string; code3: string; forced: boolean; hi: boolean };
+// `path` (plus file_size/embedded_track_id, not needed here) is only present on entries in the
+// "have" `subtitles` array — Bazarr's `missing_subtitles` entries never have a file yet, so
+// never carry one. Confirmed directly from Bazarr's source (bazarr/app/database.py's
+// get_subtitles(), consumed by api/utils.py's postprocess()): the "have" shape is
+// {path, name, code2, code3, forced, hi, file_size, embedded_track_id}.
+export type BazarrTrack = { name: string; code2: string; code3: string; forced: boolean; hi: boolean; path?: string };
 export type BazarrEpisodeSubtitleInfo = { missing: BazarrTrack[]; subtitles: BazarrTrack[] };
 type RawEpisode = { sonarrEpisodeId?: number; missing_subtitles?: BazarrTrack[]; subtitles?: BazarrTrack[] };
 type RawMovie = { radarrId?: number; missing_subtitles?: BazarrTrack[]; subtitles?: BazarrTrack[] };
@@ -65,18 +70,83 @@ export function useBazarrMovieSubtitles(radarrId: number): BazarrEpisodeSubtitle
   return { missing: movie.missing_subtitles ?? [], subtitles: movie.subtitles ?? [] };
 }
 
-export function SubtitleLanguageChips({ info }: { info: BazarrEpisodeSubtitleInfo | undefined }) {
+// Syncs one already-downloaded subtitle's timing to the actual video (Bazarr's own
+// ffsubsync-backed sync action). Needs the subtitle's on-disk `path`, which only the "have"
+// `subtitles` array carries (see BazarrTrack above) — request shape (`action`, `type`, `id`)
+// otherwise matches Bazarr's PATCH /api/subtitles contract used for translate/other mods too,
+// reconstructed from its documented API and not confirmed live beyond the `path` field itself.
+export function useBazarrSync(bazarr: ServiceInstance | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { target: SubtitleTarget; track: BazarrTrack }) => {
+      const { target, track } = vars;
+      return proxyApi.call(bazarr!.id, {
+        path: '/api/subtitles',
+        method: 'PATCH',
+        body: {
+          action: 'sync',
+          language: track.code2,
+          path: track.path,
+          type: target.kind,
+          id: target.kind === 'movie' ? target.radarrId : target.episodeId,
+          forced: pyBool(track.forced),
+          hi: pyBool(track.hi),
+        },
+        timeoutMs: 28_000,
+      });
+    },
+    onSuccess: (res) => {
+      if (!res.ok) return toast.error(res.error || 'Sync failed');
+      toast.success('Subtitle synced to the video');
+      qc.invalidateQueries({ queryKey: ['proxy', bazarr?.id] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : 'Sync failed'),
+  });
+}
+
+export function SubtitleLanguageChips({
+  info,
+  bazarr,
+  target,
+}: {
+  info: BazarrEpisodeSubtitleInfo | undefined;
+  /** When given together with `target`, each "have" chip gets a sync button — omit either to
+   * keep the chips display-only (e.g. the season-overview row, which has no single target). */
+  bazarr?: ServiceInstance;
+  target?: SubtitleTarget;
+}) {
+  const sync = useBazarrSync(bazarr);
   if (!info) return null;
   if (info.missing.length === 0 && info.subtitles.length === 0) return null;
+  const canSync = !!bazarr && !!target;
   return (
     <div className="flex flex-wrap items-center gap-1">
-      {info.subtitles.map((s, i) => (
-        <span key={`have-${i}`} className="rounded-full bg-success/15 px-1.5 py-0.5 text-[10px] font-semibold text-success" title={s.name}>
-          {s.code2.toUpperCase()}
-          {s.forced ? ' (F)' : ''}
-          {s.hi ? ' (HI)' : ''}
-        </span>
-      ))}
+      {info.subtitles.map((s, i) => {
+        const busy = sync.isPending && sync.variables?.track === s;
+        return (
+          <span
+            key={`have-${i}`}
+            className="flex items-center gap-1 rounded-full bg-success/15 px-1.5 py-0.5 text-[10px] font-semibold text-success"
+            title={s.name}
+          >
+            {s.code2.toUpperCase()}
+            {s.forced ? ' (F)' : ''}
+            {s.hi ? ' (HI)' : ''}
+            {canSync && s.path && (
+              <button
+                type="button"
+                onClick={() => sync.mutate({ target: target!, track: s })}
+                disabled={sync.isPending}
+                aria-label={`Sync ${s.name} subtitle to video`}
+                title="Sync this subtitle's timing to the video"
+                className="ml-0.5 rounded-full p-0.5 hover:bg-success/25 disabled:opacity-50"
+              >
+                {busy ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <RefreshCw className="h-2.5 w-2.5" />}
+              </button>
+            )}
+          </span>
+        );
+      })}
       {info.missing.map((s, i) => (
         <span key={`missing-${i}`} className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground" title={`${s.name} missing`}>
           {s.code2.toUpperCase()}

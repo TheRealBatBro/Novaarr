@@ -36,12 +36,17 @@ type WantedResponse<T> = { data?: T[]; total?: number } | T[];
 // title/series keys weren't independently confirmed against a live instance) ---
 type HistoryRow = {
   id: number;
-  action: string;
+  // Not confirmed to be a plain string — Bazarr's own history table can carry an action as an
+  // integer/enum code rather than text, which previously crashed this screen entirely
+  // ("g.toLowerCase is not a function") since the code assumed a string. Every read below goes
+  // through String() first.
+  action: string | number;
   title?: string;
   seriesTitle?: string;
   episode_number?: string;
   episodeTitle?: string;
-  timestamp: string;
+  // Same caution as `action` — timestamps in some APIs are epoch numbers, not ISO strings.
+  timestamp?: string | number;
   description?: string;
   radarrId?: number;
   sonarrSeriesId?: number;
@@ -53,7 +58,7 @@ type HistoryRow = {
 };
 
 // --- Blacklist ---
-type BlacklistMovieRow = { title: string; radarrId: number; provider: string; subs_id: string; language: string; timestamp: string };
+type BlacklistMovieRow = { title: string; radarrId: number; provider: string; subs_id: string; language: string; timestamp?: string | number };
 type BlacklistEpisodeRow = {
   seriesTitle: string;
   episode_number: string;
@@ -62,7 +67,7 @@ type BlacklistEpisodeRow = {
   provider: string;
   subs_id: string;
   language: string;
-  timestamp: string;
+  timestamp?: string | number;
 };
 
 // --- Providers ---
@@ -74,10 +79,18 @@ function languageLabel(l?: { name?: string; code2?: string } | string): string {
   return l.name ?? l.code2?.toUpperCase() ?? '—';
 }
 
-function relativeTime(iso?: string): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
+// A bare numeric value could be an epoch in seconds (Bazarr's DB timestamps) or milliseconds —
+// `new Date(seconds)` would otherwise resolve to 1970, so scale up anything that's clearly too
+// small to already be milliseconds.
+function toDate(value?: string | number): Date | undefined {
+  if (!value) return undefined;
+  const d = typeof value === 'number' ? new Date(value < 10_000_000_000 ? value * 1000 : value) : new Date(value);
+  return Number.isNaN(d.getTime()) ? undefined : d;
+}
+
+function relativeTime(value?: string | number): string {
+  const d = toDate(value);
+  if (!d) return '';
   const diffMs = Date.now() - d.getTime();
   const min = Math.round(diffMs / 60_000);
   if (min < 1) return 'Just now';
@@ -264,7 +277,7 @@ function HistoryTab({ instance, onSynced }: { instance: ServiceInstance; onSynce
   const sync = useBazarrSync(instance);
 
   const rows = [...(moviesResp?.ok ? unwrapList<HistoryRow>(moviesResp.data) : []), ...(episodesResp?.ok ? unwrapList<HistoryRow>(episodesResp.data) : [])].sort(
-    (a, b) => (b.timestamp ?? '').localeCompare(a.timestamp ?? ''),
+    (a, b) => (toDate(b.timestamp)?.getTime() ?? 0) - (toDate(a.timestamp)?.getTime() ?? 0),
   );
   const isLoading = moviesLoading || episodesLoading;
 
@@ -279,13 +292,13 @@ function HistoryTab({ instance, onSynced }: { instance: ServiceInstance; onSynce
         {rows.map((row) => {
           const label = row.title ?? (row.seriesTitle ? `${row.seriesTitle} · ${row.episode_number ?? ''}` : 'Unknown');
           const busy = sync.isPending && sync.variables === row;
-          const canSync = !!row.subtitles_path && row.action?.toLowerCase() !== 'deleted';
+          const canSync = !!row.subtitles_path && !String(row.action).toLowerCase().includes('delete');
           return (
             <Row key={row.id}>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{label}</p>
                 <p className="text-xs text-muted-foreground">
-                  {row.action} · {languageLabel(row.language)}
+                  {String(row.action)} · {languageLabel(row.language)}
                   {row.provider ? ` · ${row.provider}` : ''} · {relativeTime(row.timestamp)}
                 </p>
               </div>

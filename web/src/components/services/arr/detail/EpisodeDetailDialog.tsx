@@ -180,7 +180,9 @@ export function EpisodeDetailDialog({
           </div>
         )}
 
-        {subtitleInfo && (subtitleInfo.missing.length > 0 || subtitleInfo.subtitles.length > 0) && <SubtitleLanguageChips info={subtitleInfo} />}
+        {subtitleInfo && (subtitleInfo.missing.length > 0 || subtitleInfo.subtitles.length > 0) && (
+          <SubtitleLanguageChips info={subtitleInfo} bazarr={bazarr} target={{ kind: 'episode', episodeId: ep.id, seriesId }} />
+        )}
 
         <div className="flex min-w-0 flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => onOpenSearch({ id: ep.id, episodeNumber: ep.episodeNumber })}>

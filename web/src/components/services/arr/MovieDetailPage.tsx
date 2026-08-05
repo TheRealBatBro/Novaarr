@@ -430,7 +430,7 @@ export function MovieDetailPage({
             </div>
           </div>
           {subtitleInfo && (subtitleInfo.missing.length > 0 || subtitleInfo.subtitles.length > 0) ? (
-            <SubtitleLanguageChips info={subtitleInfo} />
+            <SubtitleLanguageChips info={subtitleInfo} bazarr={bazarr} target={{ kind: 'movie', radarrId: movieId }} />
           ) : (
             <p className="text-sm text-muted-foreground">No subtitle data yet.</p>
           )}

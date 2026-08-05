@@ -9,6 +9,13 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Novaarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.34.1',
+    notes: [
+      'Fixed Bazarr\'s History tab crashing outright ("g.toLowerCase is not a function") — the code assumed the history row\'s action/timestamp fields were always plain strings, which isn\'t true for every Bazarr version',
+      'Subtitle sync moved to where it belongs — each downloaded subtitle chip on a movie/episode page now has its own sync button (was only reachable from Bazarr\'s History tab before)',
+    ],
+  },
+  {
     version: '0.34.0',
     notes: [
       'Bazarr now has its own page (was previously embedded-only, with no page of its own) — Wanted (search/auto-search missing subtitles for movies and episodes), History, Blacklist, and Providers (throttle status + reset), all reachable from the nav',
