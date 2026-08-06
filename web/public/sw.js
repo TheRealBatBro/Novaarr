@@ -42,6 +42,31 @@ async function cacheFirstWithRevalidate(request) {
   return (await revalidate) || fetch(request);
 }
 
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data.json(); } catch { data = { title: 'Novaarr', body: event.data?.text() || '' }; }
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'Novaarr', {
+      body: data.body,
+      tag: data.tag,
+      icon: 'icon-192.png',
+      data: { url: data.url || './' },
+    }),
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || '/';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window' }).then((clients) => {
+      const existing = clients.find((c) => c.url.includes(url));
+      if (existing) return existing.focus();
+      return self.clients.openWindow(url);
+    }),
+  );
+});
+
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 

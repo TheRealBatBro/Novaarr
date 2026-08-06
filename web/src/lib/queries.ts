@@ -1,5 +1,5 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { authApi, servicesApi, proxyApi, dashboardApi, cloudflareTunnelApi, type ServiceInstance, type ServiceInstanceInput, type DashboardWidgetConfig } from './api';
+import { authApi, servicesApi, proxyApi, dashboardApi, cloudflareTunnelApi, tailscaleApi, webauthnApi, type ServiceInstance, type ServiceInstanceInput, type DashboardWidgetConfig } from './api';
 
 export function useAuthStatus() {
   return useQuery({ queryKey: ['auth', 'status'], queryFn: authApi.status, staleTime: 0, retry: 0 });
@@ -15,6 +15,22 @@ export function useIsSettingsAdmin(): boolean {
 
 export function useCloudflareTunnelStatus(enabled: boolean) {
   return useQuery({ queryKey: ['cloudflare-tunnel', 'status'], queryFn: cloudflareTunnelApi.status, enabled, refetchInterval: 30_000, retry: 0 });
+}
+
+export function useTailscaleStatus(enabled: boolean) {
+  return useQuery({ queryKey: ['tailscale', 'status'], queryFn: tailscaleApi.status, enabled, refetchInterval: 30_000, retry: 0 });
+}
+
+export function usePasskeys() {
+  return useQuery({ queryKey: ['webauthn', 'credentials'], queryFn: webauthnApi.list });
+}
+
+export function useDeletePasskey() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => webauthnApi.remove(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['webauthn', 'credentials'] }),
+  });
 }
 
 export function useServices() {

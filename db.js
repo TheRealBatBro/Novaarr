@@ -116,6 +116,31 @@ function initDb() {
       ip             TEXT
     );
 
+    -- One row per subscribed browser/device (endpoint is the browser push service's unique URL
+    -- for that registration, so it's the natural primary key — re-subscribing the same device
+    -- just replaces its keys rather than piling up duplicates).
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      endpoint   TEXT PRIMARY KEY,
+      p256dh     TEXT NOT NULL,
+      auth       TEXT NOT NULL,
+      user_id    INTEGER,
+      created_at INTEGER DEFAULT (unixepoch())
+    );
+
+    -- Passkey/WebAuthn credentials, additive alongside the PIN/password (and TOTP) login —
+    -- user_id is NULL for simple mode's single shared identity, or a users.id row in multi-user
+    -- mode, mirroring the same settings-vs-users split already used for TOTP throughout this file.
+    CREATE TABLE IF NOT EXISTS webauthn_credentials (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      credential_id TEXT    NOT NULL UNIQUE,
+      public_key    TEXT    NOT NULL,
+      counter       INTEGER NOT NULL DEFAULT 0,
+      transports    TEXT    NOT NULL DEFAULT '[]',
+      user_id       INTEGER,
+      name          TEXT    NOT NULL DEFAULT 'Passkey',
+      created_at    INTEGER DEFAULT (unixepoch())
+    );
+
     CREATE TABLE IF NOT EXISTS service_instances (
       id             INTEGER PRIMARY KEY AUTOINCREMENT,
       service_id     TEXT    NOT NULL,
@@ -153,6 +178,9 @@ function initDb() {
   ensureColumn('users', 'totp_secret', 'totp_secret TEXT');
   ensureColumn('users', 'totp_enabled', 'totp_enabled INTEGER NOT NULL DEFAULT 0');
   ensureColumn('users', 'totp_backup_codes', 'totp_backup_codes TEXT');
+  ensureColumn('settings', 'vapid_public_key', 'vapid_public_key TEXT');
+  ensureColumn('settings', 'vapid_private_key', 'vapid_private_key TEXT');
+  ensureColumn('settings', 'overseerr_pending_seen', 'overseerr_pending_seen TEXT');
 
   const row = db.prepare('SELECT id FROM settings WHERE id = 1').get();
   if (!row) {
@@ -715,8 +743,79 @@ function deleteAccessRole(id) {
   getDb().prepare('UPDATE users SET access_role_id = NULL WHERE access_role_id = ?').run(id);
 }
 
+function getVapidKeys() {
+  const { vapid_public_key, vapid_private_key } = getSettings();
+  return vapid_public_key && vapid_private_key ? { publicKey: vapid_public_key, privateKey: vapid_private_key } : null;
+}
+
+function setVapidKeys(publicKey, privateKey) {
+  getDb().prepare('UPDATE settings SET vapid_public_key = ?, vapid_private_key = ? WHERE id = 1').run(publicKey, privateKey);
+}
+
+function upsertPushSubscription({ endpoint, p256dh, auth, userId }) {
+  getDb()
+    .prepare(`
+      INSERT INTO push_subscriptions (endpoint, p256dh, auth, user_id) VALUES (?, ?, ?, ?)
+      ON CONFLICT(endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth, user_id = excluded.user_id
+    `)
+    .run(endpoint, p256dh, auth, userId ?? null);
+}
+
+function removePushSubscription(endpoint) {
+  getDb().prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(endpoint);
+}
+
+function listPushSubscriptions() {
+  return getDb().prepare('SELECT endpoint, p256dh, auth, user_id AS userId FROM push_subscriptions').all();
+}
+
+// Tracks the last-seen Overseerr pending-request count per instance, so the background poller
+// (lib/overseerrPoll.js) can tell "count went up" (worth a notification) from "count is still 3"
+// (nothing new) across restarts, without needing its own dedicated table for one number per instance.
+function getOverseerrPendingSeen() {
+  try { return JSON.parse(getSettings().overseerr_pending_seen || '{}'); } catch { return {}; }
+}
+
+function setOverseerrPendingSeen(map) {
+  getDb().prepare('UPDATE settings SET overseerr_pending_seen = ? WHERE id = 1').run(JSON.stringify(map));
+}
+
+function listWebauthnCredentials(userId) {
+  const rows = userId
+    ? getDb().prepare('SELECT * FROM webauthn_credentials WHERE user_id = ? ORDER BY id').all(userId)
+    : getDb().prepare('SELECT * FROM webauthn_credentials WHERE user_id IS NULL ORDER BY id').all();
+  return rows.map((r) => ({ ...r, transports: JSON.parse(r.transports || '[]') }));
+}
+
+function getWebauthnCredentialByCredentialId(credentialId) {
+  const row = getDb().prepare('SELECT * FROM webauthn_credentials WHERE credential_id = ?').get(credentialId);
+  return row ? { ...row, transports: JSON.parse(row.transports || '[]') } : null;
+}
+
+function createWebauthnCredential({ credentialId, publicKey, counter, transports, userId, name }) {
+  getDb()
+    .prepare('INSERT INTO webauthn_credentials (credential_id, public_key, counter, transports, user_id, name) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(credentialId, publicKey, counter || 0, JSON.stringify(transports || []), userId ?? null, name || 'Passkey');
+}
+
+function updateWebauthnCredentialCounter(credentialId, counter) {
+  getDb().prepare('UPDATE webauthn_credentials SET counter = ? WHERE credential_id = ?').run(counter, credentialId);
+}
+
+function deleteWebauthnCredential(id, userId) {
+  if (userId) {
+    getDb().prepare('DELETE FROM webauthn_credentials WHERE id = ? AND user_id = ?').run(id, userId);
+  } else {
+    getDb().prepare('DELETE FROM webauthn_credentials WHERE id = ? AND user_id IS NULL').run(id);
+  }
+}
+
 module.exports = {
   initDb, getDb, getSettings, setCredential, getJwtSecret,
+  getVapidKeys, setVapidKeys, upsertPushSubscription, removePushSubscription, listPushSubscriptions,
+  getOverseerrPendingSeen, setOverseerrPendingSeen,
+  listWebauthnCredentials, getWebauthnCredentialByCredentialId, createWebauthnCredential,
+  updateWebauthnCredentialCounter, deleteWebauthnCredential,
   bumpTokenValidAfter, bumpUserTokenValidAfter, isTokenRevoked,
   setSettingsTotpPending, enableSettingsTotp, disableSettingsTotp, consumeSettingsBackupCode,
   setUserTotpPending, enableUserTotp, disableUserTotp, consumeUserBackupCode,

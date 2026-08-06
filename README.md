@@ -87,6 +87,7 @@ they live in the `novaarr-data` volume, not the container image.
 | `SHOW_ALL_SERVICES` | `true` | `true` shows every supported service in the menu regardless of whether it's configured yet (handy while you're still setting things up). Set to `false` once you're done configuring, so the menu only shows services you've actually enabled. |
 | `DISABLE_AUTH` | unset | **Danger.** Skips the sign-in lock (PIN/password or multi-user login) entirely. Leave unset in any deployment reachable by more than just you — only for local backend hacking. Deliberately a separate flag from `SHOW_ALL_SERVICES`, which only affects menu visibility. |
 | `CLOUDFLARE_TUNNEL_HOSTNAME` | unset | Purely cosmetic — the public hostname shown as a link in Settings > Security's Cloudflare Tunnel status card. See [Cloudflare Tunnel](#cloudflare-tunnel) below. |
+| `TAILSCALE_HOSTNAME` | unset | Cosmetic fallback for Settings > Security's Tailscale status card — only used if the sidecar's own reported hostname is unavailable. See [Tailscale](#tailscale) below. |
 
 The included `docker-compose.yml` maps container port `3000` to host port `3210`
 (`http://<host>:3210`) and mounts a named volume, `novaarr-data`, at `/data` for
@@ -275,6 +276,26 @@ Novaarr container — a tunnel token is a bearer credential with full control ov
 what's publicly exposed, and keeping it in a separate, minimal container (Cloudflare's
 own official image) keeps that blast radius contained if the app itself is ever
 compromised.
+
+## Tailscale
+
+An alternative (or complement) to a Cloudflare Tunnel: put Novaarr on your private
+[Tailscale](https://tailscale.com/) network (a mesh VPN) instead of exposing it
+publicly at all. `docker-compose.yml` includes an optional, commented-out
+`tailscale` sidecar service:
+
+1. Generate an auth key at
+   [login.tailscale.com/admin/settings/keys](https://login.tailscale.com/admin/settings/keys).
+2. Uncomment the `tailscale` service in `docker-compose.yml` and paste the key into
+   `TS_AUTHKEY`.
+3. `docker compose up -d`.
+
+Unlike the `cloudflared` sidecar, this one shares the `novaarr` container's own
+network namespace (`network_mode: service:novaarr`) — that's what actually makes
+Novaarr itself reachable at your tailnet hostname/IP, and as a side effect lets
+Novaarr query Tailscale's local status API over `localhost` for the status card in
+Settings > Security. Change tailnet access itself from Tailscale's own admin console —
+same read-only relationship the Cloudflare Tunnel card has to Cloudflare's dashboard.
 
 ## Cloudflare Access
 

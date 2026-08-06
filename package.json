@@ -1,6 +1,6 @@
 {
   "name": "novaarr",
-  "version": "0.35.0",
+  "version": "0.36.0",
   "description": "Self-hosted remote dashboard for your download/media stack",
   "main": "server.js",
   "scripts": {
@@ -8,6 +8,7 @@
     "dev": "node --watch server.js"
   },
   "dependencies": {
+    "@simplewebauthn/server": "^10.0.1",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^11.3.0",
     "cookie-parser": "^1.4.6",
@@ -17,7 +18,8 @@
     "multer": "^1.4.5-lts.2",
     "otplib": "^12.0.1",
     "qrcode": "^1.5.4",
-    "undici": "^6.21.0"
+    "undici": "^6.21.0",
+    "web-push": "^3.6.7"
   },
   "engines": {
     "node": ">=20"

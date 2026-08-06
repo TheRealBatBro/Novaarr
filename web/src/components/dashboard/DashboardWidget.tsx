@@ -46,6 +46,7 @@ import { DelugeStatusWidget } from './DelugeStatusWidget';
 import { TransmissionStatusWidget } from './TransmissionStatusWidget';
 import { QBittorrentStatusWidget } from './QBittorrentStatusWidget';
 import { RutorrentStatusWidget } from './RutorrentStatusWidget';
+import { StorageWidget } from './StorageWidget';
 
 export type SourceProps = {
   instance: ServiceInstance;
@@ -235,6 +236,13 @@ export function DashboardWidget({ widgetKey }: { widgetKey: string }) {
   const { data: instances = [] } = useServices();
 
   if (!def) return null;
+
+  // Aggregates across every configured Sonarr/Radarr/SABnzbd instance itself, rather than being
+  // handed one resolved instance like every other kind — so it deliberately skips the
+  // single-instance gate below (a Storage widget still has something to show even if the specific
+  // Sonarr instance the catalog entry nominally hangs off happens to be disabled, as long as
+  // Radarr or SABnzbd aren't).
+  if (def.kind === 'storage') return <StorageWidget title={def.title} />;
 
   const bySource: Record<WidgetSource, ServiceInstance[]> = {
     radarr: [], sonarr: [], overseerr: [], trakt: [], mdblist: [], sabnzbd: [], tautulli: [], tracearr: [], plex: [],

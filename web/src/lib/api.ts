@@ -362,3 +362,57 @@ export type CloudflareTunnelStatus = { configured: boolean; connected: boolean; 
 export const cloudflareTunnelApi = {
   status: () => fetch(apiUrl('/api/cloudflare-tunnel/status'), { credentials: 'same-origin' }).then((r) => json<CloudflareTunnelStatus>(r)),
 };
+
+export type TailscaleStatus = { configured: boolean; connected: boolean; hostname: string | null; tailscaleIp: string | null };
+
+export const tailscaleApi = {
+  status: () => fetch(apiUrl('/api/tailscale/status'), { credentials: 'same-origin' }).then((r) => json<TailscaleStatus>(r)),
+};
+
+export type PasskeyCredential = { id: number; name: string; createdAt: number };
+
+export const webauthnApi = {
+  registerOptions: () =>
+    fetch(apiUrl('/api/webauthn/register/options'), { method: 'POST', credentials: 'same-origin' }).then((r) =>
+      json<{ options: any; challengeToken: string }>(r),
+    ),
+  registerVerify: (response: unknown, challengeToken: string, name: string) =>
+    fetch(apiUrl('/api/webauthn/register/verify'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ response, challengeToken, name }),
+    }).then((r) => json<{ ok: true }>(r)),
+  loginOptions: () =>
+    fetch(apiUrl('/api/webauthn/login/options'), { method: 'POST', credentials: 'same-origin' }).then((r) =>
+      json<{ options: any; challengeToken: string }>(r),
+    ),
+  loginVerify: (response: unknown, challengeToken: string) =>
+    fetch(apiUrl('/api/webauthn/login/verify'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ response, challengeToken }),
+    }).then((r) => json<LoginResult>(r)),
+  list: () => fetch(apiUrl('/api/webauthn'), { credentials: 'same-origin' }).then((r) => json<PasskeyCredential[]>(r)),
+  remove: (id: number) => fetch(apiUrl(`/api/webauthn/${id}`), { method: 'DELETE', credentials: 'same-origin' }).then((r) => json<{ ok: true }>(r)),
+};
+
+export const pushApi = {
+  vapidPublicKey: () => fetch(apiUrl('/api/push/vapid-public-key'), { credentials: 'same-origin' }).then((r) => json<{ publicKey: string }>(r)),
+  subscribe: (subscription: PushSubscriptionJSON) =>
+    fetch(apiUrl('/api/push/subscribe'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription }),
+    }).then((r) => json<{ ok: true }>(r)),
+  unsubscribe: (endpoint: string) =>
+    fetch(apiUrl('/api/push/unsubscribe'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint }),
+    }).then((r) => json<{ ok: true }>(r)),
+  test: () => fetch(apiUrl('/api/push/test'), { method: 'POST', credentials: 'same-origin' }).then((r) => json<{ ok: true }>(r)),
+};

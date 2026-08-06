@@ -1,14 +1,38 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Hash, KeyRound } from 'lucide-react';
+import { Hash, KeyRound, Fingerprint } from 'lucide-react';
 import { authApi, type AuthMode } from '@/lib/api';
 import { useAuthStatus } from '@/lib/queries';
 import { useAuthBypass } from '@/lib/visibility';
+import { isPasskeySupported, loginWithPasskey } from '@/lib/webauthn';
 import { Button } from '@/components/ui/button';
 import { PinPad } from './PinPad';
 import { PasswordEntry } from './PasswordEntry';
 import { UsernamePasswordEntry } from './UsernamePasswordEntry';
 import { TotpEntry } from './TotpEntry';
+
+function PasskeyLoginButton({ busy, onSuccess, onError }: { busy: boolean; onSuccess: () => void; onError: (message: string) => void }) {
+  if (!isPasskeySupported()) return null;
+  return (
+    <Button
+      variant="outline"
+      className="w-full max-w-xs"
+      disabled={busy}
+      onClick={async () => {
+        try {
+          await loginWithPasskey();
+          onSuccess();
+        } catch (e) {
+          // A cancelled/dismissed browser prompt throws too — not worth surfacing as an error.
+          if (e instanceof Error && e.name === 'NotAllowedError') return;
+          onError(e instanceof Error ? e.message : 'Passkey sign-in failed');
+        }
+      }}
+    >
+      <Fingerprint className="mr-2 h-4 w-4" /> Sign in with a passkey
+    </Button>
+  );
+}
 
 function ModePicker({ onChoose }: { onChoose: (mode: AuthMode) => void }) {
   return (
@@ -161,8 +185,13 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
   // the setup/PIN/password flow below, which only applies to simple mode's single shared credential.
   if (data?.multiUser) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-6">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background px-6">
         <UsernamePasswordEntry title="Sign in" error={error} busy={busy} onComplete={handleMultiUserLogin} />
+        <PasskeyLoginButton
+          busy={busy}
+          onSuccess={() => qc.invalidateQueries({ queryKey: ['auth', 'status'] })}
+          onError={(message) => setError(message)}
+        />
       </div>
     );
   }
@@ -223,6 +252,14 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
         >
           Use a {mode === 'pin' ? 'password' : 'PIN'} instead
         </button>
+      )}
+
+      {!setupMode && (
+        <PasskeyLoginButton
+          busy={busy}
+          onSuccess={() => qc.invalidateQueries({ queryKey: ['auth', 'status'] })}
+          onError={(message) => setError(message)}
+        />
       )}
     </div>
   );

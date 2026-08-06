@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { applyAccent, applyAmoled, type AccentId } from '@/lib/theme';
 
 // One-time migration for the Remotarr -> Novaarr rename: carry over UI prefs saved under the
 // old localStorage key before zustand's persist middleware reads from the new one, so an
@@ -30,15 +31,23 @@ type UiState = {
    * longer (each refresh fans out to several Overseerr TMDB recommendation calls). */
   plexRecommendationRefreshMinutes: number;
   setPlexRecommendationRefreshMinutes: (value: number) => void;
+  /** Accent color preset — see web/src/lib/theme.ts for the fixed set of options. */
+  accent: AccentId;
+  setAccent: (value: AccentId) => void;
+  /** True-black dark theme variant (OLED-friendly) — only visually meaningful while `theme` is
+   * 'dark', but the preference itself is independent so it's remembered across a light/dark toggle. */
+  amoled: boolean;
+  setAmoled: (value: boolean) => void;
 };
 
 export const useUiStore = create<UiState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       theme: 'dark',
       setTheme: (theme) => {
         document.documentElement.classList.toggle('dark', theme === 'dark');
         localStorage.setItem('novaarr:theme', theme);
+        applyAccent(get().accent, theme);
         set({ theme });
       },
       paletteOpen: false,
@@ -51,6 +60,16 @@ export const useUiStore = create<UiState>()(
       setPlexRecommendationUserId: (plexRecommendationUserId) => set({ plexRecommendationUserId }),
       plexRecommendationRefreshMinutes: 240,
       setPlexRecommendationRefreshMinutes: (plexRecommendationRefreshMinutes) => set({ plexRecommendationRefreshMinutes }),
+      accent: 'violet',
+      setAccent: (accent) => {
+        applyAccent(accent, get().theme);
+        set({ accent });
+      },
+      amoled: false,
+      setAmoled: (amoled) => {
+        applyAmoled(amoled);
+        set({ amoled });
+      },
     }),
     {
       name: 'novaarr:ui',
@@ -59,7 +78,17 @@ export const useUiStore = create<UiState>()(
         devShowAllServices: state.devShowAllServices,
         plexRecommendationUserId: state.plexRecommendationUserId,
         plexRecommendationRefreshMinutes: state.plexRecommendationRefreshMinutes,
+        accent: state.accent,
+        amoled: state.amoled,
       }),
+      // Re-apply the CSS side effects on rehydrate — persist restores the plain state fields but
+      // never re-runs the setters that carry the actual DOM/CSS-var work, so a page reload would
+      // otherwise silently drop back to the default accent/AMOLED look until the user re-toggled it.
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+        applyAccent(state.accent, state.theme);
+        applyAmoled(state.amoled);
+      },
     },
   ),
 );

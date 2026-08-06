@@ -115,6 +115,7 @@ for details.
 | `SHOW_ALL_SERVICES` | `true` | `true` shows every supported service in the menu regardless of whether it's configured yet. Set to `false` once you're done configuring, so the menu only shows services you've actually enabled. |
 | `DISABLE_AUTH` | unset | **Danger.** Skips the sign-in lock entirely — only for local backend hacking. |
 | `CLOUDFLARE_TUNNEL_HOSTNAME` | unset | Cosmetic link shown in Settings → Security if you're using the optional `cloudflared` sidecar — see the [full README](https://github.com/TheRealBatBro/Novaarr#cloudflare-tunnel). |
+| `TAILSCALE_HOSTNAME` | unset | Cosmetic fallback link for the Tailscale status card if you're using the optional `tailscale` sidecar — see the [full README](https://github.com/TheRealBatBro/Novaarr#tailscale). |
 
 ## Feature requests & support
 

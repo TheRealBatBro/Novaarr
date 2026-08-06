@@ -9,6 +9,19 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Novaarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.36.0',
+    notes: [
+      'Passkeys — sign in with your device\'s fingerprint, face, or a security key instead of typing a PIN/password, in addition to (not instead of) your existing credential. Manage them from Settings → Security',
+      'Push notifications — get notified on this device when a new media request needs approval in Overseerr/Jellyseerr, without the app open. Enable from the new Settings → Notifications page',
+      'New "Storage" dashboard widget — aggregated free/total disk space across every configured Sonarr/Radarr mount and SABnzbd folder, in one card',
+      'Theming: pick an accent color (6 presets) and an AMOLED true-black dark mode, from the new Settings → Appearance page',
+      'Pull-to-refresh on mobile — swipe down at the top of any page to refresh what\'s on screen, same gesture as native apps',
+      'A proper bottom tab bar on mobile screens, alongside the existing pull-out menu',
+      'Smoother shimmer loading skeletons everywhere instead of a flat pulse',
+      'Tailscale support — reach this deployment over your private tailnet instead of (or alongside) a public Cloudflare Tunnel, with a live connection status card in Settings → Security. See the optional sidecar in docker-compose.yml',
+    ],
+  },
+  {
     version: '0.35.0',
     notes: [
       'Fixed Now Playing cards still being hard to read on a wide card — the backdrop scrim\'s fade was tuned as a percentage of the card\'s width, so it barely covered anything on the full-width dashboard widget. It now stays solid through a fixed early portion regardless of card width',

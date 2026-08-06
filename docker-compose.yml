@@ -43,6 +43,10 @@ services:
       # link an email to a specific user in multi-user mode.
       # CF_ACCESS_TEAM_DOMAIN: "yourteam.cloudflareaccess.com"
       # CF_ACCESS_AUD: "the-access-application-aud-tag"
+      # Optional: shown as the clickable link in Settings > Security's Tailscale status card once
+      # you've set up the tailscale sidecar below. Purely cosmetic, same as the Cloudflare one —
+      # if the sidecar's own status reports a DNSName, that takes priority over this instead.
+      # TAILSCALE_HOSTNAME: "novaarr.your-tailnet.ts.net"
     # Uncomment to expose only to a local reverse proxy (Nginx/Traefik/Caddy)
     # and remove the `ports` section above:
     # networks:
@@ -64,8 +68,36 @@ services:
   #   # reach /ready across the Compose network to report status — never exposed outside it.
   #   command: tunnel --no-autoupdate --metrics 0.0.0.0:2000 run --token YOUR_TUNNEL_TOKEN_HERE
 
+  # Optional: makes Novaarr reachable on your private Tailscale network (a mesh VPN) instead of,
+  # or alongside, a public Cloudflare Tunnel — no port-forwarding, no public exposure at all if
+  # that's all you use. Setup (one-time, on Tailscale's side):
+  #   1. login.tailscale.com/admin/settings/keys > Generate an auth key (reusable, and consider
+  #      an expiry/tag so it doesn't need regenerating by hand every 90 days)
+  #   2. Paste it in for TS_AUTHKEY below
+  # Uncomment this whole block and Settings > Security will show the tailnet's live connection
+  # status. `network_mode: service:novaarr` is what actually makes the novaarr container itself
+  # reachable at the tailnet hostname/IP — this sidecar shares its network namespace rather than
+  # getting one of its own, which is also what lets novaarr reach tailscaled's local status API
+  # over localhost for that status card (TS_LOCAL_ADDR_PORT below exposes it).
+  # tailscale:
+  #   image: tailscale/tailscale:latest
+  #   container_name: novaarr-tailscale
+  #   hostname: novaarr
+  #   restart: unless-stopped
+  #   network_mode: service:novaarr
+  #   cap_add:
+  #     - NET_ADMIN
+  #     - NET_RAW
+  #   volumes:
+  #     - novaarr-tailscale-state:/var/lib/tailscale
+  #   environment:
+  #     TS_AUTHKEY: "YOUR_TAILSCALE_AUTH_KEY_HERE"
+  #     TS_STATE_DIR: /var/lib/tailscale
+  #     TS_LOCAL_ADDR_PORT: "0.0.0.0:41112"
+
 volumes:
   novaarr-data:
+  # novaarr-tailscale-state:
 
 # networks:
 #   proxy:

@@ -17,8 +17,10 @@ export type WidgetDef = {
   /** 'carousel' (default) renders a poster row; 'status' renders a compact live-stats card;
    * 'search' renders a compact search box that opens the request dialog on a result tap;
    * 'violations' renders Tracearr's recent-unacknowledged-violations list; 'stats' renders a
-   * grid of library name + item count tiles. */
-  kind?: 'carousel' | 'status' | 'search' | 'violations' | 'stats';
+   * grid of library name + item count tiles; 'storage' renders aggregated disk free/total bars
+   * across every configured Sonarr/Radarr/SABnzbd instance (ignores the single resolved
+   * `instance` the other kinds get — it queries every relevant instance itself). */
+  kind?: 'carousel' | 'status' | 'search' | 'violations' | 'stats' | 'storage';
 };
 
 /** Every catalog entry above targets "the" (first/default) instance of its source — exactly what
@@ -122,6 +124,7 @@ export const WIDGET_CATALOG: WidgetDef[] = [
   { key: 'tautulli-status', title: 'Now Playing', source: 'tautulli', kind: 'status' },
   { key: 'plex-status', title: 'Now Playing (Plex)', source: 'plex', kind: 'status' },
   { key: 'bazarr-wanted', title: 'Wanted Subtitles', source: 'bazarr', kind: 'status' },
+  { key: 'storage-usage', title: 'Storage', source: 'sonarr', kind: 'storage' },
   { key: 'overseerr-search', title: 'Search Seerr', source: 'overseerr', kind: 'search' },
   { key: 'tautulli-recent', title: 'Recently Watched', source: 'tautulli' },
   { key: 'tautulli-recommendations', title: 'Because You Watched', source: 'tautulli' },

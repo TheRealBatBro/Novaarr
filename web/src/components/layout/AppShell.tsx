@@ -4,6 +4,8 @@ import { TopBar } from './TopBar';
 import { CommandPalette } from './CommandPalette';
 import { AppDrawer } from './AppDrawer';
 import { AppSidebar } from './AppSidebar';
+import { PullToRefresh } from './PullToRefresh';
+import { MobileTabBar } from './MobileTabBar';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const mainRef = useRef<HTMLElement>(null);
@@ -21,12 +23,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <AppSidebar />
       <div className="flex h-dvh min-w-0 flex-1 flex-col">
         <TopBar />
-        <main ref={mainRef} className="min-w-0 flex-1 overflow-y-auto pb-6 [scrollbar-gutter:stable]">
-          {children}
+        <main ref={mainRef} className="min-w-0 flex-1 overflow-y-auto pb-20 [scrollbar-gutter:stable] lg:pb-6">
+          <PullToRefresh scrollRef={mainRef}>{children}</PullToRefresh>
         </main>
       </div>
       <AppDrawer />
       <CommandPalette />
+      <MobileTabBar />
     </div>
   );
 }

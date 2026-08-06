@@ -1,16 +1,79 @@
 import { useState } from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Hash, KeyRound, Users, Cloud, ExternalLink, ShieldOff, ShieldCheck, Copy } from 'lucide-react';
+import { Hash, KeyRound, Users, Cloud, Network, ExternalLink, ShieldOff, ShieldCheck, Copy, Fingerprint, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SettingsTabs } from '@/components/settings/SettingsTabs';
-import { useAuthStatus, useIsSettingsAdmin, useCloudflareTunnelStatus } from '@/lib/queries';
+import { useAuthStatus, useIsSettingsAdmin, useCloudflareTunnelStatus, useTailscaleStatus, usePasskeys, useDeletePasskey } from '@/lib/queries';
 import { authApi, totpApi, type AuthMode } from '@/lib/api';
+import { isPasskeySupported, registerPasskey } from '@/lib/webauthn';
 import { cn } from '@/lib/utils';
+
+function PasskeysCard() {
+  const { data, isLoading } = usePasskeys();
+  const deletePasskey = useDeletePasskey();
+  const [busy, setBusy] = useState(false);
+
+  async function handleAdd() {
+    const name = window.prompt('Name this passkey (e.g. "iPhone" or "YubiKey")', 'Passkey');
+    if (name === null) return;
+    setBusy(true);
+    try {
+      await registerPasskey(name || 'Passkey');
+      window.location.reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add passkey');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <Fingerprint className="h-4 w-4 text-muted-foreground" />
+          <p className="text-sm font-semibold">Passkeys</p>
+        </div>
+        <p className="mb-3 text-sm text-muted-foreground">
+          Sign in with your device's fingerprint, face, or security key instead of typing a credential — additional to, not a
+          replacement for, the credential above.
+        </p>
+
+        {!isPasskeySupported() ? (
+          <p className="text-sm text-muted-foreground">Your browser doesn't support passkeys.</p>
+        ) : (
+          <>
+            {!isLoading && data && data.length > 0 && (
+              <ul className="mb-3 flex flex-col gap-1.5">
+                {data.map((c) => (
+                  <li key={c.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
+                    <span>{c.name}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => deletePasskey.mutate(c.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Button variant="outline" disabled={busy} onClick={handleAdd}>
+              Add a passkey
+            </Button>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 export const Route = createFileRoute('/settings/security')({ component: SettingsSecurity });
 
@@ -136,6 +199,57 @@ function CloudflareTunnelCard() {
             Managed by the <code className="rounded bg-muted px-1 py-0.5 text-xs">cloudflared</code> container in your{' '}
             <code className="rounded bg-muted px-1 py-0.5 text-xs">docker-compose.yml</code> — this is a read-only status view, not a
             control. Change the tunnel itself from Cloudflare's dashboard.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function TailscaleCard() {
+  const { data, isLoading } = useTailscaleStatus(true);
+
+  const state = isLoading ? 'loading' : !data?.configured ? 'not-configured' : data.connected ? 'connected' : 'disconnected';
+  const dotColor = state === 'connected' ? 'bg-green-500' : state === 'disconnected' ? 'bg-amber-500' : 'bg-muted-foreground/40';
+  const label =
+    state === 'loading' ? 'Checking…' : state === 'connected' ? 'Connected' : state === 'disconnected' ? 'Not connected' : 'Not set up';
+
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <Network className="h-4 w-4 text-muted-foreground" />
+          <p className="text-sm font-semibold">Tailscale</p>
+        </div>
+
+        <div className="mb-3 flex items-center gap-2 rounded-lg border border-border bg-background/40 px-3 py-2">
+          <span className={cn('h-2 w-2 shrink-0 rounded-full', dotColor)} />
+          <p className="text-sm font-medium">{label}</p>
+          {data?.hostname && state === 'connected' && (
+            <a
+              href={`https://${data.hostname}`}
+              target="_blank"
+              rel="noreferrer"
+              className="ml-auto flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              {data.hostname} <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+        </div>
+        {data?.tailscaleIp && state === 'connected' && <p className="mb-3 text-xs text-muted-foreground">Tailnet IP: {data.tailscaleIp}</p>}
+
+        {state === 'not-configured' ? (
+          <p className="text-sm text-muted-foreground">
+            Reach this deployment over your private Tailscale network instead of (or alongside) a public tunnel. Uncomment the{' '}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">tailscale</code> service in{' '}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">docker-compose.yml</code> to set it up — this card starts reporting its
+            status automatically once it's running.
+          </p>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Managed by the <code className="rounded bg-muted px-1 py-0.5 text-xs">tailscale</code> container in your{' '}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">docker-compose.yml</code> — this is a read-only status view, not a
+            control. Change tailnet access itself from Tailscale's own admin console.
           </p>
         )}
       </CardContent>
@@ -373,11 +487,13 @@ function SettingsSecurity() {
           <span className="font-medium text-foreground">Settings → Users</span>.
         </p>
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          <PasskeysCard />
           <TwoFactorCard />
           {isAdmin && (
             <>
               <RevokeSessionsCard />
               <CloudflareTunnelCard />
+              <TailscaleCard />
             </>
           )}
         </div>
@@ -458,10 +574,16 @@ function SettingsSecurity() {
           </CardContent>
         </Card>
 
+        <PasskeysCard />
         <TwoFactorCard />
         <RevokeSessionsCard />
         <EnableMultiUserCard />
-        {isAdmin && <CloudflareTunnelCard />}
+        {isAdmin && (
+          <>
+            <CloudflareTunnelCard />
+            <TailscaleCard />
+          </>
+        )}
       </div>
     </div>
   );

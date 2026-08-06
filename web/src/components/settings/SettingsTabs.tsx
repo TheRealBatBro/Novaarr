@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { Plug, ListOrdered, LayoutDashboard, ShieldCheck, Database, Info, Users, ScrollText, type LucideIcon } from 'lucide-react';
+import { Plug, ListOrdered, LayoutDashboard, ShieldCheck, Database, Info, Users, ScrollText, Palette, Bell, type LucideIcon } from 'lucide-react';
 import { useAuthStatus, useIsSettingsAdmin } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 
@@ -7,6 +7,8 @@ const TABS: { key: string; label: string; to: string; icon: LucideIcon; adminOnl
   { key: 'services', label: 'Services', to: '/settings/services', icon: Plug, adminOnly: true },
   { key: 'menu', label: 'Menu', to: '/settings/menu', icon: ListOrdered, adminOnly: true },
   { key: 'dashboard', label: 'Dashboard', to: '/settings/dashboard', icon: LayoutDashboard },
+  { key: 'appearance', label: 'Appearance', to: '/settings/appearance', icon: Palette },
+  { key: 'notifications', label: 'Notifications', to: '/settings/notifications', icon: Bell },
   { key: 'security', label: 'Security', to: '/settings/security', icon: ShieldCheck },
   { key: 'users', label: 'Users', to: '/settings/users', icon: Users },
   { key: 'backup', label: 'Backup', to: '/settings/backup', icon: Database, adminOnly: true },
@@ -17,7 +19,7 @@ const TABS: { key: string; label: string; to: string; icon: LucideIcon; adminOnl
 export function SettingsTabs({
   active,
 }: {
-  active: 'services' | 'menu' | 'dashboard' | 'security' | 'users' | 'backup' | 'audit' | 'about';
+  active: 'services' | 'menu' | 'dashboard' | 'appearance' | 'notifications' | 'security' | 'users' | 'backup' | 'audit' | 'about';
 }) {
   // The Users tab only makes sense once a deployment has opted into multi-user mode — hidden
   // entirely in simple mode rather than shown-but-empty. Services/Menu/Backup change shared,
