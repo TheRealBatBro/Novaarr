@@ -9,6 +9,12 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Novaarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.36.1',
+    notes: [
+      'Fixed "Add a passkey" doing nothing on some browsers — it relied on a plain browser prompt() for naming the passkey, which mobile/installed-app browsers commonly block silently. Replaced with a proper in-app dialog, and failures now show an actual error instead of failing silently',
+    ],
+  },
+  {
     version: '0.36.0',
     notes: [
       'Passkeys — sign in with your device\'s fingerprint, face, or a security key instead of typing a PIN/password, in addition to (not instead of) your existing credential. Manage them from Settings → Security',

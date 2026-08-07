@@ -5,6 +5,7 @@ import { Hash, KeyRound, Users, Cloud, Network, ExternalLink, ShieldOff, ShieldC
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SettingsTabs } from '@/components/settings/SettingsTabs';
@@ -13,24 +14,54 @@ import { authApi, totpApi, type AuthMode } from '@/lib/api';
 import { isPasskeySupported, registerPasskey } from '@/lib/webauthn';
 import { cn } from '@/lib/utils';
 
-function PasskeysCard() {
-  const { data, isLoading } = usePasskeys();
-  const deletePasskey = useDeletePasskey();
+function AddPasskeyDialog({ open, onOpenChange, onAdded }: { open: boolean; onOpenChange: (open: boolean) => void; onAdded: () => void }) {
+  const [name, setName] = useState('Passkey');
   const [busy, setBusy] = useState(false);
 
-  async function handleAdd() {
-    const name = window.prompt('Name this passkey (e.g. "iPhone" or "YubiKey")', 'Passkey');
-    if (name === null) return;
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
     setBusy(true);
     try {
-      await registerPasskey(name || 'Passkey');
-      window.location.reload();
+      await registerPasskey(name.trim() || 'Passkey');
+      onOpenChange(false);
+      setName('Passkey');
+      onAdded();
+      toast.success('Passkey added');
     } catch (err) {
+      // A dismissed/cancelled browser prompt throws NotAllowedError too — not worth an error toast.
+      if (err instanceof Error && err.name === 'NotAllowedError') return;
       toast.error(err instanceof Error ? err.message : 'Failed to add passkey');
     } finally {
       setBusy(false);
     }
   }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add a passkey</DialogTitle>
+          <DialogDescription>Your browser will prompt you to use your device's fingerprint, face, or a security key.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="grid gap-1.5">
+            <Label htmlFor="passkey-name">Name this passkey</Label>
+            <Input id="passkey-name" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. iPhone, YubiKey" />
+          </div>
+          <Button type="submit" disabled={busy}>
+            Continue
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PasskeysCard() {
+  const { data, isLoading } = usePasskeys();
+  const deletePasskey = useDeletePasskey();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const qc = useQueryClient();
 
   return (
     <Card>
@@ -45,7 +76,10 @@ function PasskeysCard() {
         </p>
 
         {!isPasskeySupported() ? (
-          <p className="text-sm text-muted-foreground">Your browser doesn't support passkeys.</p>
+          <p className="text-sm text-muted-foreground">
+            Your browser doesn't support passkeys, or this page isn't loaded over HTTPS (or localhost) — browsers require a secure
+            connection for passkeys to work at all.
+          </p>
         ) : (
           <>
             {!isLoading && data && data.length > 0 && (
@@ -65,9 +99,10 @@ function PasskeysCard() {
                 ))}
               </ul>
             )}
-            <Button variant="outline" disabled={busy} onClick={handleAdd}>
+            <Button variant="outline" onClick={() => setDialogOpen(true)}>
               Add a passkey
             </Button>
+            <AddPasskeyDialog open={dialogOpen} onOpenChange={setDialogOpen} onAdded={() => qc.invalidateQueries({ queryKey: ['webauthn', 'credentials'] })} />
           </>
         )}
       </CardContent>
