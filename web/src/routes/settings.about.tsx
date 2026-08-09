@@ -9,6 +9,12 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Novaarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.36.7',
+    notes: [
+      'Fixed the Storage dashboard widget only ever showing disk space from your first configured Sonarr/Radarr instance — e.g. Radarr\'s /movies mount silently never showed up if Sonarr happened to be listed first, since only that one instance was ever queried. Now queries every configured instance and merges the results, deduping by mount path in case more than one points at the same underlying disk',
+    ],
+  },
+  {
     version: '0.36.6',
     notes: [
       'Fixed "Sign out everywhere else" having no effect on a device signed in via Cloudflare Access — Access issues its own token entirely outside this app\'s session cookie, so nothing was ever checking it against the revocation floor. It now is, though a device whose underlying Cloudflare Access session is still alive can still get a fresh token on its next silent refresh — actually revoking an Access session itself is done from Cloudflare\'s own dashboard, not something this app controls',

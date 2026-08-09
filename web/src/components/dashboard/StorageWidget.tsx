@@ -1,13 +1,17 @@
 import { HardDrive } from 'lucide-react';
-import { useServices, useServiceProxy } from '@/lib/queries';
+import { useServices, useServiceProxy, useServiceProxyQueries } from '@/lib/queries';
 import { getServiceDefinition } from '@/lib/serviceRegistry';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ProgressBar } from '@/components/shared/ProgressBar';
 import type { ServiceInstance } from '@/lib/api';
 
-// Sonarr/Radarr's own /api/v3/diskspace — every mounted volume on the host, independent of
-// which folders are actually configured as root folders. Both apps report the exact same
-// underlying host disks, so results get deduped by `path` once merged across instances.
+// Sonarr/Radarr's own /api/v3/diskspace — every mount actually relevant to that app (typically
+// wherever its own root folders live, e.g. Sonarr's /tv, Radarr's /movies), NOT necessarily every
+// host-wide mount. Different arr apps commonly point at different mounts, so every configured
+// instance needs its own query — querying only one (as this used to do) silently dropped any
+// mount not shared with whichever instance happened to be first. Merged and deduped by `path`
+// across instances afterward, since two apps sharing a mount (e.g. both under one big /data
+// volume) would otherwise render the same disk twice.
 type DiskSpaceEntry = { path: string; label?: string; freeSpace: number; totalSpace: number };
 
 // SABnzbd's own /api?mode=queue response carries its two configured folders' free/total space
@@ -24,13 +28,23 @@ function formatGb(bytesOrGb: number, unit: 'bytes' | 'gb'): number {
 
 type Row = { label: string; freeGb: number; totalGb: number };
 
-function DiskSpaceRows({ instance }: { instance: ServiceInstance }) {
-  const { data } = useServiceProxy<DiskSpaceEntry[]>(instance, { path: '/api/v3/diskspace', refetchInterval: 300_000, staleTime: 300_000 });
-  if (!data?.ok) return null;
+function DiskSpaceRows({ instances }: { instances: ServiceInstance[] }) {
+  const results = useServiceProxyQueries<DiskSpaceEntry[]>(instances, { path: '/api/v3/diskspace', refetchInterval: 300_000 });
+
+  // Dedupe by mount path across every instance — a second app pointed at the same underlying
+  // volume (e.g. Sonarr and Radarr both under one /data mount) would otherwise render it twice.
+  const byPath = new Map<string, DiskSpaceEntry>();
+  for (const r of results) {
+    if (!r.data?.ok) continue;
+    for (const d of r.data.data ?? []) {
+      if (!byPath.has(d.path)) byPath.set(d.path, d);
+    }
+  }
+
   return (
     <>
-      {(data.data ?? []).map((d) => (
-        <Row key={`${instance.id}-${d.path}`} label={d.label || d.path} freeGb={formatGb(d.freeSpace, 'bytes')} totalGb={formatGb(d.totalSpace, 'bytes')} />
+      {[...byPath.values()].map((d) => (
+        <Row key={d.path} label={d.label || d.path} freeGb={formatGb(d.freeSpace, 'bytes')} totalGb={formatGb(d.totalSpace, 'bytes')} />
       ))}
     </>
   );
@@ -77,10 +91,9 @@ function Row({ label, freeGb, totalGb }: { label: string; freeGb: number; totalG
   );
 }
 
-// Aggregates disk usage across every configured Sonarr/Radarr (their shared /api/v3/diskspace)
-// plus SABnzbd's two download folders — one place to see "am I about to run out of room"
-// instead of checking each service's own admin UI separately. Deduped by mount path across
-// Sonarr/Radarr since they usually see the exact same host volumes.
+// Aggregates disk usage across every configured Sonarr/Radarr's own /api/v3/diskspace plus
+// SABnzbd's two download folders — one place to see "am I about to run out of room" instead of
+// checking each service's own admin UI separately.
 export function StorageWidget({ title }: { title: string }) {
   const { data: instances = [] } = useServices();
   const arrInstances = instances.filter((i) => (i.serviceId === 'sonarr' || i.serviceId === 'radarr') && i.enabled);
@@ -101,10 +114,7 @@ export function StorageWidget({ title }: { title: string }) {
         <p className="truncate text-sm font-semibold">{title}</p>
       </div>
       <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
-        {/* Sonarr and Radarr's /api/v3/diskspace both report the same host-wide mounts, so only
-            one Sonarr/Radarr instance is queried — a second would just render duplicate rows
-            for the same disks. */}
-        {arrInstances.slice(0, 1).map((i) => <DiskSpaceRows key={i.id} instance={i} />)}
+        {arrInstances.length > 0 && <DiskSpaceRows instances={arrInstances} />}
         {sabInstances.map((i) => <SabnzbdRows key={i.id} instance={i} />)}
         {arrInstances.length === 0 && sabInstances.length === 0 && <Skeleton className="h-4 w-full" />}
       </div>
