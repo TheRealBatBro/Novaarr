@@ -7,7 +7,10 @@ export function isPasskeySupported(): boolean {
 
 export async function registerPasskey(name: string): Promise<void> {
   const { options, challengeToken } = await webauthnApi.registerOptions();
-  const response = await startRegistration({ optionsJSON: options });
+  // @simplewebauthn/browser@10 takes the raw options object directly — NOT wrapped in
+  // {optionsJSON}. Wrapping it (an API shape from a later version) silently produced an
+  // options object with every field undefined, which crashed trying to base64url-decode them.
+  const response = await startRegistration(options);
   await webauthnApi.registerVerify(response, challengeToken, name);
 }
 
@@ -15,6 +18,6 @@ export async function registerPasskey(name: string): Promise<void> {
 // the caller can just refresh auth status, mirroring how PIN/password login completes.
 export async function loginWithPasskey(): Promise<void> {
   const { options, challengeToken } = await webauthnApi.loginOptions();
-  const response = await startAuthentication({ optionsJSON: options });
+  const response = await startAuthentication(options);
   await webauthnApi.loginVerify(response, challengeToken);
 }

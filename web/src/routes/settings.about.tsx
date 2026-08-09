@@ -9,6 +9,12 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Novaarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.36.3',
+    notes: [
+      'Actually fixed passkey registration/sign-in this time — the previous fix addressed a real but secondary issue; the real cause was calling the installed @simplewebauthn/browser version with the wrong argument shape (wrapped in {optionsJSON}, which this version silently ignores instead of erroring on). Verified end-to-end against the real client bundle: the full options object now reaches the browser\'s credential prompt correctly',
+    ],
+  },
+  {
     version: '0.36.2',
     notes: [
       'Fixed "Add a passkey" actually failing with "Cannot read properties of undefined (reading \'replace\')" — the server wasn\'t passing an explicit user handle to the registration request, so the browser had nothing to encode and crashed. Passkeys should now register correctly',
