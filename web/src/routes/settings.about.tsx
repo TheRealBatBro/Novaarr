@@ -9,6 +9,12 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Novaarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.37.2',
+    notes: [
+      'Fixed the Maintainerr rule group row\'s active badge and action buttons being spread out across the row instead of grouped together on the right — they were separate flex children under a justify-between row, which spaces out every child evenly, not just the first and last',
+    ],
+  },
+  {
     version: '0.37.1',
     notes: [
       'Maintainerr: each collection now expands to show its matched media, exclusions, and activity log, with actions for each — handle an item now, postpone it 7 days, exclude it from future runs, or remove an existing exclusion. Collections can be activated/deactivated or removed, and rule groups can be run, stopped mid-run, or deleted individually, right from Novaarr',

@@ -58,19 +58,24 @@ export function MaintainerrRuleGroupRow({ instance, group, isExecuting }: { inst
           {isExecuting ? ' · running now' : ''}
         </p>
       </div>
-      <Badge active={group.isActive} />
-      {isExecuting ? (
-        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Stop" disabled={stopOne.isPending} onClick={() => stopOne.mutate()}>
-          <Square className="h-3.5 w-3.5" />
+      {/* Grouped into one flex item so `justify-between` above only splits name vs. this
+          cluster — with these as separate top-level children it spread all of them out evenly
+          across the row instead. */}
+      <div className="flex shrink-0 items-center gap-1">
+        <Badge active={group.isActive} />
+        {isExecuting ? (
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Stop" disabled={stopOne.isPending} onClick={() => stopOne.mutate()}>
+            <Square className="h-3.5 w-3.5" />
+          </Button>
+        ) : (
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Run now" disabled={runOne.isPending} onClick={() => runOne.mutate()}>
+            <Play className="h-3.5 w-3.5" />
+          </Button>
+        )}
+        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive" title="Delete rule group" disabled={remove.isPending} onClick={() => remove.mutate()}>
+          <Trash2 className="h-3.5 w-3.5" />
         </Button>
-      ) : (
-        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Run now" disabled={runOne.isPending} onClick={() => runOne.mutate()}>
-          <Play className="h-3.5 w-3.5" />
-        </Button>
-      )}
-      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive" title="Delete rule group" disabled={remove.isPending} onClick={() => remove.mutate()}>
-        <Trash2 className="h-3.5 w-3.5" />
-      </Button>
+      </div>
     </div>
   );
 }
