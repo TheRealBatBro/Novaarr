@@ -9,6 +9,12 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Novaarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.37.1',
+    notes: [
+      'Maintainerr: each collection now expands to show its matched media, exclusions, and activity log, with actions for each — handle an item now, postpone it 7 days, exclude it from future runs, or remove an existing exclusion. Collections can be activated/deactivated or removed, and rule groups can be run, stopped mid-run, or deleted individually, right from Novaarr',
+    ],
+  },
+  {
     version: '0.37.0',
     notes: [
       'New integration: Maintainerr — its own page shows configured rule groups and collections (active state, media matched, deletion countdown), with "Run rules now" and "Handle collections now" buttons to trigger it on demand instead of waiting for its own schedule. Maintainerr has no login of its own, so there\'s nothing to configure beyond its URL',

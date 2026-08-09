@@ -6,51 +6,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { getServiceIcon } from '@/lib/serviceIcons';
 import { useServiceProxy } from '@/lib/queries';
 import { proxyApi, type ServiceInstance } from '@/lib/api';
-import { cn } from '@/lib/utils';
+import { MaintainerrCollectionRow } from './MaintainerrCollectionRow';
+import { MaintainerrRuleGroupRow } from './MaintainerrRuleGroupRow';
+import type { MaintainerrCollection, MaintainerrRuleGroup, RuleExecuteStatus } from './MaintainerrTypes';
 
 const Icon = getServiceIcon('maintainerr');
-
-// Mirrors apps/server/src/modules/collections/entities/collection.entities.ts — only the fields
-// this screen actually surfaces. `mediaCount` comes from collections.service.ts's getCollections
-// (a separate count query joined server-side), not a raw entity column.
-type MaintainerrCollection = {
-  id: number;
-  title: string;
-  isActive: boolean;
-  deleteAfterDays: number;
-  handledMediaAmount: number;
-  mediaCount: number;
-};
-
-// Mirrors apps/server/src/modules/rules/entities/rule-group.entities.ts.
-type MaintainerrRuleGroup = {
-  id: number;
-  name: string;
-  isActive: boolean;
-  libraryId: string;
-  ruleHandlerCronSchedule: string | null;
-};
-
-// Mirrors packages/contracts/src/rules/execute.ts's RuleExecuteStatusDto.
-type RuleExecuteStatus = {
-  processingQueue: boolean;
-  executingRuleGroupId: number | null;
-  pendingRuleGroupIds: number[];
-  queue: number[];
-};
-
-function Badge({ active, label }: { active: boolean; label?: string }) {
-  return (
-    <span
-      className={cn(
-        'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium',
-        active ? 'bg-emerald-500/15 text-emerald-500' : 'bg-muted text-muted-foreground',
-      )}
-    >
-      {label ?? (active ? 'Active' : 'Inactive')}
-    </span>
-  );
-}
 
 export function MaintainerrScreen({ instance }: { instance: ServiceInstance }) {
   const qc = useQueryClient();
@@ -63,21 +23,29 @@ export function MaintainerrScreen({ instance }: { instance: ServiceInstance }) {
   });
 
   const running = !!statusResp?.data?.processingQueue;
+  const executingRuleGroupId = statusResp?.data?.executingRuleGroupId ?? null;
   const ruleGroups = rulesResp?.ok ? rulesResp.data ?? [] : [];
   const collections = collectionsResp?.ok ? collectionsResp.data ?? [] : [];
+
+  function invalidateAll() {
+    qc.invalidateQueries({ queryKey: ['proxy', instance.id] });
+  }
 
   const runRules = useMutation({
     mutationFn: () => proxyApi.call(instance.id, { path: '/api/rules/execute', method: 'POST' }),
     onSuccess: () => {
       toast.success('Rule evaluation started');
-      qc.invalidateQueries({ queryKey: ['proxy', instance.id, '/api/rules/execute/status'] });
+      invalidateAll();
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to start rule evaluation'),
   });
 
   const handleCollections = useMutation({
     mutationFn: () => proxyApi.call(instance.id, { path: '/api/collections/handle', method: 'POST' }),
-    onSuccess: () => toast.success('Collection handling started — matched media will be actioned per each collection\'s rules'),
+    onSuccess: () => {
+      toast.success('Collection handling started — matched media will be actioned per each collection\'s rules');
+      invalidateAll();
+    },
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to start collection handling'),
   });
 
@@ -122,16 +90,7 @@ export function MaintainerrScreen({ instance }: { instance: ServiceInstance }) {
         ) : (
           <div className="flex flex-col gap-2">
             {ruleGroups.map((g) => (
-              <div key={g.id} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{g.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {g.libraryId ? `Library ${g.libraryId}` : 'No library'}
-                    {g.ruleHandlerCronSchedule ? ` · custom schedule` : ''}
-                  </p>
-                </div>
-                <Badge active={g.isActive} />
-              </div>
+              <MaintainerrRuleGroupRow key={g.id} instance={instance} group={g} isExecuting={executingRuleGroupId === g.id} />
             ))}
           </div>
         )}
@@ -150,17 +109,7 @@ export function MaintainerrScreen({ instance }: { instance: ServiceInstance }) {
         ) : (
           <div className="flex flex-col gap-2">
             {collections.map((c) => (
-              <div key={c.id} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{c.title}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {c.mediaCount} media matched
-                    {c.deleteAfterDays > 0 ? ` · removes ${c.deleteAfterDays}d after being flagged` : ''}
-                    {c.handledMediaAmount > 0 ? ` · ${c.handledMediaAmount} handled so far` : ''}
-                  </p>
-                </div>
-                <Badge active={c.isActive} />
-              </div>
+              <MaintainerrCollectionRow key={c.id} instance={instance} collection={c} />
             ))}
           </div>
         )}
