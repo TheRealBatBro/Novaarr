@@ -9,6 +9,12 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Novaarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.36.5',
+    notes: [
+      'Fixed "Sign out everywhere else" (and a credential/password change) not actually signing out other devices — /api/auth/status checked whether a session token\'s signature was valid, but never checked whether it had been revoked, so an already-revoked device kept reporting itself as signed in indefinitely. Also added a periodic recheck so a revoked device gets kicked back to the lock screen within 30 seconds even if left open and untouched, rather than only on its next refocus',
+    ],
+  },
+  {
     version: '0.36.4',
     notes: [
       'Fixed passkey registration/sign-in crashing on the server with "Cannot read properties of undefined (reading \'id\')" once a real authenticator (e.g. a password manager) actually completed the prompt — the installed @simplewebauthn/server version returns a flatter result shape than assumed. Confirmed by reading the installed package\'s own source directly this time, not just docs/assumptions',

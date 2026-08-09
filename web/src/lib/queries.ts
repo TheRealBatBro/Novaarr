@@ -1,8 +1,11 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authApi, servicesApi, proxyApi, dashboardApi, cloudflareTunnelApi, tailscaleApi, webauthnApi, type ServiceInstance, type ServiceInstanceInput, type DashboardWidgetConfig } from './api';
 
+// Polls rather than only checking on mount/refocus — a device signed out via "Sign out
+// everywhere else" (or a credential change) should actually get kicked back to the lock screen
+// within a bounded time even if left open and untouched, not just whenever it next regains focus.
 export function useAuthStatus() {
-  return useQuery({ queryKey: ['auth', 'status'], queryFn: authApi.status, staleTime: 0, retry: 0 });
+  return useQuery({ queryKey: ['auth', 'status'], queryFn: authApi.status, staleTime: 0, retry: 0, refetchInterval: 30_000 });
 }
 
 /** Simple mode has no roles at all — everyone with the shared PIN/password is equally "admin".

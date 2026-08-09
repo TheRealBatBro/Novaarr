@@ -49,7 +49,17 @@ router.get('/status', async (req, res) => {
     if (token) {
       try {
         payload = jwt.verify(token, settings.jwt_secret);
-        authenticated = true;
+        // A cryptographically valid token can still be revoked — "Sign out everywhere else"
+        // (and a credential change) works by moving this floor forward, same check
+        // middleware/auth.js's requireAuth applies to every other route. Skipping it here meant
+        // a revoked device's own /status check kept reporting authenticated: true forever, so it
+        // never got kicked back to the lock screen even though every other API call it made was
+        // already being rejected.
+        if (db.isTokenRevoked(payload)) {
+          payload = null;
+        } else {
+          authenticated = true;
+        }
       } catch {
         payload = null;
       }
