@@ -182,6 +182,12 @@ function initDb() {
   ensureColumn('service_instances', 'refresh_interval_minutes', 'refresh_interval_minutes INTEGER NOT NULL DEFAULT 5');
   ensureColumn('service_instances', 'custom_headers', "custom_headers TEXT NOT NULL DEFAULT '{}'");
   ensureColumn('service_instances', 'ignore_cert_errors', 'ignore_cert_errors INTEGER NOT NULL DEFAULT 0');
+  // Lets that instance's own webhook config (Sonarr/Radarr/Prowlarr/Overseerr/Tautulli all
+  // support pushing outbound webhooks) call back into Novaarr — unauthenticated by design (the
+  // calling service can't complete our own login), so this per-instance random token in the URL
+  // is what stops anyone else from posting fake events. Generated lazily, not at creation, so
+  // existing rows from before this feature don't need a migration to have one.
+  ensureColumn('service_instances', 'webhook_token', 'webhook_token TEXT');
   ensureColumn('settings', 'credentials_key', 'credentials_key TEXT');
   ensureColumn('settings', 'token_valid_after', 'token_valid_after INTEGER NOT NULL DEFAULT 0');
   ensureColumn('users', 'token_valid_after', 'token_valid_after INTEGER NOT NULL DEFAULT 0');
@@ -497,6 +503,23 @@ function listServiceInstances() {
 
 function getServiceInstance(id) {
   return parseInstance(getDb().prepare('SELECT * FROM service_instances WHERE id = ?').get(id));
+}
+
+// Generates on first use rather than at row creation — every instance created before this
+// feature existed still gets one the first time its webhook URL is actually looked up.
+function getOrCreateWebhookToken(id) {
+  const row = getDb().prepare('SELECT webhook_token FROM service_instances WHERE id = ?').get(id);
+  if (!row) return null;
+  if (row.webhook_token) return row.webhook_token;
+  const token = crypto.randomBytes(24).toString('base64url');
+  getDb().prepare('UPDATE service_instances SET webhook_token = ? WHERE id = ?').run(token, id);
+  return token;
+}
+
+function getServiceInstanceByWebhookToken(id, token) {
+  const row = getDb().prepare('SELECT webhook_token FROM service_instances WHERE id = ?').get(id);
+  if (!row || !row.webhook_token || row.webhook_token !== token) return null;
+  return getServiceInstance(id);
 }
 
 function createServiceInstance(data) {
@@ -907,6 +930,7 @@ module.exports = {
   recordFailedLogin, resetFailedLogins, getLockoutSeconds,
   closeDb, backupTo, restoreFrom, DB_PATH,
   listServiceInstances, getServiceInstance, createServiceInstance, updateServiceInstance, deleteServiceInstance,
+  getOrCreateWebhookToken, getServiceInstanceByWebhookToken,
   setServiceSessionToken, getDashboardWidgets, setDashboardWidgets,
   isMultiUser, setMultiUser, listUsers, getUserById, getUserByUsername, getUserByCfAccessEmail, countAdmins, createUser, updateUser, deleteUser,
   listUserLinks, upsertUserLink, deleteUserLink,

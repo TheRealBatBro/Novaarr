@@ -9,6 +9,12 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Novaarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.39.0',
+    notes: [
+      'Real-time notifications straight from Sonarr, Radarr, Prowlarr, Overseerr/Jellyseerr, and Tautulli — each release grab/import, health issue, request status change, and Plex playback/recently-added event can alert through any configured channel. Settings > Services now has a webhook button on each supported instance showing the exact URL (and, where needed, the JSON template) to paste into that service\'s own notification settings',
+    ],
+  },
+  {
     version: '0.38.0',
     notes: [
       'Alert channels — send notifications to Telegram, ntfy, Discord, Slack, Pushover, Gotify, or WhatsApp (via your own Twilio account) whenever something happens in Novaarr: sign-ins/failed attempts, credential/2FA/passkey changes, sessions revoked, services/users/access roles added or changed, and new pending Overseerr/Jellyseerr requests. Every event can be switched on or off independently from Settings > Notifications, applying to every channel and to push notifications at once',

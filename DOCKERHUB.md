@@ -113,10 +113,11 @@ for details.
 - **Passkeys** — sign in with your device's fingerprint, face, or a security key,
   additional to your PIN/password. Settings > Security.
 - **Push notifications & alert channels** — get notified when a new Overseerr/
-  Jellyseerr request needs approval, sign-ins/security changes happen, or services get
-  reconfigured — on this device via push, and/or via Telegram, ntfy, Discord, Slack,
-  Pushover, Gotify, or WhatsApp (via Twilio). Every event toggles independently.
-  Settings > Notifications.
+  Jellyseerr request needs approval, sign-ins/security changes happen, services get
+  reconfigured, or Sonarr/Radarr/Prowlarr/Overseerr/Tautulli push their own events
+  (grabs, imports, health issues, playback) — on this device via push, and/or via
+  Telegram, ntfy, Discord, Slack, Pushover, Gotify, or WhatsApp (via Twilio). Every
+  event toggles independently. Settings > Notifications and Settings > Services.
 - **Tailscale & Cloudflare Tunnel** — reach Novaarr over your own tailnet or a
   Cloudflare Tunnel, no port-forwarding required. See the
   [full README](https://github.com/TheRealBatBro/Novaarr#tailscale).

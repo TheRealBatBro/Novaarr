@@ -25,6 +25,7 @@ const totpRouter = require('./routes/totp');
 const webauthnRouter = require('./routes/webauthn');
 const pushRouter = require('./routes/push');
 const alertsRouter = require('./routes/alerts');
+const webhooksRouter = require('./routes/webhooks');
 const { startOverseerrPoller } = require('./lib/overseerrPoll');
 
 const app = express();
@@ -106,6 +107,7 @@ app.use(BASE + '/api/2fa', totpRouter);
 app.use(BASE + '/api/webauthn', webauthnRouter);
 app.use(BASE + '/api/push', pushRouter);
 app.use(BASE + '/api/alerts', alertsRouter);
+app.use(BASE + '/api/webhooks', webhooksRouter);
 app.get(BASE + '/api/health', (_req, res) => res.json({ ok: true }));
 
 // SPA fallback: serve index.html with __BASE__/__SHOW_ALL_SERVICES__ injected. The raw file read

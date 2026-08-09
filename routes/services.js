@@ -111,6 +111,26 @@ router.put('/:id', requireAdmin, (req, res) => {
   res.json(serialize(updated));
 });
 
+// Separate from the general serialize() above (which every signed-in person's own /services
+// list goes through) on purpose — the token in this URL lets anyone who has it post arbitrary
+// notification-triggering events for this instance, so it's admin-only, fetched on demand rather
+// than embedded in the list every member already receives.
+const WEBHOOK_SUPPORTED = new Set(['sonarr', 'radarr', 'prowlarr', 'overseerr', 'tautulli']);
+
+router.get('/:id/webhook-url', requireAdmin, (req, res) => {
+  const instance = db.getServiceInstance(req.params.id);
+  if (!instance) return res.status(404).json({ error: 'Not found' });
+  if (!WEBHOOK_SUPPORTED.has(instance.service_id)) {
+    return res.status(400).json({ error: `Webhooks aren't supported for ${instance.service_id} yet` });
+  }
+  const token = db.getOrCreateWebhookToken(instance.id);
+  // req.baseUrl is this router's own mount point (BASE_PATH + '/api/services') — stripping the
+  // known suffix recovers BASE_PATH without this route needing server.js's BASE constant
+  // imported directly.
+  const basePath = req.baseUrl.replace(/\/api\/services$/, '');
+  res.json({ url: `${req.protocol}://${req.get('host')}${basePath}/api/webhooks/${instance.id}/${token}` });
+});
+
 router.delete('/:id', requireAdmin, (req, res) => {
   const existing = db.getServiceInstance(req.params.id);
   db.deleteServiceInstance(req.params.id);

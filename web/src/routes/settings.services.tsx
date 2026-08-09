@@ -16,6 +16,7 @@ import type { ServiceInstance } from '@/lib/api';
 import { ServiceInstanceForm } from '@/components/services/ServiceInstanceForm';
 import { SettingsTabs } from '@/components/settings/SettingsTabs';
 import { AdminOnlyNotice } from '@/components/settings/AdminOnlyNotice';
+import { WebhookUrlButton } from '@/components/settings/WebhookUrlButton';
 import { useIsSettingsAdmin } from '@/lib/queries';
 
 export const Route = createFileRoute('/settings/services')({ component: SettingsServices });
@@ -134,6 +135,7 @@ function SettingsServices() {
                             <Button variant="outline" size="sm" onClick={() => setEditing({ definition: def, existing: instance })}>
                               Edit
                             </Button>
+                            <WebhookUrlButton instanceId={instance.id} serviceId={instance.serviceId} />
                             <Button variant="ghost" size="icon" onClick={() => remove(instance)} aria-label="Remove">
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>

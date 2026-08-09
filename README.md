@@ -382,11 +382,31 @@ something happens in Novaarr:
 - Sign-ins, failed sign-in attempts, credential/2FA/passkey changes, sessions revoked
 - Services, users, or access roles added/edited/removed
 - A new pending Overseerr/Jellyseerr request (the same trigger push notifications use)
+- **Real-time events pushed from the services themselves** (below) — release grabs/imports
+  and health issues from Sonarr/Radarr/Prowlarr, request status changes from Overseerr/
+  Jellyseerr, and playback/recently-added events from Tautulli.
 
 Each event can be switched on or off independently — the toggle applies to every
 configured channel and to push notifications at once, so a noisy event can be muted
 everywhere in one place instead of per-channel. Add a channel and use its "Send test"
 button to confirm it's wired up correctly before relying on it.
+
+### Real-time events from your other services
+
+Sonarr, Radarr, Prowlarr, Overseerr/Jellyseerr, and Tautulli all support pushing their own
+events to a URL you configure in their notification settings — Novaarr can receive those and
+fan them out through the alert channels above, instead of only reacting to what it can see
+through its own API. Settings > Services has a webhook icon button on each configured
+instance of these five services, showing:
+
+- The exact URL to paste into that service's webhook/notification connection settings
+  (each instance gets its own URL with a random token — that token is what stops anyone else
+  from posting fake events, so treat it like any other webhook URL/secret)
+- For Overseerr/Jellyseerr and Tautulli specifically, the exact JSON payload template to set,
+  since both let you author your own webhook body rather than shipping a fixed one
+
+This is deliberately scoped to the events those five services' own webhooks already send —
+not a general per-service integration for every app in the "Supported services" list above.
 
 ## Appearance
 
