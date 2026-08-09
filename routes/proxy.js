@@ -81,6 +81,19 @@ const adapters = {
       body: body ? JSON.stringify(body) : undefined,
     }, timeoutMs, instance);
   },
+  // No credential to inject at all (e.g. Maintainerr, which has no auth of its own) — the whole
+  // point of routing this through Novaarr's own backend rather than the browser is still SSRF
+  // protection and not exposing the target on the public internet directly, same as every other
+  // adapter; there's just nothing to add to the request itself.
+  none: (instance, { path, method = 'GET', query = {}, body }, timeoutMs) => {
+    const url = buildUrl(instance.local_url, path, query);
+    return fetchWithTimeout(url, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    }, timeoutMs, instance);
+  },
+
   'apikey-header': (instance, { path, method = 'GET', query = {}, body }, timeoutMs) => {
     const url = buildUrl(instance.local_url, path, query);
     return fetchWithTimeout(url, {

@@ -9,6 +9,12 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Novaarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.37.0',
+    notes: [
+      'New integration: Maintainerr — its own page shows configured rule groups and collections (active state, media matched, deletion countdown), with "Run rules now" and "Handle collections now" buttons to trigger it on demand instead of waiting for its own schedule. Maintainerr has no login of its own, so there\'s nothing to configure beyond its URL',
+    ],
+  },
+  {
     version: '0.36.7',
     notes: [
       'Fixed the Storage dashboard widget only ever showing disk space from your first configured Sonarr/Radarr instance — e.g. Radarr\'s /movies mount silently never showed up if Sonarr happened to be listed first, since only that one instance was ever queried. Now queries every configured instance and merges the results, deduping by mount path in case more than one points at the same underlying disk',

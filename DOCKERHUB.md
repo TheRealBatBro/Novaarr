@@ -93,7 +93,7 @@ they live in the volume, not the image.
 - **_arr suite**: Sonarr, Radarr, Lidarr, Readarr, Bazarr (subtitles), Sick Beard
 - **Indexers**: Prowlarr, NZBHydra2, Jackett
 - **Media servers**: Plex, Emby, Jellyfin
-- **Other**: Seerr, Ombi, Tautulli, Tracearr, Trakt, MDBList, Unraid
+- **Other**: Seerr, Ombi, Tautulli, Tracearr, Trakt, MDBList, Unraid, Maintainerr
 - **Coming soon**: NEWZnab
 
 Every service is optional — add only what you run. Anything left unconfigured is

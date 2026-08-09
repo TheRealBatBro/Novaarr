@@ -62,6 +62,19 @@ const Mdblist: Icon = (p) =>
     </>,
   );
 
+// No published logo in the dashboard-icons set at hand-authoring time — a simple broom glyph
+// (cleanup/maintenance), same treatment as the other hand-drawn fallbacks above.
+const Maintainerr: Icon = (p) =>
+  svg(
+    p,
+    <>
+      <path d="M14 3l-7 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M9.5 12.5L5 21l3.2-1.4L11 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M13 4.5L18 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M4 22h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </>,
+  );
+
 const Fallback: Icon = (p) => svg(p, <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />);
 
 const REGISTRY: Record<string, Icon> = {
@@ -92,6 +105,7 @@ const REGISTRY: Record<string, Icon> = {
   emby: logo('emby'),
   jellyfin: logo('jellyfin'),
   mdblist: Mdblist,
+  maintainerr: Maintainerr,
 };
 
 export function getServiceIcon(serviceId: string): Icon {

@@ -32,7 +32,7 @@ reverse proxy or VPN and everything else can stay bound to your local network on
 - **Indexers**: Prowlarr, NZBHydra2, Jackett
 - **Media servers**: Plex, Emby, Jellyfin (dashboard widgets — recently added,
   collections, library stats)
-- **Other**: Seerr, Ombi, Tautulli, Tracearr, Trakt, MDBList, Unraid
+- **Other**: Seerr, Ombi, Tautulli, Tracearr, Trakt, MDBList, Unraid, Maintainerr
 - **Coming soon**: NEWZnab — see Settings > Services for what's live today.
 
 Every service is optional. Add only what you run — anything left unconfigured is

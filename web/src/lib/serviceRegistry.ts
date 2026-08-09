@@ -416,6 +416,20 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     healthCheck: { path: '/user' },
     hideFromNav: true,
   },
+  {
+    id: 'maintainerr',
+    category: 'other',
+    displayName: 'Maintainerr',
+    brandColor: '#6366f1',
+    // Maintainerr has no authentication of its own — anyone who can reach its URL can call its
+    // API. Nothing to configure beyond the URL itself.
+    authType: 'none',
+    fields: [],
+    hasDetailScreen: true,
+    helpText:
+      'Automated library cleanup for Plex/Jellyfin/Emby — rule-based collections that flag and remove media nobody\'s watching. Maintainerr has no login of its own, so just point this at its URL (default port 6246).',
+    healthCheck: { path: '/api/health' },
+  },
 ];
 
 export const CATEGORY_LABELS: Record<ServiceCategory, string> = {
