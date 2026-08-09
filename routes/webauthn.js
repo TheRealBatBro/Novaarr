@@ -95,11 +95,14 @@ router.post('/register/verify', requireAuth, limiter, async (req, res) => {
     if (!verification.verified || !verification.registrationInfo) {
       return res.status(400).json({ error: 'Could not verify passkey' });
     }
-    const { credential } = verification.registrationInfo;
+    // This installed @simplewebauthn/server version returns a flat registrationInfo
+    // (credentialID/credentialPublicKey/counter), not the nested `.credential` shape some other
+    // versions/docs use — confirmed by reading the installed package's own source directly.
+    const { credentialID, credentialPublicKey, counter } = verification.registrationInfo;
     db.createWebauthnCredential({
-      credentialId: credential.id,
-      publicKey: Buffer.from(credential.publicKey).toString('base64url'),
-      counter: credential.counter,
+      credentialId: credentialID,
+      publicKey: Buffer.from(credentialPublicKey).toString('base64url'),
+      counter,
       transports: response.response?.transports || [],
       userId: identity.userId,
       name: (name || 'Passkey').slice(0, 60),
@@ -150,9 +153,11 @@ router.post('/login/verify', limiter, async (req, res) => {
       expectedChallenge: pending.challenge,
       expectedOrigin: origin(req),
       expectedRPID: rpID(req),
-      credential: {
-        id: stored.credential_id,
-        publicKey: Buffer.from(stored.public_key, 'base64url'),
+      // Same flat shape as verifyRegistrationResponse's registrationInfo — the param is called
+      // `authenticator` in this version, not `credential`.
+      authenticator: {
+        credentialID: stored.credential_id,
+        credentialPublicKey: Buffer.from(stored.public_key, 'base64url'),
         counter: stored.counter,
         transports: stored.transports,
       },

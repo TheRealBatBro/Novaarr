@@ -9,6 +9,12 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Novaarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.36.4',
+    notes: [
+      'Fixed passkey registration/sign-in crashing on the server with "Cannot read properties of undefined (reading \'id\')" once a real authenticator (e.g. a password manager) actually completed the prompt — the installed @simplewebauthn/server version returns a flatter result shape than assumed. Confirmed by reading the installed package\'s own source directly this time, not just docs/assumptions',
+    ],
+  },
+  {
     version: '0.36.3',
     notes: [
       'Actually fixed passkey registration/sign-in this time — the previous fix addressed a real but secondary issue; the real cause was calling the installed @simplewebauthn/browser version with the wrong argument shape (wrapped in {optionsJSON}, which this version silently ignores instead of erroring on). Verified end-to-end against the real client bundle: the full options object now reaches the browser\'s credential prompt correctly',
