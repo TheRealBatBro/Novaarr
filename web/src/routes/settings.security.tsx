@@ -441,17 +441,31 @@ function TwoFactorCard() {
 }
 
 function RevokeSessionsCard() {
+  const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
+  const [revoking, setRevoking] = useState(false);
+
+  async function handleLogout() {
+    setBusy(true);
+    try {
+      await authApi.logout();
+      await qc.invalidateQueries({ queryKey: ['auth', 'status'] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to sign out');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function handleRevoke() {
-    setBusy(true);
+    setRevoking(true);
     try {
       await authApi.revokeSessions();
       toast.success('Every other signed-in session has been signed out');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to sign out other sessions');
     } finally {
-      setBusy(false);
+      setRevoking(false);
     }
   }
 
@@ -463,12 +477,17 @@ function RevokeSessionsCard() {
           <p className="text-sm font-semibold">Sessions</p>
         </div>
         <p className="mb-3 text-sm text-muted-foreground">
-          Signs every browser currently signed in — including anywhere a session cookie may have leaked — back out. You'll stay signed in
-          here.
+          Sign out of just this device, or sign out every other browser currently signed in — including anywhere a session cookie may
+          have leaked.
         </p>
-        <Button variant="outline" disabled={busy} onClick={handleRevoke}>
-          Sign out everywhere else
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" disabled={busy} onClick={handleLogout}>
+            Sign out
+          </Button>
+          <Button variant="outline" disabled={revoking} onClick={handleRevoke}>
+            Sign out everywhere else
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

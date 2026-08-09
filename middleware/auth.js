@@ -61,6 +61,14 @@ async function tryCloudflareAccess(req) {
   try {
     const payload = await cloudflareAccess.verifyAccessToken(assertion);
     const user = resolveCloudflareAccessUser(payload.email);
+    // Cloudflare Access issues its own JWT with its own lifetime, entirely outside this app's
+    // cookie — without this check, "Sign out everywhere else" (and a credential change) would
+    // have zero effect on anyone signed in via Access, since nothing here ever consulted the
+    // revocation floor those actions move forward. Access's token still carries a standard `iat`,
+    // so the same isTokenRevoked check applies here as it does to the app's own session cookie.
+    if (user && db.isTokenRevoked({ ...user, iat: payload.iat })) {
+      return { user: null, denied: false };
+    }
     return { user, denied: !user, email: payload.email };
   } catch {
     return { user: null, denied: false };

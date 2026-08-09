@@ -9,6 +9,13 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Novaarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.36.6',
+    notes: [
+      'Fixed "Sign out everywhere else" having no effect on a device signed in via Cloudflare Access — Access issues its own token entirely outside this app\'s session cookie, so nothing was ever checking it against the revocation floor. It now is, though a device whose underlying Cloudflare Access session is still alive can still get a fresh token on its next silent refresh — actually revoking an Access session itself is done from Cloudflare\'s own dashboard, not something this app controls',
+      'Added a plain "Sign out" button next to "Sign out everywhere else" in Settings > Security — signing out of just the current device had no button at all before this',
+    ],
+  },
+  {
     version: '0.36.5',
     notes: [
       'Fixed "Sign out everywhere else" (and a credential/password change) not actually signing out other devices — /api/auth/status checked whether a session token\'s signature was valid, but never checked whether it had been revoked, so an already-revoked device kept reporting itself as signed in indefinitely. Also added a periodic recheck so a revoked device gets kicked back to the lock screen within 30 seconds even if left open and untouched, rather than only on its next refocus',
