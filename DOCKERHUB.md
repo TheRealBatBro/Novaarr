@@ -15,6 +15,9 @@ everything else stays bound to your local network.
 Full source, issue tracker, and detailed docs (reverse-proxy setup, backups, etc.):
 **https://github.com/TheRealBatBro/Novaarr**
 
+**[See it in action →](https://therealbatbro.github.io/Novaarr/)** — screenshots and a
+full feature rundown.
+
 ## Screenshots
 
 ![Dashboard overview](https://raw.githubusercontent.com/TheRealBatBro/Novaarr/main/docs/screenshots/dashboard.png)
@@ -104,6 +107,18 @@ of one shared PIN/password, with Admin/Member roles and named **access roles** t
 restrict a Member to specific services, dashboard widgets, and Calendar sources. See
 the [full README](https://github.com/TheRealBatBro/Novaarr#multi-user-mode--access-roles)
 for details.
+
+## Also worth knowing about
+
+- **Passkeys** — sign in with your device's fingerprint, face, or a security key,
+  additional to your PIN/password. Settings > Security.
+- **Push notifications** — get notified when a new Overseerr/Jellyseerr request needs
+  approval, without the app open. Settings > Notifications.
+- **Tailscale & Cloudflare Tunnel** — reach Novaarr over your own tailnet or a
+  Cloudflare Tunnel, no port-forwarding required. See the
+  [full README](https://github.com/TheRealBatBro/Novaarr#tailscale).
+- **Theming** — six accent colors plus an AMOLED true-black dark mode. Settings >
+  Appearance.
 
 ## Configuration
 

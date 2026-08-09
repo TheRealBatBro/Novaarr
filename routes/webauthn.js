@@ -57,9 +57,15 @@ router.post('/register/options', requireAuth, async (req, res) => {
   if (!identity) return res.status(404).json({ error: 'Not found' });
 
   const existing = db.listWebauthnCredentials(identity.userId);
+  // @simplewebauthn/server (v9+) needs an explicit userID (the WebAuthn "user handle") — without
+  // it, options.user.id comes back undefined and the browser-side library throws trying to
+  // base64url-decode it. Derived deterministically per identity rather than randomly generated,
+  // so re-registering doesn't need any server-side session state beyond the identity itself.
+  const userID = new TextEncoder().encode(identity.userId ? `user-${identity.userId}` : 'simple-mode');
   const options = await generateRegistrationOptions({
     rpName: 'Novaarr',
     rpID: rpID(req),
+    userID,
     userName: identity.label,
     attestationType: 'none',
     excludeCredentials: existing.map((c) => ({ id: c.credential_id, transports: c.transports })),

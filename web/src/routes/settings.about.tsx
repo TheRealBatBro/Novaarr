@@ -9,6 +9,12 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Novaarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.36.2',
+    notes: [
+      'Fixed "Add a passkey" actually failing with "Cannot read properties of undefined (reading \'replace\')" — the server wasn\'t passing an explicit user handle to the registration request, so the browser had nothing to encode and crashed. Passkeys should now register correctly',
+    ],
+  },
+  {
     version: '0.36.1',
     notes: [
       'Fixed "Add a passkey" doing nothing on some browsers — it relied on a plain browser prompt() for naming the passkey, which mobile/installed-app browsers commonly block silently. Replaced with a proper in-app dialog, and failures now show an actual error instead of failing silently',

@@ -4,6 +4,9 @@ A self-hosted, all-in-one web dashboard for your media and download stack. One a
 one Docker container, works from any browser on your phone, tablet, or desktop — no
 native app required.
 
+**[🌐 See it in action →](https://therealbatbro.github.io/Novaarr/)** — screenshots and
+a full feature rundown.
+
 > **Coming from Remotarr?** Novaarr is the same project, renamed. Pulling the new
 > `therealbatbro/novaarr` image and switching to the updated `docker-compose.yml`
 > below is a drop-in upgrade — the app finds and migrates your existing database
@@ -345,6 +348,32 @@ policy. **Save the backup codes somewhere safe** — there's no email/SMS recove
 so losing both your authenticator app and your backup codes means recovering access
 requires directly editing the database (clearing `totp_enabled`/`totp_secret` for the
 relevant row).
+
+## Passkeys
+
+Settings > Security also has a **Passkeys** card — sign in with your device's
+fingerprint, face, or a security key instead of typing your PIN/password. This is
+additive, not a replacement: your existing credential keeps working, and you can add
+more than one passkey (e.g. one per device). Passkeys require the page be loaded over
+HTTPS or `localhost` — a browser-level rule, not something Novaarr can work around —
+so if you're reaching Novaarr over plain `http://` on a LAN IP, set up a
+[reverse proxy](#running-behind-a-reverse-proxy), [Cloudflare Tunnel](#cloudflare-tunnel),
+or [Tailscale](#tailscale) first.
+
+## Push notifications
+
+Settings > Notifications lets you enable push notifications on that device/browser —
+separate per device, same as any other app. Today's real trigger is a background
+poller that watches every configured Overseerr/Jellyseerr instance's pending-request
+count and notifies you when it goes up, so approvals don't just sit there until you
+happen to open the app. A "Send test notification" button is there to confirm it's
+wired up correctly on a given device.
+
+## Appearance
+
+Settings > Appearance lets you pick one of six accent colors and toggle an AMOLED
+true-black dark mode — both stored per device/browser, not shared with other people
+signed in to the same deployment.
 
 ## Multi-user mode & access roles
 
