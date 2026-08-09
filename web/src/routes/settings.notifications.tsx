@@ -4,12 +4,16 @@ import { Bell, BellOff, Send } from 'lucide-react';
 import { SettingsTabs } from '@/components/settings/SettingsTabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { AlertChannelsCard } from '@/components/settings/AlertChannels';
+import { AlertEventsCard } from '@/components/settings/AlertEvents';
 import { pushApi } from '@/lib/api';
+import { useIsSettingsAdmin } from '@/lib/queries';
 import { getPushSubscriptionState, isPushSupported, subscribeToPush, unsubscribeFromPush } from '@/lib/push';
 
 export const Route = createFileRoute('/settings/notifications')({ component: SettingsNotifications });
 
 function SettingsNotifications() {
+  const isAdmin = useIsSettingsAdmin();
   const [state, setState] = useState<'loading' | 'subscribed' | 'unsubscribed' | 'unsupported'>('loading');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,6 +97,13 @@ function SettingsNotifications() {
           )}
         </CardContent>
       </Card>
+
+      {isAdmin && (
+        <div className="mt-6 flex flex-col gap-6">
+          <AlertChannelsCard />
+          <AlertEventsCard />
+        </div>
+      )}
     </div>
   );
 }

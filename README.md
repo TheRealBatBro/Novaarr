@@ -369,6 +369,25 @@ count and notifies you when it goes up, so approvals don't just sit there until 
 happen to open the app. A "Send test notification" button is there to confirm it's
 wired up correctly on a given device.
 
+## Alert channels
+
+The same Settings > Notifications page also has **Alert channels** — send a message to
+Telegram, [ntfy](https://ntfy.sh), Discord, Slack, Pushover, Gotify, or WhatsApp
+(via your own [Twilio](https://www.twilio.com/docs/whatsapp/api) account — there's no
+general-purpose, ToS-compliant way to send WhatsApp messages without one; the
+unofficial approaches all require a persistent QR-scanned session tied to a real
+personal number, not something to automate from a background service) whenever
+something happens in Novaarr:
+
+- Sign-ins, failed sign-in attempts, credential/2FA/passkey changes, sessions revoked
+- Services, users, or access roles added/edited/removed
+- A new pending Overseerr/Jellyseerr request (the same trigger push notifications use)
+
+Each event can be switched on or off independently — the toggle applies to every
+configured channel and to push notifications at once, so a noisy event can be muted
+everywhere in one place instead of per-channel. Add a channel and use its "Send test"
+button to confirm it's wired up correctly before relying on it.
+
 ## Appearance
 
 Settings > Appearance lets you pick one of six accent colors and toggle an AMOLED

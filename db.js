@@ -141,6 +141,20 @@ function initDb() {
       created_at    INTEGER DEFAULT (unixepoch())
     );
 
+    -- Outbound alert channels (Telegram, ntfy, Discord, Slack, Pushover, Gotify, WhatsApp via
+    -- Twilio) — separate from push_subscriptions above, which is browser Web Push specifically.
+    -- config holds whatever fields that channel type needs (bot token, webhook URL, etc.),
+    -- encrypted the same way service_instances.credentials is, since these are equally sensitive
+    -- bearer credentials.
+    CREATE TABLE IF NOT EXISTS notification_channels (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      type       TEXT    NOT NULL,
+      name       TEXT    NOT NULL DEFAULT '',
+      config     TEXT    NOT NULL DEFAULT '{}',
+      enabled    INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER DEFAULT (unixepoch())
+    );
+
     CREATE TABLE IF NOT EXISTS service_instances (
       id             INTEGER PRIMARY KEY AUTOINCREMENT,
       service_id     TEXT    NOT NULL,
@@ -181,6 +195,10 @@ function initDb() {
   ensureColumn('settings', 'vapid_public_key', 'vapid_public_key TEXT');
   ensureColumn('settings', 'vapid_private_key', 'vapid_private_key TEXT');
   ensureColumn('settings', 'overseerr_pending_seen', 'overseerr_pending_seen TEXT');
+  // Stores DISABLED event keys, not enabled ones — a newly added event type (a future app
+  // version adding a new kind of alert) defaults to enabled without needing a migration to
+  // explicitly opt existing deployments in.
+  ensureColumn('settings', 'notification_disabled_events', "notification_disabled_events TEXT NOT NULL DEFAULT '[]'");
 
   const row = db.prepare('SELECT id FROM settings WHERE id = 1').get();
   if (!row) {
@@ -329,14 +347,32 @@ const AUDIT_LOG_MAX_ROWS = 5000;
 const AUDIT_LOG_MAX_AGE_SECONDS = 90 * 24 * 60 * 60;
 
 function logAudit({ actorUserId, actorLabel, action, target, detail, ip }) {
-  const db = getDb();
-  db.prepare(
+  const conn = getDb();
+  conn.prepare(
     'INSERT INTO audit_log (actor_user_id, actor_label, action, target, detail, ip) VALUES (?, ?, ?, ?, ?, ?)',
   ).run(actorUserId ?? null, actorLabel, action, target ?? null, detail ?? null, ip ?? null);
-  db.prepare('DELETE FROM audit_log WHERE created_at < ?').run(Math.floor(Date.now() / 1000) - AUDIT_LOG_MAX_AGE_SECONDS);
-  db.prepare(
+  conn.prepare('DELETE FROM audit_log WHERE created_at < ?').run(Math.floor(Date.now() / 1000) - AUDIT_LOG_MAX_AGE_SECONDS);
+  conn.prepare(
     'DELETE FROM audit_log WHERE id NOT IN (SELECT id FROM audit_log ORDER BY id DESC LIMIT ?)',
   ).run(AUDIT_LOG_MAX_ROWS);
+
+  // Every audit-logged action funnels through this one function (lib/audit.js's logAction, plus
+  // a handful of call sites in routes/auth.js and webauthn.js that log directly before a session
+  // cookie exists to build a req.user from) — the single choke point where outbound alerting
+  // hooks in, rather than needing every call site to remember to fire one. Lazy require avoids a
+  // load-order cycle: lib/notify.js needs this module's exports, which aren't assigned yet while
+  // db.js itself is still being loaded.
+  try {
+    const { EVENTS } = require('./lib/notificationEvents');
+    const meta = EVENTS.find((e) => e.key === action);
+    if (meta) {
+      require('./lib/notify')
+        .dispatch(action, { title: meta.label, body: `${actorLabel}${target ? ` — ${target}` : ''}${detail ? ` (${detail})` : ''}` })
+        .catch(() => {});
+    }
+  } catch {
+    /* notification dispatch is best-effort and must never break audit logging itself */
+  }
 }
 
 function listAuditLog({ limit = 200, action } = {}) {
@@ -810,10 +846,58 @@ function deleteWebauthnCredential(id, userId) {
   }
 }
 
+function parseChannel(row) {
+  if (!row) return row;
+  return { ...row, config: decryptJson(row.config), enabled: !!row.enabled };
+}
+
+function listNotificationChannels() {
+  return getDb().prepare('SELECT * FROM notification_channels ORDER BY id').all().map(parseChannel);
+}
+
+function getNotificationChannel(id) {
+  return parseChannel(getDb().prepare('SELECT * FROM notification_channels WHERE id = ?').get(id));
+}
+
+function createNotificationChannel({ type, name, config, enabled }) {
+  const result = getDb()
+    .prepare('INSERT INTO notification_channels (type, name, config, enabled) VALUES (?, ?, ?, ?)')
+    .run(type, name || '', encryptJson(config || {}), enabled === false ? 0 : 1);
+  return getNotificationChannel(result.lastInsertRowid);
+}
+
+function updateNotificationChannel(id, data) {
+  const existing = getNotificationChannel(id);
+  if (!existing) return null;
+  getDb()
+    .prepare('UPDATE notification_channels SET name = ?, config = ?, enabled = ? WHERE id = ?')
+    .run(
+      data.name ?? existing.name,
+      data.config !== undefined ? encryptJson(data.config) : encryptJson(existing.config),
+      data.enabled !== undefined ? (data.enabled ? 1 : 0) : (existing.enabled ? 1 : 0),
+      id,
+    );
+  return getNotificationChannel(id);
+}
+
+function deleteNotificationChannel(id) {
+  getDb().prepare('DELETE FROM notification_channels WHERE id = ?').run(id);
+}
+
+function getDisabledNotificationEvents() {
+  try { return JSON.parse(getSettings().notification_disabled_events || '[]'); } catch { return []; }
+}
+
+function setDisabledNotificationEvents(keys) {
+  getDb().prepare('UPDATE settings SET notification_disabled_events = ? WHERE id = 1').run(JSON.stringify(keys || []));
+}
+
 module.exports = {
   initDb, getDb, getSettings, setCredential, getJwtSecret,
   getVapidKeys, setVapidKeys, upsertPushSubscription, removePushSubscription, listPushSubscriptions,
   getOverseerrPendingSeen, setOverseerrPendingSeen,
+  listNotificationChannels, getNotificationChannel, createNotificationChannel, updateNotificationChannel, deleteNotificationChannel,
+  getDisabledNotificationEvents, setDisabledNotificationEvents,
   listWebauthnCredentials, getWebauthnCredentialByCredentialId, createWebauthnCredential,
   updateWebauthnCredentialCounter, deleteWebauthnCredential,
   bumpTokenValidAfter, bumpUserTokenValidAfter, isTokenRevoked,

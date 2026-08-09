@@ -1,5 +1,5 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { authApi, servicesApi, proxyApi, dashboardApi, cloudflareTunnelApi, tailscaleApi, webauthnApi, type ServiceInstance, type ServiceInstanceInput, type DashboardWidgetConfig } from './api';
+import { authApi, servicesApi, proxyApi, dashboardApi, cloudflareTunnelApi, tailscaleApi, webauthnApi, alertsApi, type ServiceInstance, type ServiceInstanceInput, type DashboardWidgetConfig } from './api';
 
 // Polls rather than only checking on mount/refocus — a device signed out via "Sign out
 // everywhere else" (or a credential change) should actually get kicked back to the lock screen
@@ -26,6 +26,50 @@ export function useTailscaleStatus(enabled: boolean) {
 
 export function usePasskeys() {
   return useQuery({ queryKey: ['webauthn', 'credentials'], queryFn: webauthnApi.list });
+}
+
+export function useAlertChannels() {
+  return useQuery({ queryKey: ['alerts', 'channels'], queryFn: alertsApi.channels });
+}
+
+export function useAlertChannelTypes() {
+  return useQuery({ queryKey: ['alerts', 'channel-types'], queryFn: alertsApi.channelTypes });
+}
+
+export function useCreateAlertChannel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: alertsApi.createChannel,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['alerts', 'channels'] }),
+  });
+}
+
+export function useUpdateAlertChannel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: number; input: Partial<{ name: string; config: Record<string, string>; enabled: boolean }> }) => alertsApi.updateChannel(id, input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['alerts', 'channels'] }),
+  });
+}
+
+export function useDeleteAlertChannel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => alertsApi.deleteChannel(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['alerts', 'channels'] }),
+  });
+}
+
+export function useAlertEvents() {
+  return useQuery({ queryKey: ['alerts', 'events'], queryFn: alertsApi.events });
+}
+
+export function useSetDisabledAlertEvents() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (disabledKeys: string[]) => alertsApi.setDisabledEvents(disabledKeys),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['alerts', 'events'] }),
+  });
 }
 
 export function useDeletePasskey() {

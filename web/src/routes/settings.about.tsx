@@ -9,6 +9,12 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Novaarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.38.0',
+    notes: [
+      'Alert channels — send notifications to Telegram, ntfy, Discord, Slack, Pushover, Gotify, or WhatsApp (via your own Twilio account) whenever something happens in Novaarr: sign-ins/failed attempts, credential/2FA/passkey changes, sessions revoked, services/users/access roles added or changed, and new pending Overseerr/Jellyseerr requests. Every event can be switched on or off independently from Settings > Notifications, applying to every channel and to push notifications at once',
+    ],
+  },
+  {
     version: '0.37.2',
     notes: [
       'Fixed the Maintainerr rule group row\'s active badge and action buttons being spread out across the row instead of grouped together on the right — they were separate flex children under a justify-between row, which spaces out every child evenly, not just the first and last',

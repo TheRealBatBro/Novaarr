@@ -416,3 +416,36 @@ export const pushApi = {
     }).then((r) => json<{ ok: true }>(r)),
   test: () => fetch(apiUrl('/api/push/test'), { method: 'POST', credentials: 'same-origin' }).then((r) => json<{ ok: true }>(r)),
 };
+
+export type AlertChannelType = 'telegram' | 'ntfy' | 'discord' | 'slack' | 'pushover' | 'gotify' | 'whatsapp';
+export type AlertChannel = { id: number; type: AlertChannelType; name: string; enabled: boolean; created_at: number };
+export type AlertEvent = { key: string; label: string; group: string; enabled: boolean };
+
+export const alertsApi = {
+  channels: () => fetch(apiUrl('/api/alerts/channels'), { credentials: 'same-origin' }).then((r) => json<AlertChannel[]>(r)),
+  channelTypes: () => fetch(apiUrl('/api/alerts/channel-types'), { credentials: 'same-origin' }).then((r) => json<AlertChannelType[]>(r)),
+  createChannel: (input: { type: AlertChannelType; name: string; config: Record<string, string>; enabled?: boolean }) =>
+    fetch(apiUrl('/api/alerts/channels'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    }).then((r) => json<AlertChannel>(r)),
+  updateChannel: (id: number, input: Partial<{ name: string; config: Record<string, string>; enabled: boolean }>) =>
+    fetch(apiUrl(`/api/alerts/channels/${id}`), {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    }).then((r) => json<AlertChannel>(r)),
+  deleteChannel: (id: number) => fetch(apiUrl(`/api/alerts/channels/${id}`), { method: 'DELETE', credentials: 'same-origin' }).then((r) => json<{ ok: true }>(r)),
+  testChannel: (id: number) => fetch(apiUrl(`/api/alerts/channels/${id}/test`), { method: 'POST', credentials: 'same-origin' }).then((r) => json<{ ok: true }>(r)),
+  events: () => fetch(apiUrl('/api/alerts/events'), { credentials: 'same-origin' }).then((r) => json<AlertEvent[]>(r)),
+  setDisabledEvents: (disabledKeys: string[]) =>
+    fetch(apiUrl('/api/alerts/events'), {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ disabledKeys }),
+    }).then((r) => json<{ ok: true }>(r)),
+};
