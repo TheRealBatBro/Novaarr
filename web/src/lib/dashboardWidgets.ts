@@ -246,6 +246,7 @@ type RadarrMovie = {
   physicalRelease?: string;
   digitalRelease?: string;
   inCinemas?: string;
+  tmdbId?: number;
 };
 type RadarrQueueRecord = { movieId?: number };
 
@@ -300,6 +301,7 @@ type SonarrSeries = {
   images?: ArrImage[];
   status?: string;
   statistics?: { episodeFileCount?: number; episodeCount?: number };
+  tvdbId?: number;
 };
 type SonarrCalendarItem = {
   id: number;
@@ -1000,6 +1002,7 @@ function plexImageUrl(plex: ServiceInstance | undefined, thumbPath?: string): st
   return apiUrl(`/api/plex/${plex.id}/image?${new URLSearchParams({ path: thumbPath })}`);
 }
 
+type PlexGuid = { id: string };
 type PlexMetadataItem = {
   ratingKey: string;
   type: 'movie' | 'episode' | 'season' | 'show';
@@ -1010,17 +1013,68 @@ type PlexMetadataItem = {
   grandparentThumb?: string;
   index?: number;
   parentIndex?: number;
+  Guid?: PlexGuid[];
 };
 type PlexDirectory = { key: string; title: string; type: string };
 type PlexCollectionItem = { ratingKey: string; title: string; thumb?: string; childCount?: string };
 type PlexContainerResponse<T> = { MediaContainer?: { Metadata?: T[]; Directory?: PlexDirectory[]; size?: number; totalSize?: number } };
 
-export function usePlexRecentlyAddedCarousel(plex: ServiceInstance | undefined): CarouselResult {
+// Plex's modern multi-agent metadata carries external ids as "tmdb://12345" / "tvdb://67890" in
+// a Guid array — not verified against a live server in this session (same caveat as the rest of
+// this file's Plex integration), but it's the long-documented, stable shape. Used to cross-
+// reference a Plex item to the same title already configured in Radarr/Sonarr, so clicking a
+// Plex dashboard card can open that real detail page instead of Plex's own (page-less) service
+// screen — Plex itself has no page of its own in this app; Tautulli covers watch activity instead.
+function plexGuidIds(guids?: PlexGuid[]): { tmdbId?: number; tvdbId?: number } {
+  const tmdbId = guids?.map((g) => g.id.match(/tmdb:\/\/(\d+)/)?.[1]).find(Boolean);
+  const tvdbId = guids?.map((g) => g.id.match(/tvdb:\/\/(\d+)/)?.[1]).find(Boolean);
+  return { tmdbId: tmdbId ? Number(tmdbId) : undefined, tvdbId: tvdbId ? Number(tvdbId) : undefined };
+}
+
+/** Radarr's tmdbId -> its own item id, and Sonarr's tvdbId -> its own item id — only fetched
+ * when that service is actually configured, so a deployment running Plex alone doesn't pay for
+ * two extra requests it can't use. */
+function useArrLookups(radarr: ServiceInstance | undefined, sonarr: ServiceInstance | undefined) {
+  const { data: movies } = useServiceProxy<RadarrMovie[]>(radarr, { path: '/api/v3/movie', enabled: !!radarr, ...refreshSchedule(radarr) });
+  const { data: series } = useServiceProxy<SonarrSeries[]>(sonarr, { path: '/api/v3/series', enabled: !!sonarr, ...refreshSchedule(sonarr) });
+  const byTmdbId = new Map<number, number>();
+  for (const m of movies?.ok ? movies.data ?? [] : []) if (m.tmdbId) byTmdbId.set(m.tmdbId, m.id);
+  const byTvdbId = new Map<number, number>();
+  for (const s of series?.ok ? series.data ?? [] : []) if (s.tvdbId) byTvdbId.set(s.tvdbId, s.id);
+  return { byTmdbId, byTvdbId };
+}
+
+/** A movie's tmdbId matches Radarr; a show/episode's tvdbId matches Sonarr (episodes carry the
+ * show's own tvdbId, same as the show itself, via the parent-level Guid Plex includes). Falls
+ * back to Plex's own (page-less) service target when nothing configured matches. */
+function plexItemLinkTarget(
+  type: PlexMetadataItem['type'],
+  guids: PlexGuid[] | undefined,
+  lookups: { byTmdbId: Map<number, number>; byTvdbId: Map<number, number> },
+): CarouselLinkTarget {
+  const { tmdbId, tvdbId } = plexGuidIds(guids);
+  if (type === 'movie' && tmdbId !== undefined) {
+    const radarrId = lookups.byTmdbId.get(tmdbId);
+    if (radarrId !== undefined) return { serviceId: 'radarr', itemId: String(radarrId) };
+  }
+  if ((type === 'episode' || type === 'show') && tvdbId !== undefined) {
+    const sonarrId = lookups.byTvdbId.get(tvdbId);
+    if (sonarrId !== undefined) return { serviceId: 'sonarr', itemId: String(sonarrId) };
+  }
+  return { serviceId: 'plex' };
+}
+
+export function usePlexRecentlyAddedCarousel(
+  plex: ServiceInstance | undefined,
+  radarr?: ServiceInstance,
+  sonarr?: ServiceInstance,
+): CarouselResult {
   const { data, isLoading, refetch } = useServiceProxy<PlexContainerResponse<PlexMetadataItem>>(plex, {
     path: '/library/recentlyAdded',
     query: { 'X-Plex-Container-Size': String(LIMIT) },
     ...refreshSchedule(plex),
   });
+  const lookups = useArrLookups(radarr, sonarr);
   const rows = data?.ok ? data.data?.MediaContainer?.Metadata ?? [] : [];
   const items: CarouselItem[] = rows.slice(0, LIMIT).map((r) => {
     const isEpisode = r.type === 'episode';
@@ -1037,7 +1091,7 @@ export function usePlexRecentlyAddedCarousel(plex: ServiceInstance | undefined):
       title: isEpisode ? r.grandparentTitle || r.title : r.title,
       subtitle,
       imageUrl: plexImageUrl(plex, thumb),
-      to: { serviceId: 'plex' },
+      to: plexItemLinkTarget(r.type, r.Guid, lookups),
     };
   });
   return { items, isLoading, error: proxyError(data), refetch: async () => void (await refetch()) };

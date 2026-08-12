@@ -9,6 +9,12 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Novaarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.39.1',
+    notes: [
+      'Fixed clicking a "Recently Added" Plex dashboard card landing on "Plex has no page of its own" — it now cross-references the item against Radarr/Sonarr (by TMDB/TVDB id, the same ones Plex\'s own metadata carries) and opens the real detail page there when it finds a match',
+    ],
+  },
+  {
     version: '0.39.0',
     notes: [
       'Real-time notifications straight from Sonarr, Radarr, Prowlarr, Overseerr/Jellyseerr, and Tautulli — each release grab/import, health issue, request status change, and Plex playback/recently-added event can alert through any configured channel. Settings > Services now has a webhook button on each supported instance showing the exact URL (and, where needed, the JSON template) to paste into that service\'s own notification settings',

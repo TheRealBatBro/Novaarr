@@ -51,6 +51,8 @@ import { StorageWidget } from './StorageWidget';
 export type SourceProps = {
   instance: ServiceInstance;
   overseerr?: ServiceInstance;
+  radarr?: ServiceInstance;
+  sonarr?: ServiceInstance;
   sourceId: string;
   title: string;
   sourceLabel: string;
@@ -129,8 +131,13 @@ function TautulliRecentlyAdded({ instance, sourceId, title, sourceLabel, sourceC
   const result = useTautulliRecentlyAddedCarousel(instance);
   return <DashboardCarousel title={title} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} {...result} />;
 }
-function PlexRecentlyAdded({ instance, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
-  const result = usePlexRecentlyAddedCarousel(instance);
+function PlexRecentlyAdded({ instance, radarr, sonarr, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
+  const result = usePlexRecentlyAddedCarousel(instance, radarr, sonarr);
+  // sourceInstance/overseerrInstance aren't set here — DashboardCarousel's openItem only fast-
+  // paths the in-place dialog when sourceId itself is 'radarr'/'sonarr'; a matched Plex item
+  // (to.serviceId 'radarr'/'sonarr' with sourceId still 'plex') instead takes its generic
+  // navigate-to-page fallback, which resolves that service id to whichever instance is
+  // configured — a full page instead of the in-place dialog, but a real page either way.
   return <DashboardCarousel title={title} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} {...result} />;
 }
 function PlexCollections({ instance, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
@@ -303,6 +310,8 @@ export function DashboardWidget({ widgetKey }: { widgetKey: string }) {
     <Component
       instance={instance}
       overseerr={bySource.overseerr[0]}
+      radarr={bySource.radarr[0]}
+      sonarr={bySource.sonarr[0]}
       sourceId={def.source}
       title={def.title}
       sourceLabel={`From ${instance.displayName}`}
