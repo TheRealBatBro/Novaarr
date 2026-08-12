@@ -9,6 +9,12 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Novaarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.39.2',
+    notes: [
+      'Hardened the published image — the final container is now built on Google\'s distroless nodejs20-debian12 (no shell, no package manager, no OS-level utilities beyond what running Node itself needs), instead of a full node:20-alpine image. Purely an internal build change: same behavior, same data, same everything else — verified the existing database from prior versions still loads correctly under it',
+    ],
+  },
+  {
     version: '0.39.1',
     notes: [
       'Fixed clicking a "Recently Added" Plex dashboard card landing on "Plex has no page of its own" — it now cross-references the item against Radarr/Sonarr (by TMDB/TVDB id, the same ones Plex\'s own metadata carries) and opens the real detail page there when it finds a match',
