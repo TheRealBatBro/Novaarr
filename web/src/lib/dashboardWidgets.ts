@@ -1071,7 +1071,13 @@ export function usePlexRecentlyAddedCarousel(
 ): CarouselResult {
   const { data, isLoading, refetch } = useServiceProxy<PlexContainerResponse<PlexMetadataItem>>(plex, {
     path: '/library/recentlyAdded',
-    query: { 'X-Plex-Container-Size': String(LIMIT) },
+    // includeGuids=1 is required — Plex only returns each item's external Guid array (the
+    // tmdb://.../tvdb://... ids this widget cross-references against Radarr/Sonarr) on
+    // single-item metadata requests by default; library-level endpoints like this one omit it
+    // entirely unless explicitly asked. Confirmed against Plex's own forum-documented behavior,
+    // not just assumed — the Radarr/Sonarr match silently finding nothing without this was
+    // exactly the bug this fixes.
+    query: { 'X-Plex-Container-Size': String(LIMIT), includeGuids: '1' },
     ...refreshSchedule(plex),
   });
   const lookups = useArrLookups(radarr, sonarr);

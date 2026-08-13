@@ -9,6 +9,12 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Novaarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.39.3',
+    notes: [
+      'Actually fixed clicking a Plex "Recently Added" card landing on "Plex has no page of its own" — the Radarr/Sonarr matching added last version needed Plex\'s external ids (tmdb://.../tvdb://...), but Plex only includes those on this endpoint when includeGuids=1 is explicitly requested, which the request wasn\'t doing. It is now — verified by confirming the request against a Plex-shaped test server that only returns ids under that same condition',
+    ],
+  },
+  {
     version: '0.39.2',
     notes: [
       'Hardened the published image — the final container is now built on Google\'s distroless nodejs20-debian12 (no shell, no package manager, no OS-level utilities beyond what running Node itself needs), instead of a full node:20-alpine image. Purely an internal build change: same behavior, same data, same everything else — verified the existing database from prior versions still loads correctly under it',
