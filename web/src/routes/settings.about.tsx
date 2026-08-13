@@ -9,6 +9,14 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Novaarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.39.4',
+    notes: [
+      'Fixed Plex "Recently Added" TV episodes never linking to Sonarr — an episode\'s own external id is episode-specific, not the show\'s, so matching it against Sonarr always missed; now resolves the show\'s own id first via a dedicated lookup',
+      'Clicking a matched Plex card now opens the same in-place dialog Radarr/Sonarr\'s own carousels use instead of navigating to a full page',
+      'A matched TV episode opens an episode-only dialog (poster, overview, file info) instead of the whole series page',
+    ],
+  },
+  {
     version: '0.39.3',
     notes: [
       'Actually fixed clicking a Plex "Recently Added" card landing on "Plex has no page of its own" — the Radarr/Sonarr matching added last version needed Plex\'s external ids (tmdb://.../tvdb://...), but Plex only includes those on this endpoint when includeGuids=1 is explicitly requested, which the request wasn\'t doing. It is now — verified by confirming the request against a Plex-shaped test server that only returns ids under that same condition',

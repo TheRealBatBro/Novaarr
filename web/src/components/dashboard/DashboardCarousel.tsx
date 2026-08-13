@@ -10,6 +10,7 @@ import type { ServiceInstance } from '@/lib/api';
 import type { CarouselItem, PosterStatus } from '@/lib/dashboardWidgets';
 import { OverseerrRequestDialog } from '@/components/services/overseerr/OverseerrRequestDialog';
 import { TitleDetailDialog } from '@/components/services/arr/TitleDetailDialog';
+import { EpisodeByNumberDialog } from '@/components/services/arr/detail/EpisodeByNumberDialog';
 
 const STATUS_DOT: Record<PosterStatus, string> = {
   downloaded: 'bg-success',
@@ -34,6 +35,8 @@ export function DashboardCarousel({
   error,
   sourceInstance,
   overseerrInstance,
+  radarrInstance,
+  sonarrInstance,
   refetch,
 }: {
   title: string;
@@ -50,6 +53,11 @@ export function DashboardCarousel({
    * in place, so "back" closes it and returns to the dashboard instead of full-page navigation. */
   sourceInstance?: ServiceInstance;
   overseerrInstance?: ServiceInstance;
+  /** Only needed when sourceId itself isn't 'radarr'/'sonarr' (e.g. Plex, Emby, Jellyfin) but an
+   * item can still resolve to one via cross-referencing (see plexItemLinkTarget) — lets that
+   * click open the same in-place dialog instead of falling back to full-page navigation. */
+  radarrInstance?: ServiceInstance;
+  sonarrInstance?: ServiceInstance;
   /** Named to match CarouselResult's own field, so callers can just spread {...result} instead of
    * remapping it — present on widgets that run on a slow/cached schedule rather than the default
    * ~10s poll, and shown as a manual refresh button next to the source label. */
@@ -59,7 +67,8 @@ export function DashboardCarousel({
   const trackRef = useRef<HTMLDivElement>(null);
   const [hovering, setHovering] = useState(false);
   const [detailItem, setDetailItem] = useState<CarouselItem | null>(null);
-  const [titleDetail, setTitleDetail] = useState<{ serviceId: 'radarr' | 'sonarr'; itemId: number } | null>(null);
+  const [titleDetail, setTitleDetail] = useState<{ serviceId: 'radarr' | 'sonarr'; itemId: number; instance: ServiceInstance } | null>(null);
+  const [episodeDetail, setEpisodeDetail] = useState<{ instance: ServiceInstance; seriesId: number; season: number; episode: number; seriesTitle: string } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const Icon = getServiceIcon(sourceId);
 
@@ -83,10 +92,17 @@ export function DashboardCarousel({
   }
 
   function openItem(item: CarouselItem) {
+    const resolvedRadarr = sourceId === 'radarr' ? sourceInstance : radarrInstance;
+    const resolvedSonarr = sourceId === 'sonarr' ? sourceInstance : sonarrInstance;
+
     if (item.overseerrDetail && overseerrInstance) {
       setDetailItem(item);
-    } else if (item.to.itemId && sourceInstance && (sourceId === 'radarr' || sourceId === 'sonarr')) {
-      setTitleDetail({ serviceId: sourceId, itemId: Number(item.to.itemId) });
+    } else if (item.to.serviceId === 'radarr' && item.to.itemId && resolvedRadarr) {
+      setTitleDetail({ serviceId: 'radarr', itemId: Number(item.to.itemId), instance: resolvedRadarr });
+    } else if (item.to.serviceId === 'sonarr' && item.to.itemId && resolvedSonarr && item.to.season !== undefined && item.to.episode !== undefined) {
+      setEpisodeDetail({ instance: resolvedSonarr, seriesId: Number(item.to.itemId), season: item.to.season, episode: item.to.episode, seriesTitle: item.title });
+    } else if (item.to.serviceId === 'sonarr' && item.to.itemId && resolvedSonarr) {
+      setTitleDetail({ serviceId: 'sonarr', itemId: Number(item.to.itemId), instance: resolvedSonarr });
     } else if (item.to.itemId) {
       const targetInstance = item.to.serviceId === sourceId ? sourceInstance : item.to.serviceId === 'overseerr' ? overseerrInstance : undefined;
       navigate({ to: '/service/$serviceId/title/$itemId', params: { serviceId: targetInstance ? String(targetInstance.id) : item.to.serviceId, itemId: item.to.itemId } });
@@ -243,12 +259,23 @@ export function DashboardCarousel({
         />
       )}
 
-      {titleDetail && sourceInstance && (
+      {titleDetail && (
         <TitleDetailDialog
           serviceId={titleDetail.serviceId}
-          instance={sourceInstance}
+          instance={titleDetail.instance}
           itemId={titleDetail.itemId}
           onClose={() => setTitleDetail(null)}
+        />
+      )}
+
+      {episodeDetail && (
+        <EpisodeByNumberDialog
+          instance={episodeDetail.instance}
+          seriesId={episodeDetail.seriesId}
+          seriesTitle={episodeDetail.seriesTitle}
+          season={episodeDetail.season}
+          episode={episodeDetail.episode}
+          onClose={() => setEpisodeDetail(null)}
         />
       )}
     </motion.div>

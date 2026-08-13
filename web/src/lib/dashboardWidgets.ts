@@ -181,7 +181,7 @@ export const TMDB_IMAGE = 'https://image.tmdb.org/t/p/w342';
 
 export type PosterStatus = 'downloaded' | 'downloading' | 'upcoming' | 'missing';
 
-export type CarouselLinkTarget = { serviceId: string; itemId?: string };
+export type CarouselLinkTarget = { serviceId: string; itemId?: string; season?: number; episode?: number };
 export type CarouselItem = {
   id: string;
   title: string;
@@ -1014,6 +1014,7 @@ type PlexMetadataItem = {
   index?: number;
   parentIndex?: number;
   Guid?: PlexGuid[];
+  grandparentRatingKey?: string;
 };
 type PlexDirectory = { key: string; title: string; type: string };
 type PlexCollectionItem = { ratingKey: string; title: string; thumb?: string; childCount?: string };
@@ -1044,22 +1045,59 @@ function useArrLookups(radarr: ServiceInstance | undefined, sonarr: ServiceInsta
   return { byTmdbId, byTvdbId };
 }
 
-/** A movie's tmdbId matches Radarr; a show/episode's tvdbId matches Sonarr (episodes carry the
- * show's own tvdbId, same as the show itself, via the parent-level Guid Plex includes). Falls
+/** An episode's own Guid (from the recentlyAdded list) is the *episode's* external id, not the
+ * show's — matching it against Sonarr's series-level tvdbId map always misses, which is exactly
+ * why episode cards never linked. The show's own tvdbId has to come from a separate lookup keyed
+ * by grandparentRatingKey (see useShowTvdbLookup below); a bare "show" item (no grandparent)
+ * still carries its own tvdbId directly and doesn't need that extra hop. */
+function useShowTvdbLookup(plex: ServiceInstance | undefined, grandparentRatingKeys: string[]) {
+  const keyList = [...new Set(grandparentRatingKeys)].sort();
+  const cacheKey = keyList.join(',');
+  return useQuery({
+    queryKey: ['plex-show-tvdb', plex?.id, cacheKey],
+    queryFn: async () => {
+      const entries = await mapWithConcurrency(keyList, POSTER_FETCH_CONCURRENCY, async (key) => {
+        try {
+          const res = await proxyApi.call<PlexContainerResponse<PlexMetadataItem>>(plex!.id, {
+            path: `/library/metadata/${key}`,
+            query: { includeGuids: '1' },
+            timeoutMs: 8000,
+          });
+          const show = res.ok ? res.data?.MediaContainer?.Metadata?.[0] : undefined;
+          return [key, plexGuidIds(show?.Guid).tvdbId] as const;
+        } catch {
+          return [key, undefined] as const;
+        }
+      });
+      return Object.fromEntries(entries) as Record<string, number | undefined>;
+    },
+    enabled: !!plex && keyList.length > 0,
+    staleTime: 10 * 60_000,
+    retry: 1,
+  });
+}
+
+/** A movie's tmdbId matches Radarr. A show's own tvdbId (or, for an episode, its show's tvdbId
+ * resolved via useShowTvdbLookup) matches Sonarr — an episode match also carries its season/
+ * episode number, so the click can open just that episode instead of the whole series. Falls
  * back to Plex's own (page-less) service target when nothing configured matches. */
 function plexItemLinkTarget(
-  type: PlexMetadataItem['type'],
-  guids: PlexGuid[] | undefined,
+  item: PlexMetadataItem,
+  showTvdbId: number | undefined,
   lookups: { byTmdbId: Map<number, number>; byTvdbId: Map<number, number> },
 ): CarouselLinkTarget {
-  const { tmdbId, tvdbId } = plexGuidIds(guids);
-  if (type === 'movie' && tmdbId !== undefined) {
+  const { tmdbId, tvdbId } = plexGuidIds(item.Guid);
+  if (item.type === 'movie' && tmdbId !== undefined) {
     const radarrId = lookups.byTmdbId.get(tmdbId);
     if (radarrId !== undefined) return { serviceId: 'radarr', itemId: String(radarrId) };
   }
-  if ((type === 'episode' || type === 'show') && tvdbId !== undefined) {
+  if (item.type === 'show' && tvdbId !== undefined) {
     const sonarrId = lookups.byTvdbId.get(tvdbId);
     if (sonarrId !== undefined) return { serviceId: 'sonarr', itemId: String(sonarrId) };
+  }
+  if (item.type === 'episode' && showTvdbId !== undefined && item.parentIndex !== undefined && item.index !== undefined) {
+    const sonarrId = lookups.byTvdbId.get(showTvdbId);
+    if (sonarrId !== undefined) return { serviceId: 'sonarr', itemId: String(sonarrId), season: item.parentIndex, episode: item.index };
   }
   return { serviceId: 'plex' };
 }
@@ -1082,6 +1120,10 @@ export function usePlexRecentlyAddedCarousel(
   });
   const lookups = useArrLookups(radarr, sonarr);
   const rows = data?.ok ? data.data?.MediaContainer?.Metadata ?? [] : [];
+  const showTvdbQuery = useShowTvdbLookup(
+    plex,
+    rows.filter((r) => r.type === 'episode' && r.grandparentRatingKey).map((r) => r.grandparentRatingKey!),
+  );
   const items: CarouselItem[] = rows.slice(0, LIMIT).map((r) => {
     const isEpisode = r.type === 'episode';
     const thumb = isEpisode ? r.grandparentThumb || r.thumb : r.thumb;
@@ -1092,12 +1134,13 @@ export function usePlexRecentlyAddedCarousel(
       : r.year
         ? String(r.year)
         : undefined;
+    const showTvdbId = r.grandparentRatingKey ? showTvdbQuery.data?.[r.grandparentRatingKey] : undefined;
     return {
       id: r.ratingKey,
       title: isEpisode ? r.grandparentTitle || r.title : r.title,
       subtitle,
       imageUrl: plexImageUrl(plex, thumb),
-      to: plexItemLinkTarget(r.type, r.Guid, lookups),
+      to: plexItemLinkTarget(r, showTvdbId, lookups),
     };
   });
   return { items, isLoading, error: proxyError(data), refetch: async () => void (await refetch()) };

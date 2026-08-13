@@ -133,12 +133,17 @@ function TautulliRecentlyAdded({ instance, sourceId, title, sourceLabel, sourceC
 }
 function PlexRecentlyAdded({ instance, radarr, sonarr, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
   const result = usePlexRecentlyAddedCarousel(instance, radarr, sonarr);
-  // sourceInstance/overseerrInstance aren't set here — DashboardCarousel's openItem only fast-
-  // paths the in-place dialog when sourceId itself is 'radarr'/'sonarr'; a matched Plex item
-  // (to.serviceId 'radarr'/'sonarr' with sourceId still 'plex') instead takes its generic
-  // navigate-to-page fallback, which resolves that service id to whichever instance is
-  // configured — a full page instead of the in-place dialog, but a real page either way.
-  return <DashboardCarousel title={title} sourceId={sourceId} sourceLabel={sourceLabel} sourceColor={sourceColor} {...result} />;
+  return (
+    <DashboardCarousel
+      title={title}
+      sourceId={sourceId}
+      sourceLabel={sourceLabel}
+      sourceColor={sourceColor}
+      radarrInstance={radarr}
+      sonarrInstance={sonarr}
+      {...result}
+    />
+  );
 }
 function PlexCollections({ instance, sourceId, title, sourceLabel, sourceColor }: SourceProps) {
   const result = usePlexCollectionsCarousel(instance);

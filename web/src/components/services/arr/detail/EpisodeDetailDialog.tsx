@@ -74,7 +74,7 @@ export function EpisodeDetailDialog({
   bazarr?: ServiceInstance;
   subtitleInfo?: BazarrEpisodeSubtitleInfo;
   onClose: () => void;
-  onOpenSearch: (ep: { id: number; episodeNumber: number }) => void;
+  onOpenSearch?: (ep: { id: number; episodeNumber: number }) => void;
 }) {
   const qc = useQueryClient();
   const { data: epResp, isLoading } = useServiceProxy<EpisodeFull>(instance, { path: `/api/v3/episode/${episodeId}` });
@@ -185,9 +185,11 @@ export function EpisodeDetailDialog({
         )}
 
         <div className="flex min-w-0 flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={() => onOpenSearch({ id: ep.id, episodeNumber: ep.episodeNumber })}>
-            <Search className="h-3.5 w-3.5" /> Search
-          </Button>
+          {onOpenSearch && (
+            <Button variant="outline" size="sm" onClick={() => onOpenSearch({ id: ep.id, episodeNumber: ep.episodeNumber })}>
+              <Search className="h-3.5 w-3.5" /> Search
+            </Button>
+          )}
           {ep.hasFile && ep.episodeFileId && (
             <Button variant="outline" size="sm" disabled={deleteFile.isPending} onClick={() => deleteFile.mutate()}>
               <Trash2 className="h-3.5 w-3.5 text-destructive" /> Delete file
