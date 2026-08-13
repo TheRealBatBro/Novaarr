@@ -9,6 +9,13 @@ const REPO_URL = 'https://github.com/TheRealBatBro/Novaarr';
 
 const CHANGELOG: { version: string; notes: string[] }[] = [
   {
+    version: '0.39.5',
+    notes: [
+      'Fixed Plex "Recently Added" TV cards still not linking to Sonarr for the common case — a whole season landing at once shows up as a "season" item, not one row per episode, and that shape wasn\'t handled at all by the previous fix (only the rarer single-episode item was)',
+      'A matched season now opens the series in the same in-place dialog; a matched single episode still opens just that episode',
+    ],
+  },
+  {
     version: '0.39.4',
     notes: [
       'Fixed Plex "Recently Added" TV episodes never linking to Sonarr — an episode\'s own external id is episode-specific, not the show\'s, so matching it against Sonarr always missed; now resolves the show\'s own id first via a dedicated lookup',

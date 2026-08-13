@@ -1008,6 +1008,7 @@ type PlexMetadataItem = {
   type: 'movie' | 'episode' | 'season' | 'show';
   title: string;
   grandparentTitle?: string;
+  parentTitle?: string;
   year?: number;
   thumb?: string;
   grandparentThumb?: string;
@@ -1015,6 +1016,7 @@ type PlexMetadataItem = {
   parentIndex?: number;
   Guid?: PlexGuid[];
   grandparentRatingKey?: string;
+  parentRatingKey?: string;
 };
 type PlexDirectory = { key: string; title: string; type: string };
 type PlexCollectionItem = { ratingKey: string; title: string; thumb?: string; childCount?: string };
@@ -1047,11 +1049,14 @@ function useArrLookups(radarr: ServiceInstance | undefined, sonarr: ServiceInsta
 
 /** An episode's own Guid (from the recentlyAdded list) is the *episode's* external id, not the
  * show's — matching it against Sonarr's series-level tvdbId map always misses, which is exactly
- * why episode cards never linked. The show's own tvdbId has to come from a separate lookup keyed
- * by grandparentRatingKey (see useShowTvdbLookup below); a bare "show" item (no grandparent)
- * still carries its own tvdbId directly and doesn't need that extra hop. */
-function useShowTvdbLookup(plex: ServiceInstance | undefined, grandparentRatingKeys: string[]) {
-  const keyList = [...new Set(grandparentRatingKeys)].sort();
+ * why episode cards never linked. Same problem for a "season" item (the shape recentlyAdded uses
+ * when a whole season lands at once, the common case for a downloaded season pack): its own Guid
+ * (if any) isn't the show's either. Both need the show's own tvdbId from a separate lookup keyed
+ * by the show's ratingKey — grandparentRatingKey for an episode, parentRatingKey for a season. A
+ * bare "show" item (no parent/grandparent) still carries its own tvdbId directly and doesn't
+ * need that extra hop. */
+function useShowTvdbLookup(plex: ServiceInstance | undefined, showRatingKeys: string[]) {
+  const keyList = [...new Set(showRatingKeys)].sort();
   const cacheKey = keyList.join(',');
   return useQuery({
     queryKey: ['plex-show-tvdb', plex?.id, cacheKey],
@@ -1099,6 +1104,13 @@ function plexItemLinkTarget(
     const sonarrId = lookups.byTvdbId.get(showTvdbId);
     if (sonarrId !== undefined) return { serviceId: 'sonarr', itemId: String(sonarrId), season: item.parentIndex, episode: item.index };
   }
+  // A whole season landing at once (the common case for a downloaded season pack) shows up in
+  // recentlyAdded as a "season" item, not one row per episode — no single episode to point at,
+  // so this opens the series itself rather than a specific episode.
+  if (item.type === 'season' && showTvdbId !== undefined) {
+    const sonarrId = lookups.byTvdbId.get(showTvdbId);
+    if (sonarrId !== undefined) return { serviceId: 'sonarr', itemId: String(sonarrId) };
+  }
   return { serviceId: 'plex' };
 }
 
@@ -1120,24 +1132,29 @@ export function usePlexRecentlyAddedCarousel(
   });
   const lookups = useArrLookups(radarr, sonarr);
   const rows = data?.ok ? data.data?.MediaContainer?.Metadata ?? [] : [];
+  const showRatingKeyOf = (r: PlexMetadataItem) => (r.type === 'episode' ? r.grandparentRatingKey : r.type === 'season' ? r.parentRatingKey : undefined);
   const showTvdbQuery = useShowTvdbLookup(
     plex,
-    rows.filter((r) => r.type === 'episode' && r.grandparentRatingKey).map((r) => r.grandparentRatingKey!),
+    rows.map(showRatingKeyOf).filter((k): k is string => !!k),
   );
   const items: CarouselItem[] = rows.slice(0, LIMIT).map((r) => {
     const isEpisode = r.type === 'episode';
+    const isSeason = r.type === 'season';
     const thumb = isEpisode ? r.grandparentThumb || r.thumb : r.thumb;
     const subtitle = isEpisode
       ? r.parentIndex !== undefined && r.index !== undefined
         ? `S${r.parentIndex}E${String(r.index).padStart(2, '0')}`
         : undefined
-      : r.year
-        ? String(r.year)
-        : undefined;
-    const showTvdbId = r.grandparentRatingKey ? showTvdbQuery.data?.[r.grandparentRatingKey] : undefined;
+      : isSeason
+        ? r.title
+        : r.year
+          ? String(r.year)
+          : undefined;
+    const showRatingKey = showRatingKeyOf(r);
+    const showTvdbId = showRatingKey ? showTvdbQuery.data?.[showRatingKey] : undefined;
     return {
       id: r.ratingKey,
-      title: isEpisode ? r.grandparentTitle || r.title : r.title,
+      title: isEpisode ? r.grandparentTitle || r.title : isSeason ? r.parentTitle || r.title : r.title,
       subtitle,
       imageUrl: plexImageUrl(plex, thumb),
       to: plexItemLinkTarget(r, showTvdbId, lookups),
